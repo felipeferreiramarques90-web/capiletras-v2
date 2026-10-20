@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#234e40">
+    <meta name="description" content="Uma letra por vez, uma palavra entre amigos. Jogue Capiletras online, de graça e em tempo real.">
+    <title>Capiletras — uma letra por vez</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/styles.css">
+    <script src="/socket.io/socket.io.js" defer></script>
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a href="/" class="brand" aria-label="Capiletras, início"><span class="brand-icon" aria-hidden="true">c<span>*</span></span>capiletras<span class="brand-dot">.</span></a>
+      <div class="header-tools">
+        <span id="connection" class="connection" role="status">Conectando…</span>
+        <button type="button" class="text-button" id="open-rules">Como jogar <span aria-hidden="true">→</span></button>
+      </div>
+    </header>
+    <main id="app" aria-label="Jogo Capiletras"></main>
+    <footer class="site-footer"><span>FEITO PARA JUNTAR GENTE.</span><span>42 cartas. Infinitas possibilidades.</span></footer>
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+    <dialog id="letter-dialog" aria-labelledby="letter-title">
+      <div class="dialog-heading"><span class="eyebrow">SUA CARTA, SUA ESCOLHA</span><button type="button" class="icon-button" id="close-letter" aria-label="Fechar escolha de letra">×</button></div>
+      <h2 id="letter-title">Escolha uma letra</h2>
+      <p id="letter-hint" class="muted"></p>
+      <div id="letter-grid" class="letter-grid"></div>
+      <p class="dialog-note">A letra escolhida será adicionada à palavra.</p>
+    </dialog>
+    <dialog id="rules-dialog" aria-labelledby="rules-title">
+      <div class="dialog-heading"><span class="eyebrow">O COMBINADO DA MESA</span><button type="button" class="icon-button" id="close-rules" aria-label="Fechar regras">×</button></div>
+      <h2 id="rules-title">Uma letra por vez.</h2>
+      <ol class="rules-list">
+        <li><strong>Entre na roda.</strong> Reúna de 2 a 8 pessoas. O anfitrião escolhe quantas cartas cada um recebe.</li>
+        <li><strong>Construa a palavra.</strong> Na sua vez, baixe uma carta e acrescente uma letra ao centro da mesa.</li>
+        <li><strong>Precisou? Compre.</strong> Você pode comprar uma única carta por turno e depois precisa jogar.</li>
+        <li><strong>Escolha com liberdade.</strong> O coringa verde vale de A a Z. As cartas especiais indicam quais letras você pode escolher.</li>
+        <li><strong>Travou? PERDI.</strong> Apenas quem jogou a última carta pode dizer PERDI, até a próxima carta ser jogada. Compra até 4 cartas disponíveis e zera a palavra, sem mudar a vez.</li>
+        <li><strong>Mão vazia, vitória.</strong> Ganha quem baixar a última carta primeiro.</li>
+      </ol>
+      <div class="rules-tip">A mesa não consulta um dicionário. Combinem entre vocês quando a palavra deixou de ter continuação. Ao acabar a pilha, as cartas jogadas voltam ao baralho.</div>
+    </dialog>
+    <noscript>Ative o JavaScript do navegador para jogar Capiletras.</noscript>
+  </body>
+</html>
