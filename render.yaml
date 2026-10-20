@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: capiletras-v2
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
