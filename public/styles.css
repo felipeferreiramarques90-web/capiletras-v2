@@ -9,6 +9,9 @@
   --peach: #f2bb9c;
   --yellow: #ecd99d;
   --red: #a14236;
+  --life-card-background: #f5bed4;
+  --life-card-border: #c97597;
+  --life-card-ink: #741b40;
   font-family: 'Avenir Next', Avenir, 'Segoe UI', sans-serif;
   color: var(--ink);
   background: var(--paper);
@@ -190,6 +193,9 @@ fieldset:disabled input, fieldset:disabled select { opacity: .65; }
 .playing-card.card-red { background: #edb0aa; border-color: #cc807a; color: #602c29; }
 .playing-card.card-orange { background: #f4bf76; border-color: #d39b52; }
 .playing-card.card-purple { background: #d6c5ed; border-color: #ac92cb; color: #49325d; }
+.playing-card.card-pink { background: var(--life-card-background); border-color: var(--life-card-border); color: var(--life-card-ink); }
+.playing-card.card-pink > strong { font-family: Georgia, serif; font-size: 43px; }
+.life-protection { display: inline-block; background: var(--life-card-background); color: var(--life-card-ink); padding: 6px 8px; border-radius: 6px; font-size: 10px; font-weight: 650; }
 .playing-card.card-purple > strong { font-size: 31px; font-weight: 750; }
 .playing-card.card-blue > strong, .playing-card.card-red > strong { font-size: 27px; }
 .playing-card.card-orange > strong { font-size: 35px; font-weight: 750; }

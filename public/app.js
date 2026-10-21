@@ -150,6 +150,7 @@
 
   function table() {
     const game = room.game;
+    const protectedByLife = game.protectedPlayerId === room.meId;
     const current = room.players.find((p) => p.id === game.turnPlayerId);
     const myTurn = game.canPlay && canAct();
     const meIndex = room.players.findIndex((p) => p.id === room.meId);
@@ -160,7 +161,7 @@
       <section class="table-felt" aria-label="Centro da mesa"><div class="felt-caption">CAPILETRAS · A MESA É DE TODOS</div>
         <div class="table-center"><button class="draw-pile ${game.canDraw ? 'available' : ''}" data-action="draw" ${disabled(!game.canDraw || !canAct())} aria-label="Comprar uma carta. ${game.deckCount} cartas na pilha, ${game.discardCount} para reembaralhar."><span class="deck-back" aria-hidden="true"><span>c<span>*</span></span></span><strong>COMPRAR</strong><small>${game.deckCount} na pilha${game.discardCount ? ` · ${game.discardCount} jogadas` : ''}</small></button>
         <div class="word-area"><span class="eyebrow">NOSSA PALAVRA</span><div class="word-display ${game.word ? '' : 'word-empty'}" aria-label="Palavra atual: ${escape(game.word || 'vazia')}">${game.word ? escape(game.word) : 'A primeira letra é com você.'}</div><p>${game.word ? `${game.word.length} letra${game.word.length === 1 ? '' : 's'} e contando…` : 'Uma carta é tudo que precisa para começar.'}</p>${game.blockedLetter ? `<div class="block-badge" role="status">➕🚫 Letra bloqueada: <strong>${game.blockedLetter}</strong><span>até a próxima jogada com letra</span></div>` : ''}${game.extraTurns.length ? `<p class="extra-turn-notice">2x ativo · retorno para ${escape(room.players.find((p) => p.id === game.extraTurns.at(-1))?.name)}</p>` : ''}</div>
-        <div class="lose-area"><button class="button lose-button" data-action="lose" ${disabled(!game.canLose || !canAct())}>PERDI <span aria-hidden="true">↺</span></button><p>Compre até ${room.config.lossPenalty} cartas.<br>Zere palavra e bloqueio.</p></div></div>
+        <div class="lose-area"><button class="button lose-button" data-action="lose" aria-describedby="loss-help" title="${protectedByLife ? 'Protegido pela Vida' : 'PERDI'}" ${disabled(!game.canLose || !canAct())}>PERDI <span aria-hidden="true">↺</span></button><p id="loss-help">${protectedByLife ? '<span class="life-protection">Protegido pela Vida ❤️</span>' : `Compre até ${room.config.lossPenalty} cartas.<br>Zere palavra e bloqueio.`}</p></div></div>
         <p class="table-notice" role="status">${escape(room.notice)}</p>
       </section>
       <section class="hand-section" aria-label="Sua mão"><div class="hand-heading"><div><span class="eyebrow">SUAS POSSIBILIDADES</span><h2>Sua mão <span>${room.hand.length} carta${room.hand.length === 1 ? '' : 's'}</span></h2></div><p>${game.drawsThisTurn && game.turnPlayerId === room.meId ? (game.noPlayableCards ? 'Você já comprou e segue sem carta jogável. Use PERDI.' : 'Você já comprou. Agora, baixe uma carta.') : !game.availableCount ? 'Sem cartas para comprar. Escolha uma da mão.' : `Compre até ${room.config.maxDrawsPerTurn} carta por turno, se quiser.`}</p></div>
@@ -172,10 +173,11 @@
     const rule = room.config.cardTypes[card.type];
     const fixed = card.type === 'letter';
     const title = fixed ? card.letter : rule.label;
-    const symbol = fixed ? card.letter : rule.symbol;
+    // Coração em texto mantém o contraste configurado, sem depender da cor do emoji do sistema.
+    const symbol = card.type === 'life' ? '♥' : fixed ? card.letter : rule.symbol;
     const special = !fixed && card.type !== 'wild';
     const reason = room.game.playableCardIds.includes(card.id) ? '' : card.type === 'swap' && !room.game.word ? 'Visor vazio' : card.type === 'double' ? 'Sem jogada anterior' : 'Letra bloqueada';
-    return `<button class="playing-card card-${rule.color} ${card.type === 'wild' ? 'wild-card' : ''} ${special ? 'special-card' : ''} ${reason ? 'unplayable-card' : ''}" data-card="${escape(card.id)}" ${disabled(!enabled)} aria-label="Jogar ${escape(title)}${reason ? `: ${reason}` : ''}" title="${escape(reason || title)}"><span class="card-corner">${escape(symbol)}</span><strong class="${special ? 'card-special-title' : ''}">${escape(special && ['swap', 'block', 'double', 'multi'].includes(card.type) ? symbol : fixed ? title : card.type === 'wild' ? '*' : title)}</strong><span class="card-bottom">${escape(reason || title.toUpperCase())}</span></button>`;
+    return `<button class="playing-card card-${rule.color} ${card.type === 'wild' ? 'wild-card' : ''} ${special ? 'special-card' : ''} ${reason ? 'unplayable-card' : ''}" data-card="${escape(card.id)}" ${disabled(!enabled)} aria-label="Jogar ${escape(title)}${reason ? `: ${reason}` : ''}" title="${escape(reason || title)}"><span class="card-corner">${escape(symbol)}</span><strong class="${special ? 'card-special-title' : ''}">${escape(special && ['swap', 'block', 'double', 'multi', 'life'].includes(card.type) ? symbol : fixed ? title : card.type === 'wild' ? '*' : title)}</strong><span class="card-bottom">${escape(reason || title.toUpperCase())}</span></button>`;
   }
 
   function victory() {
