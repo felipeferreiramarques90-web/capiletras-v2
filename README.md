@@ -39,10 +39,10 @@ A mesa **não valida palavras em dicionário**. O grupo combina quando uma sequ�
 | Carta | Quantidade | Cor e símbolo | Efeito |
 | --- | ---: | --- | --- |
 | Troca | 8 | Azul clara, 🔄 | Escolha A–Z para **substituir a última letra**, sem aumentar o comprimento. Não vale com visor vazio, não pode repetir a letra substituída e respeita bloqueios. |
-| Bloqueio | 6 | Vermelha, ➕🚫 | Escolha uma letra para adicionar e outra para bloquear na **próxima jogada**. Os seletores são independentes: pode bloquear a própria letra adicionada. |
+| Bloqueio | 6 | Vermelha, ➕🚫 | Escolha uma letra para adicionar e outra para bloquear até a **próxima jogada que adiciona ou substitui letra**. Os seletores são independentes: pode bloquear a própria letra adicionada. |
 | 2x | 6 | Laranja, 2x | Não muda o visor. Quem baixou a carta imediatamente anterior joga novamente; depois, o autor do 2x recebe um novo turno com nova compra opcional. Só então a ordem normal continua. Não vale antes da primeira jogada. |
 
-O bloqueio fica visível no centro da mesa. Cartas fixas da letra bloqueada e essa letra em todos os seletores ficam desabilitadas. Comprar ou desconectar não consome o bloqueio: **a próxima carta jogada** o consome, inclusive um 2x; se essa carta também for Bloqueio, instala a nova restrição. Todo PERDI cancela o bloqueio. A escolha de qual letra bloquear pode ser qualquer A–Z, mesmo a que estava bloqueada.
+O bloqueio fica visível no centro da mesa. Cartas fixas da letra bloqueada e essa letra em todos os seletores ficam desabilitadas. Comprar, desconectar ou jogar **2x não consome nem cancela o bloqueio**. Ele permanece durante toda a cadeia de 2x e vale para qualquer jogador, inclusive quem o criou se for forçado a jogar novamente. A carta 2x não usa letra e continua jogável sob bloqueio, respeitando a exigência de já existir uma jogada anterior. Só uma carta efetivamente jogada que **adiciona ou substitui letra** (letra fixa, coringa, restritiva, Troca ou Bloqueio) consome a restrição. Se essa carta for um novo Bloqueio, sua letra adicionada ainda respeita o bloqueio anterior e a nova restrição o substitui. Todo PERDI cancela o bloqueio. A escolha de qual letra bloquear pode ser qualquer A–Z, mesmo a que estava bloqueada.
 
 O 2x pode formar uma cadeia. Exemplo com a ordem normal Ana → Bia → Caio:
 
