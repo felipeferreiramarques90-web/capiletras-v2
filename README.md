@@ -19,15 +19,24 @@ npm test             # testes de regras, armazenamento, HTTP e Socket.IO
 npm run dev          # reinicia o servidor ao editar os arquivos do servidor
 ```
 
+Para executar os testes de interface com dois jogadores em navegadores isolados, incluindo cancelamento dos modais e tela de celular:
+
+```bash
+npx playwright install chromium  # uma vez, para baixar o navegador de teste
+npm run test:browser
+```
+
+Se já houver Chromium instalado, use `CHROMIUM_EXECUTABLE_PATH=/caminho/do/chromium npm run test:browser`. Os testes iniciam o próprio servidor em uma porta livre e não alteram salas de um servidor em uso.
+
 O front-end é estático: recarregue o navegador após editá-lo. Não há etapa de compilação. Para uma instalação exata a partir do lockfile, use `npm ci`. A porta usa `process.env.PORT`, com padrão `3000`; a mesma porta serve os arquivos e o Socket.IO. `GET /health` responde HTTP 200 com `{"status":"ok"}`.
 
 ## Como jogar
 
-- O baralho tem **72 cartas**: as 42 originais (26 letras fixas, 12 coringas verdes e as 4 cartas restritivas), mais **8 Trocas, 6 Bloqueios e 6 cartas 2x**, além de **5 cartas `2+*` e 5 cartas Vida**. As quantidades dos tipos anteriores permanecem iguais.
-- O mínimo de cartas iniciais é 3. O máximo é `floor((tamanhoDoBaralho - reservaDeCompra) / jogadores)`. A reserva padrão é 1: são até **35 cartas para 2 jogadores** ou **8 para 8**. O tamanho do baralho é calculado a partir das quantidades em `CARD_TYPES`, em `game/config.js`; a interface recebe a mesma configuração do servidor.
+- O baralho tem **84 cartas**: as 42 originais (26 letras fixas, 12 coringas verdes e as 4 cartas restritivas), mais **8 Trocas, 6 Bloqueios e 6 cartas 2x**, além de **5 cartas `2+*`, 5 cartas Vida e 12 cartas Passar letra**. As quantidades dos tipos anteriores permanecem iguais.
+- O mínimo de cartas iniciais é 3. O máximo é `floor((tamanhoDoBaralho - reservaDeCompra) / jogadores)`. A reserva padrão é 1: são até **41 cartas para 2 jogadores** ou **10 para 8**. O tamanho do baralho é calculado a partir das quantidades em `CARD_TYPES`, em `game/config.js`; a interface recebe a mesma configuração do servidor.
 - Na sua vez, você pode comprar **no máximo uma carta**, opcionalmente. Comprar não passa a vez: baixe uma carta, inclusive a recém-comprada. Sem comprar, também pode jogar diretamente.
 - Cartas fixas acrescentam sua letra. Nas demais, um seletor habilita somente as letras válidas. As escolhas vão de A a Z, sem acentos; Y é tratado como consoante.
-- **PERDI** pode ser usado por quem baixou a última carta (inclusive 2x), enquanto ninguém ainda tiver jogado depois, **ou por quem está na vez sem nenhuma carta jogável**. Não é preciso comprar antes; a compra opcional continua disponível e pode trazer uma carta jogável. A penalidade compra até 4 cartas, zera a palavra, cancela o bloqueio e mantém a vez e o contador de compras de quem já estava jogando. A penalidade independe da compra opcional. O último jogador perde sua janela depois de um PERDI, mas quem continua na vez sem carta jogável pode usar novamente.
+- **PERDI** pode ser usado por quem baixou a última carta (inclusive 2x e Passar letra), enquanto ninguém ainda tiver jogado depois, **ou por quem está na vez sem nenhuma carta jogável**. A proteção da Vida continua valendo. Não é preciso comprar antes; a compra opcional continua disponível e pode trazer uma carta jogável. A penalidade compra até 4 cartas, zera a palavra e o débito de letras, cancela o bloqueio e mantém a vez e o contador de compras de quem já estava jogando. A penalidade independe da compra opcional. O último jogador perde sua janela depois de um PERDI, mas quem continua na vez sem carta jogável pode usar novamente.
 - Se, depois do PERDI, o jogador da vez continuar sem carta jogável e não restar compra nem descarte, a vez passa para o próximo, respeitando retornos pendentes de 2x. **A palavra é zerada antes dessa passagem**, inclusive se já não havia cartas para comprar. Não há compra extra nem passagem automática por uma mão injogável: a passagem excepcional só ocorre ao usar PERDI.
 - Se a pilha acabar, as cartas já jogadas são embaralhadas e voltam para compra, sem apagar a palavra. Se nem o descarte tiver cartas, a compra é desabilitada. Se restarem menos de 4 cartas disponíveis para uma penalidade, compram-se todas as disponíveis, sem criar cartas extras.
 - Ao baixar a última carta, a vitória é imediata e não há mais PERDI. Todos veem o resultado; o anfitrião pode começar uma revanche ou voltar à sala. Os demais podem aguardar ou sair para o início.
@@ -38,11 +47,30 @@ A mesa **não valida palavras em dicionário**. O grupo combina quando uma sequ�
 
 | Carta | Quantidade | Cor e símbolo | Efeito |
 | --- | ---: | --- | --- |
-| Troca | 8 | Azul clara, 🔄 | Escolha A–Z para **substituir a última letra**, sem aumentar o comprimento. Não vale com visor vazio, não pode repetir a letra substituída e respeita bloqueios. |
+| Troca | 8 | Azul clara, 🔄 | Escolha A–Z para **substituir a última letra** por outra. Sem débito, exige visor preenchido e respeita bloqueios. Com débito, primeiro entram as acumuladas e a última delas é substituída; vale mesmo com visor inicialmente vazio. |
 | Bloqueio | 6 | Vermelha, ➕🚫 | Escolha uma letra para adicionar e outra para bloquear até a **próxima jogada que adiciona ou substitui letra**. Os seletores são independentes: pode bloquear a própria letra adicionada. |
 | 2x | 6 | Laranja, 2x | Não muda o visor. Quem baixou a carta imediatamente anterior joga novamente; depois, o autor do 2x recebe um novo turno com nova compra opcional. Só então a ordem normal continua. Não vale antes da primeira jogada. |
 | 2+* | 5 | Lilás, 2+* | Digite duas ou mais letras para acrescentar à palavra. Só a primeira respeita o Bloqueio ativo. |
 | Vida | 5 | Rosa, ❤️ | Só vogais: escolha A, E, I, O ou U e adicione ao visor. Depois, o autor fica impedido de usar PERDI nessa janela. |
+| Passar letra | 12 | Preta, seta → em gradiente | Não usa letra: passa a vez e transfere ao próximo o débito anterior acrescido de uma letra. Sempre jogável, inclusive como primeira carta. |
+
+### Letras acumuladas: Passar letra
+
+Cada **Passar letra** acrescenta uma letra ao débito de quem recebe a vez. Se Ana joga Passar letra e Bia responde com outra, Caio deve **2 letras**. A palavra permanece igual e o Bloqueio ativo continua. A carta é sempre jogável, inclusive na primeira jogada; esvaziar a mão com ela vence normalmente.
+
+Antes de jogar uma carta que adiciona ou substitui letra (fixa, coringa, restritiva, Troca, Bloqueio, Vida ou `2+*`), o devedor preenche **exatamente N letras** no modal **Letras acumuladas**. Essas letras são livres de A a Z, independentemente das restrições da carta. O campo normaliza para maiúsculas e remove caracteres inválidos; o servidor rejeita entradas com espaços, números, acentos ou símbolos. O modal mostra contador, prévia e, quando necessário, a letra bloqueada. Depois vem a escolha normal da carta; uma carta fixa já tem sua própria letra definida.
+
+O envio é **uma única jogada atômica**: cancelar o pagamento ou qualquer modal seguinte mantém carta, palavra, bloqueio, débito e vez. O servidor revalida todas as escolhas antes de salvar. Se a mesa mudar durante a escolha, os modais fecham para que o jogador confira o novo estado.
+
+A ordem no visor é **palavra atual + letras acumuladas + efeito da carta**. Exemplo: palavra `CA`, débito 2, pagamento `SO` e carta fixa `R` resultam em `CASOR`. A Troca substitui a última acumulada por uma letra diferente: com visor vazio, pagamento `AB` e Troca para `C`, o resultado é `AC`. O pagamento zera o débito e permite vencer normalmente ao baixar a última carta.
+
+Com Bloqueio, **só a primeira letra acumulada não pode ser a bloqueada**; as demais são livres. O pagamento consome o Bloqueio antes da carta: com K bloqueado e débito 2, `AK` + carta fixa K é válido e produz `AKK`. A letra própria da Vida continua sendo vogal e o texto próprio da `2+*` continua exigindo 2 a 16 letras, mas não sofrem mais aquele bloqueio. Uma nova carta Bloqueio instala a nova restrição depois do pagamento.
+
+**2x e Passar letra não pagam o débito.** No 2x, ele acompanha quem é forçado a jogar de novo. Se esse jogador usar Passar letra, soma mais uma e devolve o débito ao autor do 2x; nas cadeias de 2x, ele sempre acompanha quem vai jogar, respeitando a pilha de retornos. Comprar uma carta não paga nem aumenta o débito. **PERDI zera todo o débito**, além de zerar a palavra e cancelar o Bloqueio, e avisa a mesa. A proteção da Vida continua restrita ao seu autor.
+
+O centro da mesa mostra **“Fulano deve N letras”** para todos. O estado `game.letterDebt = { count, playerId }` é JSON serializável; ele acompanha também passagens por desconexão. Quantidade (`12`) e acréscimo (`1`) ficam em `CARD_TYPES.pass`, em `game/config.js`. O preto e as cores da seta são ajustáveis nas variáveis `--pass-card-background` e `--pass-arrow-gradient` de `public/styles.css`.
+
+### Outras interações
 
 A carta `2+*` é um coringa de várias letras: digite uma sequência de **2 a 16 letras de A a Z**. Todas entram no final do visor, na ordem digitada, em maiúsculas. O modal remove espaços, números, acentos e símbolos enquanto você digita; o servidor rejeita esses caracteres se forem enviados diretamente. Não há validação por dicionário. A quantidade (`5`), o mínimo (`2`) e o máximo (`16`) são constantes em `CARD_TYPES.multi`, em `game/config.js`.
 
@@ -56,7 +84,7 @@ Um **2x logo depois da Vida** encerra a proteção e força o autor a jogar de n
 
 A marca `game.protectedPlayerId` é JSON serializável e salva junto da partida. O servidor rejeita o PERDI do protegido sem alterar a sala; o cliente apenas apresenta o estado. Quantidade e regra ficam em `CARD_TYPES.life`, em `game/config.js`. O rosa e o contraste do coração são ajustáveis em `public/styles.css`, nas variáveis `--life-card-background`, `--life-card-border` e `--life-card-ink`.
 
-O bloqueio fica visível no centro da mesa. Cartas fixas da letra bloqueada e essa letra em todos os seletores ficam desabilitadas. Comprar, desconectar ou jogar **2x não consome nem cancela o bloqueio**. Ele permanece durante toda a cadeia de 2x e vale para qualquer jogador, inclusive quem o criou se for forçado a jogar novamente. A carta 2x não usa letra e continua jogável sob bloqueio, respeitando a exigência de já existir uma jogada anterior. Só uma carta efetivamente jogada que **adiciona ou substitui letra** (letra fixa, coringa, restritiva, Troca, Bloqueio, 2+* ou Vida) consome a restrição. Se essa carta for um novo Bloqueio, sua letra adicionada ainda respeita o bloqueio anterior e a nova restrição o substitui. Todo PERDI cancela o bloqueio. A escolha de qual letra bloquear pode ser qualquer A–Z, mesmo a que estava bloqueada.
+O bloqueio fica visível no centro da mesa. **Sem débito**, cartas fixas da letra bloqueada e essa letra em todos os seletores ficam desabilitadas. Comprar, desconectar ou jogar **2x ou Passar letra não consome nem cancela o bloqueio**. Ele permanece durante toda a cadeia e vale para qualquer jogador, inclusive quem o criou se for forçado a jogar novamente. A carta 2x não usa letra e continua jogável sob bloqueio, respeitando a exigência de já existir uma jogada anterior. Só uma carta efetivamente jogada que **adiciona ou substitui letra** (letra fixa, coringa, restritiva, Troca, Bloqueio, 2+* ou Vida) consome a restrição. Sem pagamento de débito, a letra adicionada por um novo Bloqueio ainda respeita o bloqueio anterior, e a nova restrição o substitui. Com pagamento, apenas a primeira acumulada respeita a restrição anterior. Todo PERDI cancela o bloqueio. A escolha de qual letra bloquear pode ser qualquer A–Z, mesmo a que estava bloqueada.
 
 O 2x pode formar uma cadeia. Exemplo com a ordem normal Ana → Bia → Caio:
 
@@ -105,6 +133,7 @@ network/socket.js    Eventos Socket.IO, identificação, filas por sala e limpez
 server.js            Express, arquivos estáticos e rota /health
 public/              Interface em HTML, CSS e JavaScript, sem compilação
 test/                Testes automatizados com o runner nativo do Node.js
+browser-test/        Testes reais de interface, modais e celular com Playwright
 render.yaml          Blueprint do Render
 ```
 
