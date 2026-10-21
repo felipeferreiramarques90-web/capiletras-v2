@@ -17,6 +17,8 @@
   let selectedCard = null;
   let selectedLetter = null;
   let selectedBlock = null;
+  let pendingDebtLetters = '';
+  let pendingDebtVersion = null;
   let deckInfo = null;
   let toastTimer;
   const socket = io({ reconnection: true, reconnectionDelay: 800, reconnectionDelayMax: 5000 });
@@ -76,14 +78,18 @@
       finally { busy = false; render(); }
     } else render();
   });
-  socket.on('disconnect', () => { connection(); render(); });
+  socket.on('disconnect', () => { closeLetters(); connection(); render(); });
   socket.on('room:state', (state) => {
     room = state;
     deckInfo = state.config;
     updateDeckSummary();
     storage.set('room', state.code);
     if (selectedCard) {
-      if (!room.game?.canPlay || !room.game.playableCardIds.includes(selectedCard.id)) closeLetters();
+      if (pendingDebtVersion !== null && room.game?.version !== pendingDebtVersion) {
+        closeLetters();
+        toast('A mesa mudou. Escolha sua carta novamente.');
+      } else if (!room.game?.canPlay || !room.game.playableCardIds.includes(selectedCard.id)) closeLetters();
+      else if ($('#debt-dialog').open) refreshDebtOptions();
       else refreshLetterOptions();
     }
     render();
@@ -160,8 +166,8 @@
       <div class="turn-bar ${myTurn ? 'your-turn' : ''}" role="status"><span class="status-dot connected"></span>${!socket.connected ? 'Reconectando… Suas cartas estão guardadas.' : game.paused ? 'Partida pausada · aguardando outro jogador reconectar' : game.turnPlayerId === room.meId ? (game.noPlayableCards ? 'Sem carta jogável. Você pode usar PERDI ou comprar uma carta.' : 'É a sua vez! Escolha uma carta para jogar.') : `Vez de ${escape(current?.name)}. Prepare sua próxima letra.`}<span class="turn-number">TURNO ${game.turnNumber}</span></div>${game.paused && isHost() ? `<div class="paused-actions"><button class="text-button" data-action="end" ${disabled(!canAct())}>Encerrar partida e voltar à sala →</button></div>` : ''}
       <section class="table-felt" aria-label="Centro da mesa"><div class="felt-caption">CAPILETRAS · A MESA É DE TODOS</div>
         <div class="table-center"><button class="draw-pile ${game.canDraw ? 'available' : ''}" data-action="draw" ${disabled(!game.canDraw || !canAct())} aria-label="Comprar uma carta. ${game.deckCount} cartas na pilha, ${game.discardCount} para reembaralhar."><span class="deck-back" aria-hidden="true"><span>c<span>*</span></span></span><strong>COMPRAR</strong><small>${game.deckCount} na pilha${game.discardCount ? ` · ${game.discardCount} jogadas` : ''}</small></button>
-        <div class="word-area"><span class="eyebrow">NOSSA PALAVRA</span><div class="word-display ${game.word ? '' : 'word-empty'}" aria-label="Palavra atual: ${escape(game.word || 'vazia')}">${game.word ? escape(game.word) : 'A primeira letra é com você.'}</div><p>${game.word ? `${game.word.length} letra${game.word.length === 1 ? '' : 's'} e contando…` : 'Uma carta é tudo que precisa para começar.'}</p>${game.blockedLetter ? `<div class="block-badge" role="status">➕🚫 Letra bloqueada: <strong>${game.blockedLetter}</strong><span>até a próxima jogada com letra</span></div>` : ''}${game.extraTurns.length ? `<p class="extra-turn-notice">2x ativo · retorno para ${escape(room.players.find((p) => p.id === game.extraTurns.at(-1))?.name)}</p>` : ''}</div>
-        <div class="lose-area"><button class="button lose-button" data-action="lose" aria-describedby="loss-help" title="${protectedByLife ? 'Protegido pela Vida' : 'PERDI'}" ${disabled(!game.canLose || !canAct())}>PERDI <span aria-hidden="true">↺</span></button><p id="loss-help">${protectedByLife ? '<span class="life-protection">Protegido pela Vida ❤️</span>' : `Compre até ${room.config.lossPenalty} cartas.<br>Zere palavra e bloqueio.`}</p></div></div>
+        <div class="word-area"><span class="eyebrow">NOSSA PALAVRA</span><div class="word-display ${game.word ? '' : 'word-empty'}" aria-label="Palavra atual: ${escape(game.word || 'vazia')}">${game.word ? escape(game.word) : 'A primeira letra é com você.'}</div><p>${game.word ? `${game.word.length} letra${game.word.length === 1 ? '' : 's'} e contando…` : 'Uma carta é tudo que precisa para começar.'}</p>${game.blockedLetter ? `<div class="block-badge" role="status">➕🚫 Letra bloqueada: <strong>${game.blockedLetter}</strong><span>até a próxima jogada com letra</span></div>` : ''}${game.letterDebt.count ? `<div class="debt-badge" role="status"><span aria-hidden="true">→</span> ${escape(room.players.find((p) => p.id === game.letterDebt.playerId)?.name)} deve ${game.letterDebt.count} letra${game.letterDebt.count === 1 ? '' : 's'}</div>` : ''}${game.extraTurns.length ? `<p class="extra-turn-notice">2x ativo · retorno para ${escape(room.players.find((p) => p.id === game.extraTurns.at(-1))?.name)}</p>` : ''}</div>
+        <div class="lose-area"><button class="button lose-button" data-action="lose" aria-describedby="loss-help" title="${protectedByLife ? 'Protegido pela Vida' : 'PERDI'}" ${disabled(!game.canLose || !canAct())}>PERDI <span aria-hidden="true">↺</span></button><p id="loss-help">${protectedByLife ? '<span class="life-protection">Protegido pela Vida ❤️</span>' : `Compre até ${room.config.lossPenalty} cartas.<br>Zere palavra, bloqueio e débito.`}</p></div></div>
         <p class="table-notice" role="status">${escape(room.notice)}</p>
       </section>
       <section class="hand-section" aria-label="Sua mão"><div class="hand-heading"><div><span class="eyebrow">SUAS POSSIBILIDADES</span><h2>Sua mão <span>${room.hand.length} carta${room.hand.length === 1 ? '' : 's'}</span></h2></div><p>${game.drawsThisTurn && game.turnPlayerId === room.meId ? (game.noPlayableCards ? 'Você já comprou e segue sem carta jogável. Use PERDI.' : 'Você já comprou. Agora, baixe uma carta.') : !game.availableCount ? 'Sem cartas para comprar. Escolha uma da mão.' : `Compre até ${room.config.maxDrawsPerTurn} carta por turno, se quiser.`}</p></div>
@@ -178,7 +184,7 @@
     const symbol = card.type === 'life' ? '♥' : fixed ? card.letter : rule.symbol;
     const special = !fixed && card.type !== 'wild';
     const reason = room.game.playableCardIds.includes(card.id) ? '' : card.type === 'swap' && !room.game.word ? 'Visor vazio' : card.type === 'double' ? 'Sem jogada anterior' : 'Letra bloqueada';
-    return `<button class="playing-card card-${rule.color} ${card.type === 'wild' ? 'wild-card' : ''} ${special ? 'special-card' : ''} ${reason ? 'unplayable-card' : ''}" data-card="${escape(card.id)}" ${disabled(!enabled)} aria-label="Jogar ${escape(description)}${reason ? `: ${reason}` : ''}" title="${escape(reason || description)}"><span class="card-corner">${escape(symbol)}</span><strong class="${special ? 'card-special-title' : ''}">${escape(special && ['swap', 'block', 'double', 'multi', 'life'].includes(card.type) ? symbol : fixed ? title : card.type === 'wild' ? '*' : title)}</strong><span class="card-bottom">${escape(reason || description.toUpperCase())}</span></button>`;
+    return `<button class="playing-card card-${rule.color} ${card.type === 'wild' ? 'wild-card' : ''} ${special ? 'special-card' : ''} ${reason ? 'unplayable-card' : ''}" data-card="${escape(card.id)}" ${disabled(!enabled)} aria-label="Jogar ${escape(description)}${reason ? `: ${reason}` : ''}" title="${escape(reason || description)}"><span class="card-corner">${escape(symbol)}</span><strong class="${special ? 'card-special-title' : ''}">${escape(special && ['swap', 'block', 'double', 'multi', 'life', 'pass'].includes(card.type) ? symbol : fixed ? title : card.type === 'wild' ? '*' : title)}</strong><span class="card-bottom">${escape(reason || description.toUpperCase())}</span></button>`;
   }
 
   function victory() {
@@ -191,13 +197,17 @@
     selectedCard = null;
     selectedLetter = null;
     selectedBlock = null;
+    pendingDebtLetters = '';
+    pendingDebtVersion = null;
+    $('#debt-dialog').close();
     $('#letter-dialog').close();
     $('#multi-dialog').close();
   }
   function refreshLetterOptions() {
     if (!selectedCard) return;
     if (room.config.cardTypes[selectedCard.type].effect === 'appendMany') { refreshMultiOptions(); return; }
-    const choices = room.game.allowedLettersByCard[selectedCard.id] || '';
+    let choices = room.game.allowedLettersByCard[selectedCard.id] || '';
+    if (selectedCard.type === 'swap' && pendingDebtLetters) choices = [...choices].filter((letter) => letter !== pendingDebtLetters.at(-1)).join('');
     if (!choices.includes(selectedLetter)) selectedLetter = null;
     $('#letter-grid').innerHTML = [...alphabet].map((letter) => `<button class="letter-option ${selectedLetter === letter ? 'selected' : ''}" data-letter="${letter}" aria-pressed="${selectedLetter === letter}" ${disabled(!choices.includes(letter))}>${letter}</button>`).join('');
     const block = selectedCard.type === 'block';
@@ -205,8 +215,9 @@
     if (block) $('#block-grid').innerHTML = [...alphabet].map((letter) => `<button class="letter-option ${selectedBlock === letter ? 'selected' : ''}" data-block="${letter}" aria-pressed="${selectedBlock === letter}">${letter}</button>`).join('');
     $('#confirm-block').disabled = !selectedLetter || !selectedBlock || !canAct();
     $('#letter-hint').textContent = selectedCard.type === 'swap'
-      ? `Substitua ${room.game.word.at(-1)} por outra letra. A letra atual e a bloqueada não valem.`
+      ? `Substitua ${(room.game.word + pendingDebtLetters).at(-1)} por outra letra. A letra substituída não vale${pendingDebtLetters ? '' : ', nem a bloqueada'}.`
       : `${block ? '1. Letra a adicionar. ' : ''}Letras permitidas: ${[...choices].join(', ')}.`;
+    if (pendingDebtLetters) $('#letter-hint').textContent = `Letras acumuladas: ${pendingDebtLetters}. ` + $('#letter-hint').textContent;
   }
   function openLetters(card) {
     selectedCard = card;
@@ -216,7 +227,7 @@
       $('#multi-input').value = '';
       refreshMultiOptions();
       $('#multi-dialog').showModal();
-      fitMultiDialog();
+      fitTextDialogs();
       $('#multi-input').focus();
       return;
     }
@@ -231,9 +242,9 @@
     const rule = room.config.cardTypes[selectedCard.type];
     const text = $('#multi-input').value;
     const countValid = text.length >= rule.minLetters && text.length <= rule.maxLetters;
-    const blocked = room.game.blockedLetter;
+    const blocked = pendingDebtLetters ? null : room.game.blockedLetter;
     const firstBlocked = Boolean(blocked && text[0] === blocked);
-    $('#multi-hint').textContent = `Digite pelo menos ${rule.minLetters} letras de A a Z.`;
+    $('#multi-hint').textContent = `${pendingDebtLetters ? `Letras acumuladas: ${pendingDebtLetters}. ` : ''}Digite pelo menos ${rule.minLetters} letras de A a Z.`;
     $('#multi-count').textContent = `${text.length}/${rule.maxLetters}`;
     $('#multi-count').classList.toggle('invalid', !countValid && text.length > 0);
     $('#multi-block-warning').hidden = !blocked;
@@ -242,27 +253,86 @@
       : text.length < rule.minLetters ? `Faltam ${rule.minLetters - text.length} letra(s) para jogar.`
         : !countValid ? 'Revise a quantidade de letras indicada no contador.' : 'Tudo certo para jogar.';
     $('#multi-input').setAttribute('aria-invalid', String(firstBlocked || (text.length > 0 && !countValid)));
-    $('#multi-preview').textContent = room.game.word + text || 'O visor começa aqui…';
+    $('#multi-preview').textContent = room.game.word + pendingDebtLetters + text || 'O visor começa aqui…';
     $('#confirm-multi').disabled = !canAct() || !room.game.canPlay || !countValid || firstBlocked || /[^A-Z]/.test(text);
   }
 
   // O teclado móvel reduz o visualViewport. O corpo rola; a confirmação fica fora dele.
-  function fitMultiDialog() {
-    const dialog = $('#multi-dialog');
-    if (!dialog.open) return;
+  function fitTextDialogs() {
     const viewport = window.visualViewport;
     const height = viewport?.height || innerHeight;
-    dialog.style.setProperty('--modal-top', `${(viewport?.offsetTop || 0) + height / 2}px`);
-    dialog.style.setProperty('--modal-height', `${Math.max(120, height - 24)}px`);
+    for (const id of ['multi-dialog', 'debt-dialog']) {
+      const dialog = $(`#${id}`);
+      if (!dialog.open) continue;
+      dialog.style.setProperty('--modal-top', `${(viewport?.offsetTop || 0) + height / 2}px`);
+      dialog.style.setProperty('--modal-height', `${Math.max(120, height - 24)}px`);
+    }
   }
   window.visualViewport?.addEventListener('resize', () => {
-    fitMultiDialog();
-    if ($('#multi-dialog').open && document.activeElement === $('#multi-input')) {
-      requestAnimationFrame(() => $('#multi-input').scrollIntoView({ block: 'nearest' }));
+    fitTextDialogs();
+    for (const id of ['multi-input', 'debt-input']) {
+      if (document.activeElement === $(`#${id}`)) requestAnimationFrame(() => $(`#${id}`).scrollIntoView({ block: 'nearest' }));
     }
   });
-  window.visualViewport?.addEventListener('scroll', fitMultiDialog);
-  window.addEventListener('resize', fitMultiDialog);
+  window.visualViewport?.addEventListener('scroll', fitTextDialogs);
+  window.addEventListener('resize', fitTextDialogs);
+
+  function debtCount() {
+    return room?.game?.letterDebt.playerId === room?.meId ? room.game.letterDebt.count : 0;
+  }
+  function refreshDebtOptions() {
+    const count = debtCount();
+    const text = $('#debt-input').value;
+    const blocked = room.game.blockedLetter;
+    const firstBlocked = Boolean(blocked && text[0] === blocked);
+    const valid = count > 0 && text.length === count && !firstBlocked && !/[^A-Z]/.test(text);
+    $('#debt-hint').textContent = `Digite exatamente ${count} letra${count === 1 ? '' : 's'} de A a Z, antes da carta ${room.config.cardTypes[selectedCard.type].label}.`;
+    $('#debt-count').textContent = `${text.length}/${count}`;
+    $('#debt-warning').hidden = !blocked;
+    $('#debt-warning').textContent = blocked ? `A primeira letra não pode ser ${blocked}. As seguintes podem. Depois deste pagamento, o Bloqueio não restringe a letra da carta.` : '';
+    $('#debt-feedback').textContent = firstBlocked ? `Troque a primeira letra: ${blocked} está bloqueada.` : valid ? 'Tudo certo para continuar.' : `Preencha exatamente ${count} letra${count === 1 ? '' : 's'}.`;
+    $('#debt-preview').textContent = room.game.word + text || 'O visor começa aqui…';
+    $('#confirm-debt').disabled = !canAct() || !room.game.canPlay || !valid;
+  }
+  async function submitSelectedCard(letter, blockedLetter) {
+    const data = { cardId: selectedCard.id, letter, blockedLetter, accumulatedLetters: pendingDebtLetters };
+    closeLetters();
+    await send('game:play', data);
+  }
+  async function chooseCard(card) {
+    selectedCard = card;
+    const effect = room.config.cardTypes[card.type].effect;
+    if (effect === 'pass' || effect === 'replay' || card.type === 'letter') await submitSelectedCard();
+    else openLetters(card);
+  }
+  function beginDebt(card) {
+    closeLetters();
+    selectedCard = card;
+    pendingDebtVersion = room.game.version;
+    $('#debt-input').value = '';
+    refreshDebtOptions();
+    $('#debt-dialog').showModal();
+    fitTextDialogs();
+    $('#debt-input').focus();
+  }
+  $('#debt-input').addEventListener('input', (event) => {
+    const input = event.target;
+    const cursor = input.value.slice(0, input.selectionStart ?? input.value.length).replace(/[^A-Za-z]/g, '').length;
+    input.value = input.value.replace(/[^A-Za-z]/g, '').toUpperCase();
+    input.setSelectionRange(cursor, cursor);
+    refreshDebtOptions();
+  });
+  $('#debt-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!selectedCard) return;
+    refreshDebtOptions();
+    if ($('#confirm-debt').disabled) return;
+    pendingDebtLetters = $('#debt-input').value;
+    $('#debt-dialog').close();
+    await chooseCard(selectedCard);
+  });
+  $('#close-debt').addEventListener('click', closeLetters);
+  $('#debt-dialog').addEventListener('cancel', closeLetters);
   $('#multi-input').addEventListener('input', (event) => {
     const input = event.target;
     const cursor = input.value.slice(0, input.selectionStart ?? input.value.length).replace(/[^A-Za-z]/g, '').length;
@@ -276,12 +346,10 @@
     if (!selectedCard) return;
     refreshMultiOptions();
     if ($('#confirm-multi').disabled) return;
-    const data = { cardId: selectedCard.id, letter: $('#multi-input').value };
-    closeLetters();
-    await send('game:play', data);
+    await submitSelectedCard($('#multi-input').value);
   });
   $('#close-multi').addEventListener('click', closeLetters);
-  $('#multi-dialog').addEventListener('cancel', () => { selectedCard = null; });
+  $('#multi-dialog').addEventListener('cancel', closeLetters);
 
   app.addEventListener('input', (event) => {
     if (event.target.id === 'player-name') { name = event.target.value; storage.set('name', name); }
@@ -312,8 +380,9 @@
     const cardElement = event.target.closest('[data-card]');
     if (cardElement && !cardElement.disabled && room?.game?.canPlay && canAct()) {
       const card = room.hand.find((item) => item.id === cardElement.dataset.card);
-      if (card.type === 'letter' || card.type === 'double') await send('game:play', { cardId: card.id });
-      else openLetters(card);
+      const effect = room.config.cardTypes[card.type].effect;
+      if (debtCount() > 0 && effect !== 'pass' && effect !== 'replay') beginDebt(card);
+      else { closeLetters(); await chooseCard(card); }
       return;
     }
     const button = event.target.closest('[data-action]');
@@ -344,10 +413,7 @@
     const button = event.target.closest('[data-letter]');
     if (!button || button.disabled || !selectedCard || !canAct()) return;
     if (selectedCard.type === 'block') { selectedLetter = button.dataset.letter; refreshLetterOptions(); return; }
-    const cardId = selectedCard.id;
-    const letter = button.dataset.letter;
-    closeLetters();
-    await send('game:play', { cardId, letter });
+    await submitSelectedCard(button.dataset.letter);
   });
   $('#block-grid').addEventListener('click', (event) => {
     const button = event.target.closest('[data-block]');
@@ -357,14 +423,12 @@
   });
   $('#confirm-block').addEventListener('click', async () => {
     if (!selectedCard || !selectedLetter || !selectedBlock || !canAct()) return;
-    const data = { cardId: selectedCard.id, letter: selectedLetter, blockedLetter: selectedBlock };
-    closeLetters();
-    await send('game:play', data);
+    await submitSelectedCard(selectedLetter, selectedBlock);
   });
   $('#close-letter').addEventListener('click', closeLetters);
-  $('#letter-dialog').addEventListener('cancel', () => { selectedCard = null; });
+  $('#letter-dialog').addEventListener('cancel', closeLetters);
   $('#open-rules').addEventListener('click', () => $('#rules-dialog').showModal());
   $('#close-rules').addEventListener('click', () => $('#rules-dialog').close());
-  for (const dialog of document.querySelectorAll('dialog')) dialog.addEventListener('click', (event) => { if (event.target === dialog) { const rect = dialog.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) dialog.close(); } });
+  for (const dialog of document.querySelectorAll('dialog')) dialog.addEventListener('click', (event) => { if (event.target === dialog) { const rect = dialog.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) { if (dialog.id === 'rules-dialog') dialog.close(); else closeLetters(); } } });
   render();
 })();

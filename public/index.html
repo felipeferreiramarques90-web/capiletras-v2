@@ -35,8 +35,8 @@
       </section>
       <p class="dialog-note">Sua escolha será aplicada ao visor da mesa.</p>
     </dialog>
-    <dialog id="multi-dialog" aria-labelledby="multi-title">
-      <form id="multi-form" novalidate>
+    <dialog id="multi-dialog" class="text-entry-dialog" aria-labelledby="multi-title">
+      <form id="multi-form" class="text-entry-form" novalidate>
         <div class="multi-body">
           <div class="dialog-heading"><span class="eyebrow">MAIS LETRAS, MAIS POSSIBILIDADES</span><button type="button" class="icon-button" id="close-multi" aria-label="Fechar escolha de letras">×</button></div>
           <h2 id="multi-title">Sua carta 2+*</h2>
@@ -50,6 +50,22 @@
         <div class="multi-actions"><button type="submit" class="button primary full" id="confirm-multi" disabled>Jogar 2+* <span aria-hidden="true">→</span></button></div>
       </form>
     </dialog>
+    <dialog id="debt-dialog" class="text-entry-dialog" aria-labelledby="debt-title">
+      <form id="debt-form" class="text-entry-form" novalidate>
+        <div class="multi-body">
+          <div class="dialog-heading"><span class="eyebrow">ANTES DA SUA CARTA</span><button type="button" class="icon-button" id="close-debt" aria-label="Cancelar letras acumuladas">×</button></div>
+          <h2 id="debt-title">Letras acumuladas</h2>
+          <p id="debt-hint" class="muted"></p>
+          <label for="debt-input">Suas letras <output id="debt-count" for="debt-input" aria-label="Contagem de letras acumuladas"></output></label>
+          <input id="debt-input" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="done" aria-describedby="debt-hint debt-warning debt-feedback">
+          <p id="debt-warning" class="multi-warning" hidden></p>
+          <p id="debt-feedback" class="field-hint" aria-live="polite"></p>
+          <div class="multi-preview-box"><span class="eyebrow">VISOR ANTES DA SUA CARTA</span><div id="debt-preview" class="multi-preview" aria-live="polite"></div></div>
+          <p class="dialog-note">Nada será jogado até você concluir a escolha da carta. Cancelar qualquer etapa mantém sua mão e a mesa.</p>
+        </div>
+        <div class="multi-actions"><button type="submit" class="button primary full" id="confirm-debt" disabled>Continuar <span aria-hidden="true">→</span></button></div>
+      </form>
+    </dialog>
     <dialog id="rules-dialog" aria-labelledby="rules-title">
       <div class="dialog-heading"><span class="eyebrow">O COMBINADO DA MESA</span><button type="button" class="icon-button" id="close-rules" aria-label="Fechar regras">×</button></div>
       <h2 id="rules-title">Uma letra por vez.</h2>
@@ -58,12 +74,13 @@
         <li><strong>Construa a palavra.</strong> Na sua vez, baixe uma carta e acrescente uma letra ao centro da mesa.</li>
         <li><strong>Precisou? Compre.</strong> Você pode comprar uma única carta por turno e depois precisa jogar.</li>
         <li><strong>Escolha com liberdade.</strong> O coringa verde vale de A a Z. As cartas especiais indicam quais letras você pode escolher.</li>
-        <li><strong>Troca 🔄.</strong> Substitua a última letra por outra, de A a Z. Só pode jogar com o visor preenchido.</li>
+        <li><strong>Troca 🔄.</strong> Substitua a última letra por outra, de A a Z. Com débito, primeiro entram as letras acumuladas: pode jogar mesmo com o visor vazio e substituir a última delas.</li>
         <li><strong>Bloqueio ➕🚫.</strong> Adicione uma letra e escolha outra para bloquear até a próxima jogada com letra. O bloqueio vale para todos e continua durante cadeias de 2x.</li>
         <li><strong>Mais uma com 2x.</strong> Quem jogou antes de você joga de novo; depois, a vez volta para você com uma nova compra opcional. Pode haver 2x em cadeia. Não vale na primeira jogada.</li>
         <li><strong>Várias letras com 2+*.</strong> Digite pelo menos duas letras para adicionar ao visor. Sob bloqueio, só a primeira não pode ser a letra bloqueada; as demais podem repeti-la. A jogada consome o bloqueio.</li>
         <li><strong>Vida ❤️ — só vogais.</strong> Escolha A, E, I, O ou U e adicione ao visor. Uma vogal bloqueada fica indisponível; uma consoante bloqueada não afeta a Vida. Depois, seu PERDI fica bloqueado até outra carta ser jogada ou sua vez voltar. A restrição só vale para você: quem está na vez sem carta jogável continua podendo usar PERDI.</li>
-        <li><strong>Travou? PERDI.</strong> Quem jogou a última carta pode usar até a próxima jogada. Quem está na vez sem carta jogável também pode usar, sem precisar comprar antes. Compra até 4 cartas, zera a palavra e cancela o bloqueio; a vez só passa se ainda não houver carta jogável nem cartas para comprar.</li>
+        <li><strong>Passar letra →.</strong> Passe a vez sem colocar letra: o próximo deve uma letra a mais. Antes de jogar uma carta com letra, digite todas as acumuladas e só depois escolha a letra da carta. O 2x transfere o débito; PERDI o zera. Só a primeira letra acumulada respeita o Bloqueio.</li>
+        <li><strong>Travou? PERDI.</strong> Quem jogou a última carta pode usar até a próxima jogada. Quem está na vez sem carta jogável também pode usar, sem precisar comprar antes. Compra até 4 cartas, zera a palavra e o débito, e cancela o bloqueio; a vez só passa se ainda não houver carta jogável nem cartas para comprar.</li>
         <li><strong>Mão vazia, vitória.</strong> Ganha quem baixar a última carta primeiro.</li>
       </ol>
       <div class="rules-tip">A mesa não consulta um dicionário. Combinem entre vocês quando a palavra deixou de ter continuação. Ao acabar a pilha, as cartas jogadas voltam ao baralho.</div>

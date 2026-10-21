@@ -12,6 +12,8 @@
   --life-card-background: #f5bed4;
   --life-card-border: #c97597;
   --life-card-ink: #741b40;
+  --pass-card-background: #191c23;
+  --pass-arrow-gradient: linear-gradient(90deg, #6ae8f4, #f3da71, #ff8fc0);
   font-family: 'Avenir Next', Avenir, 'Segoe UI', sans-serif;
   color: var(--ink);
   background: var(--paper);
@@ -232,15 +234,15 @@ dialog .muted { font-size: 12px; }
 .dialog-note { font-size: 10px; color: #929a83; line-height: 1.6; }
 .word-display { display: block; max-height: 240px; overflow-y: auto; }
 .word-display.word-empty { display: flex; }
-#multi-dialog { padding: 0; position: fixed; left: 50%; top: var(--modal-top, 50%); bottom: auto; margin: 0; transform: translate(-50%, -50%); max-height: var(--modal-height, 90dvh); overflow: hidden; }
-#multi-form { display: flex; flex-direction: column; max-height: var(--modal-height, 90dvh); }
+.text-entry-dialog { padding: 0; position: fixed; left: 50%; top: var(--modal-top, 50%); bottom: auto; margin: 0; transform: translate(-50%, -50%); max-height: var(--modal-height, 90dvh); overflow: hidden; }
+.text-entry-form { display: flex; flex-direction: column; max-height: var(--modal-height, 90dvh); }
 .multi-body { min-height: 0; overflow-y: auto; padding: 24px 24px 6px; overscroll-behavior: contain; }
 .multi-body > .muted { margin-bottom: 20px; }
-#multi-input { font-size: 20px; letter-spacing: 2px; }
-#multi-count { font-size: 12px; font-weight: 400; letter-spacing: 0; color: var(--muted); }
+#multi-input, #debt-input { font-size: 20px; letter-spacing: 2px; }
+#multi-count, #debt-count { font-size: 12px; font-weight: 400; letter-spacing: 0; color: var(--muted); }
 #multi-count.invalid, .multi-warning { color: var(--red); }
 .multi-warning { font-size: 12px; line-height: 1.6; margin-top: 12px; }
-#multi-feedback { min-height: 18px; margin-bottom: 12px; }
+#multi-feedback, #debt-feedback { min-height: 18px; margin-bottom: 12px; }
 .multi-preview-box { background: #eef0e3; border: 1px solid var(--line); border-radius: 9px; padding: 15px; }
 .multi-preview-box > .eyebrow { font-size: 8px; color: #718064; }
 .multi-preview { font-family: Georgia, serif; font-size: 25px; line-height: 1.4; letter-spacing: 2px; color: var(--green); overflow-wrap: anywhere; word-break: break-word; max-height: 120px; overflow-y: auto; margin-top: 10px; }
@@ -341,3 +343,9 @@ dialog .muted { font-size: 12px; }
   .victory-panel > p { font-size: 12px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; } }
+
+.playing-card.card-black { background: var(--pass-card-background); border-color: #505663; color: #faf7f1; }
+.playing-card.card-black > strong, .playing-card.card-black > .card-corner { background: var(--pass-arrow-gradient); background-clip: text; -webkit-background-clip: text; color: transparent; }
+.playing-card.card-black > strong { font-size: 45px; font-weight: 700; }
+.debt-badge { display: inline-flex; align-items: center; gap: 8px; background: var(--pass-card-background); color: #faf7f1; padding: 10px 14px; margin-top: 14px; border: 1px solid #6a737f; border-radius: 8px; font-size: 12px; overflow-wrap: anywhere; }
+.debt-badge > span { color: #6ae8f4; font-size: 24px; }

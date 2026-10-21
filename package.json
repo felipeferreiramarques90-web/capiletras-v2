@@ -4,17 +4,21 @@
   "private": true,
   "type": "module",
   "description": "Capiletras: jogo de cartas de letras multiplayer em tempo real",
-  "engines": { "node": ">=22 <25" },
+  "engines": {
+    "node": ">=22 <25"
+  },
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "node --test"
+    "test": "node --test test/*.test.js",
+    "test:browser": "node --test browser-test/*.test.js"
   },
   "dependencies": {
     "express": "^5.1.0",
     "socket.io": "^4.8.1"
   },
   "devDependencies": {
+    "playwright": "^1.64.1",
     "socket.io-client": "^4.8.1"
   }
 }
