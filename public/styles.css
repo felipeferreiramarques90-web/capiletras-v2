@@ -189,6 +189,8 @@ fieldset:disabled input, fieldset:disabled select { opacity: .65; }
 .playing-card.card-blue { background: #b8dfef; border-color: #83b9d0; }
 .playing-card.card-red { background: #edb0aa; border-color: #cc807a; color: #602c29; }
 .playing-card.card-orange { background: #f4bf76; border-color: #d39b52; }
+.playing-card.card-purple { background: #d6c5ed; border-color: #ac92cb; color: #49325d; }
+.playing-card.card-purple > strong { font-size: 31px; font-weight: 750; }
 .playing-card.card-blue > strong, .playing-card.card-red > strong { font-size: 27px; }
 .playing-card.card-orange > strong { font-size: 35px; font-weight: 750; }
 .playing-card.unplayable-card { opacity: .45; filter: saturate(.55); border-style: dashed; }
@@ -222,6 +224,21 @@ dialog .muted { font-size: 12px; }
 #block-picker h3 { font-size: 15px; }
 #letter-dialog:has(#block-picker:not([hidden])) { width: min(520px, 92vw); }
 .dialog-note { font-size: 10px; color: #929a83; line-height: 1.6; }
+.word-display { display: block; max-height: 240px; overflow-y: auto; }
+.word-display.word-empty { display: flex; }
+#multi-dialog { padding: 0; position: fixed; left: 50%; top: var(--modal-top, 50%); bottom: auto; margin: 0; transform: translate(-50%, -50%); max-height: var(--modal-height, 90dvh); overflow: hidden; }
+#multi-form { display: flex; flex-direction: column; max-height: var(--modal-height, 90dvh); }
+.multi-body { min-height: 0; overflow-y: auto; padding: 24px 24px 6px; overscroll-behavior: contain; }
+.multi-body > .muted { margin-bottom: 20px; }
+#multi-input { font-size: 20px; letter-spacing: 2px; }
+#multi-count { font-size: 12px; font-weight: 400; letter-spacing: 0; color: var(--muted); }
+#multi-count.invalid, .multi-warning { color: var(--red); }
+.multi-warning { font-size: 12px; line-height: 1.6; margin-top: 12px; }
+#multi-feedback { min-height: 18px; margin-bottom: 12px; }
+.multi-preview-box { background: #eef0e3; border: 1px solid var(--line); border-radius: 9px; padding: 15px; }
+.multi-preview-box > .eyebrow { font-size: 8px; color: #718064; }
+.multi-preview { font-family: Georgia, serif; font-size: 25px; line-height: 1.4; letter-spacing: 2px; color: var(--green); overflow-wrap: anywhere; word-break: break-word; max-height: 120px; overflow-y: auto; margin-top: 10px; }
+.multi-actions { flex-shrink: 0; padding: 16px 24px max(16px, env(safe-area-inset-bottom)); background: var(--cream); }
 .rules-list { padding-left: 20px; font-size: 12px; line-height: 1.8; color: #77856b; }
 .rules-list li { padding: 6px 0 6px 4px; }
 .rules-list strong { color: var(--ink); }

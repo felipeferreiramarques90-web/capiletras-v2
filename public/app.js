@@ -175,7 +175,7 @@
     const symbol = fixed ? card.letter : rule.symbol;
     const special = !fixed && card.type !== 'wild';
     const reason = room.game.playableCardIds.includes(card.id) ? '' : card.type === 'swap' && !room.game.word ? 'Visor vazio' : card.type === 'double' ? 'Sem jogada anterior' : 'Letra bloqueada';
-    return `<button class="playing-card card-${rule.color} ${card.type === 'wild' ? 'wild-card' : ''} ${special ? 'special-card' : ''} ${reason ? 'unplayable-card' : ''}" data-card="${escape(card.id)}" ${disabled(!enabled)} aria-label="Jogar ${escape(title)}${reason ? `: ${reason}` : ''}" title="${escape(reason || title)}"><span class="card-corner">${escape(symbol)}</span><strong class="${special ? 'card-special-title' : ''}">${escape(special && ['swap', 'block', 'double'].includes(card.type) ? symbol : fixed ? title : card.type === 'wild' ? '*' : title)}</strong><span class="card-bottom">${escape(reason || title.toUpperCase())}</span></button>`;
+    return `<button class="playing-card card-${rule.color} ${card.type === 'wild' ? 'wild-card' : ''} ${special ? 'special-card' : ''} ${reason ? 'unplayable-card' : ''}" data-card="${escape(card.id)}" ${disabled(!enabled)} aria-label="Jogar ${escape(title)}${reason ? `: ${reason}` : ''}" title="${escape(reason || title)}"><span class="card-corner">${escape(symbol)}</span><strong class="${special ? 'card-special-title' : ''}">${escape(special && ['swap', 'block', 'double', 'multi'].includes(card.type) ? symbol : fixed ? title : card.type === 'wild' ? '*' : title)}</strong><span class="card-bottom">${escape(reason || title.toUpperCase())}</span></button>`;
   }
 
   function victory() {
@@ -189,9 +189,11 @@
     selectedLetter = null;
     selectedBlock = null;
     $('#letter-dialog').close();
+    $('#multi-dialog').close();
   }
   function refreshLetterOptions() {
     if (!selectedCard) return;
+    if (room.config.cardTypes[selectedCard.type].effect === 'appendMany') { refreshMultiOptions(); return; }
     const choices = room.game.allowedLettersByCard[selectedCard.id] || '';
     if (!choices.includes(selectedLetter)) selectedLetter = null;
     $('#letter-grid').innerHTML = [...alphabet].map((letter) => `<button class="letter-option ${selectedLetter === letter ? 'selected' : ''}" data-letter="${letter}" aria-pressed="${selectedLetter === letter}" ${disabled(!choices.includes(letter))}>${letter}</button>`).join('');
@@ -207,10 +209,75 @@
     selectedCard = card;
     selectedLetter = null;
     selectedBlock = null;
+    if (room.config.cardTypes[card.type].effect === 'appendMany') {
+      $('#multi-input').value = '';
+      refreshMultiOptions();
+      $('#multi-dialog').showModal();
+      fitMultiDialog();
+      $('#multi-input').focus();
+      return;
+    }
     $('#letter-title').textContent = room.config.cardTypes[card.type].label;
     refreshLetterOptions();
     $('#letter-dialog').showModal();
   }
+
+  function refreshMultiOptions() {
+    if (!selectedCard || !room?.game) return;
+    const rule = room.config.cardTypes[selectedCard.type];
+    const text = $('#multi-input').value;
+    const countValid = text.length >= rule.minLetters && text.length <= rule.maxLetters;
+    const blocked = room.game.blockedLetter;
+    const firstBlocked = Boolean(blocked && text[0] === blocked);
+    $('#multi-hint').textContent = `Digite pelo menos ${rule.minLetters} letras de A a Z.`;
+    $('#multi-count').textContent = `${text.length}/${rule.maxLetters}`;
+    $('#multi-count').classList.toggle('invalid', !countValid && text.length > 0);
+    $('#multi-block-warning').hidden = !blocked;
+    $('#multi-block-warning').textContent = blocked ? `Letra bloqueada: ${blocked}. A primeira letra não pode ser ${blocked}. Da segunda em diante, ela é permitida.` : '';
+    $('#multi-feedback').textContent = firstBlocked ? `Troque a primeira letra: ${blocked} está bloqueada.`
+      : text.length < rule.minLetters ? `Faltam ${rule.minLetters - text.length} letra(s) para jogar.`
+        : !countValid ? 'Revise a quantidade de letras indicada no contador.' : 'Tudo certo para jogar.';
+    $('#multi-input').setAttribute('aria-invalid', String(firstBlocked || (text.length > 0 && !countValid)));
+    $('#multi-preview').textContent = room.game.word + text || 'O visor começa aqui…';
+    $('#confirm-multi').disabled = !canAct() || !room.game.canPlay || !countValid || firstBlocked || /[^A-Z]/.test(text);
+  }
+
+  // O teclado móvel reduz o visualViewport. O corpo rola; a confirmação fica fora dele.
+  function fitMultiDialog() {
+    const dialog = $('#multi-dialog');
+    if (!dialog.open) return;
+    const viewport = window.visualViewport;
+    const height = viewport?.height || innerHeight;
+    dialog.style.setProperty('--modal-top', `${(viewport?.offsetTop || 0) + height / 2}px`);
+    dialog.style.setProperty('--modal-height', `${Math.max(120, height - 24)}px`);
+  }
+  window.visualViewport?.addEventListener('resize', () => {
+    fitMultiDialog();
+    if ($('#multi-dialog').open && document.activeElement === $('#multi-input')) {
+      requestAnimationFrame(() => $('#multi-input').scrollIntoView({ block: 'nearest' }));
+    }
+  });
+  window.visualViewport?.addEventListener('scroll', fitMultiDialog);
+  window.addEventListener('resize', fitMultiDialog);
+  $('#multi-input').addEventListener('input', (event) => {
+    const input = event.target;
+    const cursor = input.value.slice(0, input.selectionStart ?? input.value.length).replace(/[^A-Za-z]/g, '').length;
+    // Filtra antes de converter para não transformar símbolos Unicode em letras válidas.
+    input.value = input.value.replace(/[^A-Za-z]/g, '').toUpperCase();
+    input.setSelectionRange(cursor, cursor);
+    refreshMultiOptions();
+  });
+  $('#multi-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!selectedCard) return;
+    refreshMultiOptions();
+    if ($('#confirm-multi').disabled) return;
+    const data = { cardId: selectedCard.id, letter: $('#multi-input').value };
+    closeLetters();
+    await send('game:play', data);
+  });
+  $('#close-multi').addEventListener('click', closeLetters);
+  $('#multi-dialog').addEventListener('cancel', () => { selectedCard = null; });
 
   app.addEventListener('input', (event) => {
     if (event.target.id === 'player-name') { name = event.target.value; storage.set('name', name); }

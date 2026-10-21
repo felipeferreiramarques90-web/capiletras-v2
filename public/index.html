@@ -35,6 +35,21 @@
       </section>
       <p class="dialog-note">Sua escolha será aplicada ao visor da mesa.</p>
     </dialog>
+    <dialog id="multi-dialog" aria-labelledby="multi-title">
+      <form id="multi-form" novalidate>
+        <div class="multi-body">
+          <div class="dialog-heading"><span class="eyebrow">MAIS LETRAS, MAIS POSSIBILIDADES</span><button type="button" class="icon-button" id="close-multi" aria-label="Fechar escolha de letras">×</button></div>
+          <h2 id="multi-title">Sua carta 2+*</h2>
+          <p id="multi-hint" class="muted"></p>
+          <label for="multi-input">Suas letras <output id="multi-count" for="multi-input" aria-label="Contagem de letras"></output></label>
+          <input id="multi-input" name="letters" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="done" placeholder="Ex.: AR" aria-describedby="multi-hint multi-block-warning multi-feedback">
+          <p id="multi-block-warning" class="multi-warning" hidden></p>
+          <p id="multi-feedback" class="field-hint" aria-live="polite"></p>
+          <div class="multi-preview-box"><span class="eyebrow">ASSIM FICA O VISOR</span><div id="multi-preview" class="multi-preview" aria-live="polite"></div></div>
+        </div>
+        <div class="multi-actions"><button type="submit" class="button primary full" id="confirm-multi" disabled>Jogar 2+* <span aria-hidden="true">→</span></button></div>
+      </form>
+    </dialog>
     <dialog id="rules-dialog" aria-labelledby="rules-title">
       <div class="dialog-heading"><span class="eyebrow">O COMBINADO DA MESA</span><button type="button" class="icon-button" id="close-rules" aria-label="Fechar regras">×</button></div>
       <h2 id="rules-title">Uma letra por vez.</h2>
@@ -46,6 +61,7 @@
         <li><strong>Troca 🔄.</strong> Substitua a última letra por outra, de A a Z. Só pode jogar com o visor preenchido.</li>
         <li><strong>Bloqueio ➕🚫.</strong> Adicione uma letra e escolha outra para bloquear até a próxima jogada com letra. O bloqueio vale para todos e continua durante cadeias de 2x.</li>
         <li><strong>Mais uma com 2x.</strong> Quem jogou antes de você joga de novo; depois, a vez volta para você com uma nova compra opcional. Pode haver 2x em cadeia. Não vale na primeira jogada.</li>
+        <li><strong>Várias letras com 2+*.</strong> Digite pelo menos duas letras para adicionar ao visor. Sob bloqueio, só a primeira não pode ser a letra bloqueada; as demais podem repeti-la. A jogada consome o bloqueio.</li>
         <li><strong>Travou? PERDI.</strong> Quem jogou a última carta pode usar até a próxima jogada. Quem está na vez sem carta jogável também pode usar, sem precisar comprar antes. Compra até 4 cartas, zera a palavra e cancela o bloqueio; a vez só passa se ainda não houver carta jogável nem cartas para comprar.</li>
         <li><strong>Mão vazia, vitória.</strong> Ganha quem baixar a última carta primeiro.</li>
       </ol>
