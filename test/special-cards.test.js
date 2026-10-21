@@ -75,7 +75,7 @@ test('Bloqueio desabilita cartas fixas e letras em todos os seletores', () => {
   }
 });
 
-test('Bloqueio permanece durante compra e desaparece após exatamente uma jogada', () => {
+test('Bloqueio permanece durante compra e desaparece após uma jogada com letra', () => {
   let room = scenario({ blocked: 'A', last: 'p2' });
   room = drawCard(room, 'p1', random);
   assert.equal(room.game.blockedLetter, 'A');
@@ -86,14 +86,72 @@ test('Bloqueio permanece durante compra e desaparece após exatamente uma jogada
 
 test('um Bloqueio pode substituir outro; a letra a bloquear não é limitada pelo bloqueio anterior', () => {
   const room = scenario({ hands: [['block', 'C'], ['A', 'B']], blocked: 'A' });
+  assert.throws(() => play(room, 'block', 'A', 'B'), /permitida/);
+  assert.ok(!roomView(room, 'p1').game.allowedLettersByCard[card('block').id].includes('A'));
+  assert.equal(room.game.blockedLetter, 'A', 'jogada inválida não consome a restrição');
   assert.equal(play(room, 'block', 'B', 'A').game.blockedLetter, 'A');
   assert.equal(play(room, 'block', 'B', 'B').game.blockedLetter, 'B');
 });
 
-test('2x consome um bloqueio sem adicionar letra', () => {
+test('2x preserva o bloqueio sem adicionar letra', () => {
   const next = play(scenario({ hands: [['double', 'A'], ['B']], last: 'p2', word: 'CASA', blocked: 'A' }), 'double');
-  assert.equal(next.game.blockedLetter, null);
+  assert.equal(next.game.blockedLetter, 'A');
   assert.equal(next.game.word, 'CASA');
+  assert.equal(next.game.turnPlayerId, 'p2');
+  assert.equal(roomView(next, 'p1').game.blockedLetter, 'A');
+  assert.equal(roomView(next, 'p2').game.blockedLetter, 'A');
+});
+
+test('criador do Bloqueio também está sujeito à restrição ao ser forçado por 2x', () => {
+  let room = scenario({ hands: [['block', 'A', 'wild', 'swap', 'B'], ['double', 'C', 'D']] });
+  room = play(room, 'block', 'X', 'A');
+  room = play(room, 'double');
+  assert.equal(room.game.turnPlayerId, 'p1');
+  assert.equal(room.game.blockedLetter, 'A');
+  const view = roomView(room, 'p1');
+  assert.ok(!view.game.playableCardIds.includes(card('A').id));
+  assert.throws(() => play(room, 'A'), /não pode/);
+  for (const key of ['wild', 'swap']) {
+    assert.ok(!view.game.allowedLettersByCard[card(key).id].includes('A'));
+    assert.throws(() => play(room, key, 'A'), /permitida/);
+  }
+  assert.equal(play(room, 'B').game.blockedLetter, null);
+});
+
+test('Bloqueio persiste por toda a cadeia de 2x e só uma jogada com letra o consome', () => {
+  let room = scenario({ hands: [['block', 'double:1', 'A', 'B'], ['double', 'C', 'D', 'E']] });
+  room = play(room, 'block', 'X', 'A');
+  for (const key of ['double', 'double:1']) {
+    assert.equal(isCardPlayable(card(key), room.game), true);
+    room = play(room, key);
+    assert.equal(room.game.word, 'X');
+    assert.equal(room.game.blockedLetter, 'A');
+    for (const id of ['p1', 'p2']) assert.equal(roomView(room, id).game.blockedLetter, 'A');
+  }
+  assert.deepEqual(room.game.extraTurns, ['p2', 'p1']);
+  room = play(room, 'C');
+  assert.equal(room.game.word, 'XC');
+  assert.equal(room.game.blockedLetter, null);
+  assert.equal(room.game.turnPlayerId, 'p1');
+  assert.ok(roomView(room, 'p1').game.playableCardIds.includes(card('A').id));
+});
+
+test('letras fixas, coringas, restritivas e Troca consomem normalmente o bloqueio', () => {
+  for (const [key, letter] of [['B', undefined], ['wild', 'B'], ['vowel', 'E'], ['consonant', 'B'], ['first', 'B'], ['last', 'N'], ['swap', 'O']]) {
+    const room = scenario({ hands: [[key, 'C'], ['D']], blocked: 'Z', word: 'CASA', last: 'p2' });
+    assert.equal(play(room, key, letter).game.blockedLetter, null, key);
+  }
+});
+
+test('PERDI continua cancelando o bloqueio durante uma cadeia de 2x', () => {
+  let room = scenario({ hands: [['block', 'double:1', 'A'], ['double', 'B', 'C']] });
+  room = play(play(play(room, 'block', 'X', 'A'), 'double'), 'double:1');
+  const pending = [...room.game.extraTurns];
+  room = loseRound(room, 'p1', random);
+  assert.equal(room.game.blockedLetter, null);
+  assert.equal(room.game.word, '');
+  assert.equal(room.game.turnPlayerId, 'p2');
+  assert.deepEqual(room.game.extraTurns, pending);
 });
 
 test('PERDI de qualquer caso elegível cancela o bloqueio e avisa todos', () => {

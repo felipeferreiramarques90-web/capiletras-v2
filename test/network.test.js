@@ -100,6 +100,30 @@ test('rede: valida Troca, publica Bloqueio e aplica 2x sem vazar mãos', async (
   assert.deepEqual(Object.keys(a.view.game.allowedLettersByCard), ['letra-B']);
 });
 
+test('rede: Bloqueio permanece visível na cadeia de 2x e restringe seu próprio criador', async (t) => {
+  const fixture = await setup(t);
+  const { a, b, storage, code } = fixture;
+  await seedHands(fixture, [['block-0', 'double-1', 'letra-A', 'letra-B'], ['double-0', 'letra-C', 'letra-D', 'letra-E']]);
+  assert.equal((await emit(a, 'game:play', { cardId: 'block-0', letter: 'X', blockedLetter: 'A' })).ok, true);
+  await waitFor(() => b.view.game.blockedLetter === 'A');
+  assert.equal((await emit(b, 'game:play', { cardId: 'double-0' })).ok, true);
+  await waitFor(() => a.view.game.turnPlayerId === a.view.meId);
+  assert.equal(a.view.game.blockedLetter, 'A');
+  assert.ok(!a.view.game.playableCardIds.includes('letra-A'));
+  assert.equal((await emit(a, 'game:play', { cardId: 'letra-A' })).ok, false);
+  assert.equal((await emit(a, 'game:play', { cardId: 'double-1' })).ok, true);
+  await waitFor(() => b.view.game.extraTurns.length === 2);
+  for (const socket of [a, b]) {
+    assert.equal(socket.view.game.blockedLetter, 'A');
+    assert.equal(socket.view.game.word, 'X');
+  }
+  assert.equal((await storage.getRoom(code)).game.blockedLetter, 'A');
+  assert.equal((await emit(b, 'game:play', { cardId: 'letra-C' })).ok, true);
+  await waitFor(() => a.view.game.blockedLetter === null);
+  assert.equal(a.view.game.turnPlayerId, a.view.meId);
+  assert.ok(a.view.game.playableCardIds.includes('letra-A'));
+});
+
 for (const firstActor of ['último jogador', 'jogador sem carta']) {
   test(`rede: PERDI simultâneo aceita só um, recebendo primeiro o ${firstActor}`, async (t) => {
     const fixture = await setup(t);

@@ -214,8 +214,9 @@ export function playCard(original, id, cardId, choice, blockedChoice) {
   const previousPlayerId = room.game.lastPlayerId;
   player.hand.splice(index, 1);
   room.game.discard.push(card);
-  // Toda jogada consome o bloqueio anterior, inclusive 2x; Bloqueio instala o novo.
-  room.game.blockedLetter = effect === 'block' ? blockedLetter : null;
+  // Só uma jogada com letra consome a restrição já validada acima.
+  // 2x preserva o bloqueio para todos; um novo Bloqueio substitui o anterior.
+  if (effect !== 'replay') room.game.blockedLetter = effect === 'block' ? blockedLetter : null;
   if (effect === 'replace') {
     const previous = room.game.word.at(-1);
     room.game.word = room.game.word.slice(0, -1) + letter;
@@ -227,7 +228,7 @@ export function playCard(original, id, cardId, choice, blockedChoice) {
       : `${player.name} jogou 2x: ${previous.name} está desconectado; ${player.name} recebe um novo turno.`;
   } else {
     room.game.word += letter;
-    room.notice = effect === 'block' ? `${player.name} jogou Bloqueio: adicionou ${letter} e bloqueou ${blockedLetter} para a próxima jogada.`
+    room.notice = effect === 'block' ? `${player.name} jogou Bloqueio: adicionou ${letter} e bloqueou ${blockedLetter} até a próxima jogada com letra.`
       : `${player.name} jogou a letra ${letter}.`;
   }
   room.game.lastPlayerId = id;
