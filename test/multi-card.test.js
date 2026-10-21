@@ -20,29 +20,29 @@ function fixture({ hand = ['multi-0', 'letra-B', 'letra-E'], blockedLetter = nul
 }
 const playMulti = (room, letters) => playCard(room, 'p1', 'multi-0', letters);
 
-test('composição soma 72, preservando cinco 2+* e os demais tipos', () => {
-  const expected = { letter: 26, wild: 12, vowel: 1, consonant: 1, first: 1, last: 1, swap: 8, block: 6, double: 6, multi: 5, life: 5 };
+test('composição soma 84, preservando cinco 2+* e os demais tipos', () => {
+  const expected = { letter: 26, wild: 12, vowel: 1, consonant: 1, first: 1, last: 1, swap: 8, block: 6, double: 6, multi: 5, life: 5, pass: 12 };
   assert.deepEqual(Object.fromEntries(Object.entries(CARD_TYPES).map(([type, rule]) => [type, rule.quantity])), expected);
-  assert.equal(Object.values(expected).reduce((sum, count) => sum + count, 0), 72);
-  assert.equal(DECK_SIZE, 72);
+  assert.equal(Object.values(expected).reduce((sum, count) => sum + count, 0), 84);
+  assert.equal(DECK_SIZE, 84);
   const deck = createDeck();
-  assert.equal(deck.length, 72);
-  assert.equal(new Set(deck.map((card) => card.id)).size, 72);
+  assert.equal(deck.length, 84);
+  assert.equal(new Set(deck.map((card) => card.id)).size, 84);
   assert.equal(deck.filter((card) => card.type === 'multi').length, 5);
   assert.equal(CARD_TYPES.multi.minLetters, 2);
   assert.equal(CARD_TYPES.multi.maxLetters, 16);
 });
 
-test('máximo inicial com 72 cartas é recalculado para todas as quantidades de jogadores', () => {
-  assert.deepEqual([2, 3, 4, 5, 6, 7, 8].map(maxInitialCards), [35, 23, 17, 14, 11, 10, 8]);
+test('máximo inicial com 84 cartas é recalculado para todas as quantidades de jogadores', () => {
+  assert.deepEqual([2, 3, 4, 5, 6, 7, 8].map(maxInitialCards), [41, 27, 20, 16, 13, 11, 10]);
   let room = createRoom({ code: 'ABC234', playerId: 'p1', sessionId: 's1', name: 'Ana', now: 1000 });
-  room = updateSettings(room, 'p1', { playerCount: 2, initialCards: 35 });
+  room = updateSettings(room, 'p1', { playerCount: 2, initialCards: 41 });
   room = joinRoom(room, { playerId: 'p2', sessionId: 's2', name: 'Bia' });
   room = startGame(room, 'p1', random);
-  assert.equal(room.players[0].hand.length, 35);
-  assert.equal(room.players[1].hand.length, 35);
+  assert.equal(room.players[0].hand.length, 41);
+  assert.equal(room.players[1].hand.length, 41);
   assert.equal(room.game.deck.length, 2);
-  assert.equal(roomView(room, 'p1').settings.maxInitialCards, 35);
+  assert.equal(roomView(room, 'p1').settings.maxInitialCards, 41);
 });
 
 test('2+* aceita os limites mínimo e máximo, preserva ordem e normaliza para maiúsculas', () => {

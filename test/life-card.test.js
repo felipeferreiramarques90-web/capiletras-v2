@@ -20,15 +20,15 @@ function fixture({ hands = [['life-0', 'letra-B', 'letra-E'], ['double-0', 'letr
 }
 const playLife = (room, letter = 'A') => playCard(room, 'p1', 'life-0', letter);
 
-test('Vida soma cinco às 67 anteriores, preserva as quantidades e gera 72 IDs únicos', () => {
-  const previous = { letter: 26, wild: 12, vowel: 1, consonant: 1, first: 1, last: 1, swap: 8, block: 6, double: 6, multi: 5 };
-  assert.equal(Object.values(previous).reduce((sum, count) => sum + count, 0), 67);
+test('Vida mantém cinco cartas e a composição completa gera 84 IDs únicos', () => {
+  const previous = { letter: 26, wild: 12, vowel: 1, consonant: 1, first: 1, last: 1, swap: 8, block: 6, double: 6, multi: 5, pass: 12 };
+  assert.equal(Object.values(previous).reduce((sum, count) => sum + count, 0), 79);
   assert.deepEqual(Object.fromEntries(Object.entries(CARD_TYPES).map(([type, rule]) => [type, rule.quantity])), { ...previous, life: 5 });
-  assert.equal(DECK_SIZE, 72);
-  assert.equal(createDeck().length, 72);
-  assert.equal(new Set(createDeck().map((card) => card.id)).size, 72);
+  assert.equal(DECK_SIZE, 84);
+  assert.equal(createDeck().length, 84);
+  assert.equal(new Set(createDeck().map((card) => card.id)).size, 84);
   assert.equal(createDeck().filter((card) => card.type === 'life').length, 5);
-  assert.deepEqual([2, 3, 4, 5, 6, 7, 8].map(maxInitialCards), [35, 23, 17, 14, 11, 10, 8]);
+  assert.deepEqual([2, 3, 4, 5, 6, 7, 8].map(maxInitialCards), [41, 27, 20, 16, 13, 11, 10]);
 });
 
 test('Vida adiciona uma vogal, inclusive com visor vazio, e publica o aviso', () => {

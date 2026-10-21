@@ -26,6 +26,7 @@ export const CARD_TYPES = Object.freeze(Object.fromEntries(Object.entries({
   double: { quantity: 6, letters: '', effect: 'replay', label: '2x', symbol: '2x', color: 'orange' },
   multi: { quantity: 5, letters: ALPHABET, effect: 'appendMany', minLetters: 2, maxLetters: 16, label: '2+*', symbol: '2+*', color: 'purple' },
   life: { quantity: 5, letters: 'AEIOU', effect: 'append', protectsFromLoss: true, label: 'Vida', description: 'Só vogais', symbol: '❤️', color: 'pink' },
+  pass: { quantity: 12, letters: '', effect: 'pass', debtIncrement: 1, label: 'Passar letra', symbol: '→', color: 'black' },
 }).map(([type, rule]) => [type, Object.freeze(rule)])));
 export const DECK_SIZE = Object.values(CARD_TYPES).reduce((total, card) => total + card.quantity, 0);
 export const maxInitialCards = (players) => Math.floor((DECK_SIZE - RULES.reservedDrawCards) / players);

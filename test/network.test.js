@@ -56,12 +56,13 @@ test('HTTP: /health responde 200 e o mesmo servidor entrega o front-end e Socket
   assert.equal((await fetch(`${url}/socket.io/socket.io.js`)).status, 200);
   assert.equal((await fetch(`${url}/game/game.js`)).status, 404);
   const config = await (await fetch(`${url}/api/config`)).json();
-  assert.equal(config.deckSize, 72);
+  assert.equal(config.deckSize, 84);
   assert.equal(config.cardTypes.swap.quantity, 8);
   assert.equal(config.cardTypes.block.quantity, 6);
   assert.equal(config.cardTypes.double.quantity, 6);
   assert.equal(config.cardTypes.multi.quantity, 5);
   assert.equal(config.cardTypes.life.quantity, 5);
+  assert.equal(config.cardTypes.pass.quantity, 12);
   assert.equal(config.cardTypes.life.letters, 'AEIOU');
   assert.equal(config.cardTypes.multi.minLetters, 2);
   assert.equal(config.cardTypes.multi.maxLetters, 16);
@@ -80,6 +81,35 @@ async function seedHands({ a, b, code, storage }, hands, game = {}) {
   await waitFor(() => b.view.game?.version === a.view.game.version);
   return room;
 }
+
+test('rede: cascata de Passar letra e pagamento atômico validado, persistido e privado', async (t) => {
+  const fixture = await setup(t);
+  const { a, b, storage, code } = fixture;
+  await seedHands(fixture, [['pass-0', 'letra-K', 'letra-E'], ['pass-1', 'letra-C', 'letra-D']], { blockedLetter: 'K' });
+  assert.equal((await emit(a, 'game:play', { cardId: 'pass-0' })).ok, true);
+  await waitFor(() => b.view.game.letterDebt.count === 1);
+  assert.deepEqual(b.view.game.letterDebt, { count: 1, playerId: b.view.meId });
+  assert.equal((await emit(b, 'game:play', { cardId: 'pass-1' })).ok, true);
+  await waitFor(() => a.view.game.letterDebt.count === 2);
+  assert.deepEqual(a.view.game.letterDebt, { count: 2, playerId: a.view.meId });
+  assert.equal(a.view.game.blockedLetter, 'K');
+  assert.ok(a.view.game.playableCardIds.includes('letra-K'));
+  const before = await storage.getRoom(code);
+  for (const accumulatedLetters of [undefined, 'A', 'ABC', 'KZ', 'A1', 'ÁB']) {
+    assert.equal((await emit(a, 'game:play', { cardId: 'letra-K', accumulatedLetters })).ok, false);
+    assert.deepEqual(await storage.getRoom(code), before);
+  }
+  assert.equal((await emit(a, 'game:play', { cardId: 'letra-K', accumulatedLetters: 'aK' })).ok, true);
+  await waitFor(() => b.view.game.word === 'AKK');
+  const paid = await storage.getRoom(code);
+  assert.equal(paid.game.version, before.game.version + 1);
+  assert.deepEqual(paid.game.letterDebt, { count: 0, playerId: null });
+  assert.equal(paid.game.blockedLetter, null);
+  assert.equal(paid.players[0].hand.length, before.players[0].hand.length - 1);
+  assert.match(b.view.notice, /pagou 2 letras acumuladas/);
+  assert.ok(b.view.players.every((p) => !p.hand && !p.sessionId));
+  assert.ok(!b.view.hand.some((card) => card.id === 'letra-E'));
+});
 
 test('rede: Vida respeita Bloqueio, persiste proteção e rejeita PERDI até a próxima carta', async (t) => {
   const fixture = await setup(t);
@@ -236,7 +266,7 @@ test('rede: mãos privadas, autoridade do servidor, compra concorrente e PERDI e
   assert.equal(a.view.hand.length, 6);
   const stolen = b.view.hand[0];
   assert.equal((await emit(a, 'game:play', { cardId: stolen.id, letter: allowedLetters(stolen)[0] })).ok, false);
-  const card = a.view.hand.find((c) => !a.view.config.cardTypes[c.type].protectsFromLoss && a.view.game.playableCardIds.includes(c.id));
+  const card = a.view.hand.find((c) => !['double', 'pass'].includes(c.type) && !a.view.config.cardTypes[c.type].protectsFromLoss && a.view.game.playableCardIds.includes(c.id));
   const letter = a.view.game.allowedLettersByCard[card.id][0].repeat(a.view.config.cardTypes[card.type].minLetters || 1);
   assert.equal((await emit(a, 'game:play', { cardId: card.id, letter, blockedLetter: 'Z' })).ok, true);
   await waitFor(() => b.view.game.turnPlayerId === b.view.meId);
@@ -285,7 +315,12 @@ test('rede: uma partida completa mostra a mesma vitória e permite revanche e lo
     if (!card) {
       assert.equal((await emit(active, 'game:lose')).ok, true);
     } else {
-      assert.equal((await emit(active, 'game:play', { cardId: card.id, letter: active.view.game.allowedLettersByCard[card.id][0]?.repeat(active.view.config.cardTypes[card.type].minLetters || 1), blockedLetter: 'Z' })).ok, true);
+      const usesLetters = !['double', 'pass'].includes(card.type);
+      const debt = active.view.game.letterDebt.playerId === active.view.meId ? active.view.game.letterDebt.count : 0;
+      const accumulatedLetters = usesLetters ? (active.view.game.blockedLetter === 'A' ? 'B' : 'A').repeat(debt) : '';
+      const choices = [...active.view.game.allowedLettersByCard[card.id]].filter((letter) => card.type !== 'swap' || !accumulatedLetters || letter !== accumulatedLetters.at(-1));
+      const letter = choices[0]?.repeat(active.view.config.cardTypes[card.type].minLetters || 1);
+      assert.equal((await emit(active, 'game:play', { cardId: card.id, letter, blockedLetter: 'Z', accumulatedLetters })).ok, true);
     }
     const version = active.view.game.version;
     await waitFor(() => a.view.game.version === version && b.view.game.version === version);

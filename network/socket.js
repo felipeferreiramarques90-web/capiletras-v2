@@ -118,7 +118,7 @@ export function registerSockets(io, storage, { cleanupIntervalMs = 60_000, rando
     on('room:settings', (data) => action((room, id) => updateSettings(room, id, data)));
     on('game:start', () => action((room, id) => startGame(room, id, randomSource)));
     on('game:draw', () => action((room, id) => drawCard(room, id, randomSource)));
-    on('game:play', (data) => action((room, id) => playCard(room, id, data?.cardId, data?.letter, data?.blockedLetter)));
+    on('game:play', (data) => action((room, id) => playCard(room, id, data?.cardId, data?.letter, data?.blockedLetter, data?.accumulatedLetters)));
     // Versão obrigatória na rede: dois cliques sobre a mesma mesa não cobram duas penalidades.
     on('game:lose', (data) => action((room, id) => loseRound(room, id, randomSource, data?.version ?? null)));
     on('room:lobby', () => action((room, id) => returnToLobby(room, id)));

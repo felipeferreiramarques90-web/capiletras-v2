@@ -40,20 +40,29 @@ export function allowedLetters(card) {
   return card.type === 'letter' ? card.letter : (CARD_TYPES[card.type]?.letters || '');
 }
 
-export function playableLetters(card, game) {
-  const effect = CARD_TYPES[card.type]?.effect;
-  if (!game || (effect === 'replace' && !game.word)) return '';
-  return [...allowedLetters(card)].filter((letter) => letter !== game.blockedLetter
-    && (effect !== 'replace' || letter !== game.word.at(-1))).join('');
+export function debtForPlayer(game, id = game?.turnPlayerId) {
+  return game?.letterDebt && game.letterDebt.playerId === id ? game.letterDebt.count : 0;
 }
 
-export function isCardPlayable(card, game) {
+export function playableLetters(card, game, id = game?.turnPlayerId) {
+  const effect = CARD_TYPES[card.type]?.effect;
+  const owesLetters = debtForPlayer(game, id) > 0;
+  if (!game || (effect === 'replace' && !game.word && !owesLetters)) return '';
+  // O pagamento precede a carta e consome o Bloqueio. Na Troca, a última letra
+  // dependerá do texto acumulado; a validação definitiva acontece na jogada.
+  return [...allowedLetters(card)].filter((letter) => (owesLetters || letter !== game.blockedLetter)
+    && (effect !== 'replace' || owesLetters || letter !== game.word.at(-1))).join('');
+}
+
+export function isCardPlayable(card, game, id = game?.turnPlayerId) {
   if (!game || !CARD_TYPES[card.type]) return false;
-  return CARD_TYPES[card.type].effect === 'replay' ? game.lastPlayerId !== null : playableLetters(card, game).length > 0;
+  const effect = CARD_TYPES[card.type].effect;
+  if (effect === 'pass') return true;
+  return effect === 'replay' ? game.lastPlayerId !== null : playableLetters(card, game, id).length > 0;
 }
 
 export function hasPlayableCard(player, game) {
-  return player.hand.some((card) => isCardPlayable(card, game));
+  return player.hand.some((card) => isCardPlayable(card, game, player.id));
 }
 
 export function canLoseRound(room, id) {
@@ -122,6 +131,7 @@ export function startGame(original, id, random) {
     deck, discard: [], word: '', turnPlayerId: room.players[0].id, drawsThisTurn: 0,
     lastPlayerId: null, canLose: false, winnerId: null, turnNumber: 1,
     blockedLetter: null, protectedPlayerId: null, extraTurns: [], version: 0,
+    letterDebt: { count: 0, playerId: null },
   };
   room.notice = 'A partida começou. Boa sorte!';
   return room;
@@ -140,6 +150,7 @@ function setTurn(room, id) {
   // Uma nova vez do autor encerra a proteção, inclusive se só houve passagens/desconexões.
   if (room.game.protectedPlayerId === id) room.game.protectedPlayerId = null;
   room.game.turnPlayerId = id;
+  if (room.game.letterDebt.count > 0) room.game.letterDebt.playerId = id;
   room.game.drawsThisTurn = 0;
   room.game.turnNumber++;
 }
@@ -200,14 +211,31 @@ export function drawCard(original, id, random) {
   return room;
 }
 
-export function playCard(original, id, cardId, choice, blockedChoice) {
+export function playCard(original, id, cardId, choice, blockedChoice, accumulatedLetters) {
   const room = clone(original);
   const player = requireTurn(room, id);
   const index = player.hand.findIndex((card) => card.id === cardId);
   requireRule(index >= 0, 'Essa carta não está na sua mão.');
   const card = player.hand[index];
   const effect = CARD_TYPES[card.type]?.effect;
-  requireRule(isCardPlayable(card, room.game), 'Essa carta não pode ser jogada agora.');
+  requireRule(isCardPlayable(card, room.game, id), 'Essa carta não pode ser jogada agora.');
+  const usesLetters = effect !== 'replay' && effect !== 'pass';
+  const owed = debtForPlayer(room.game, id);
+  let paidLetters = '';
+  if (usesLetters && owed > 0) {
+    requireRule(typeof accumulatedLetters === 'string' && accumulatedLetters.length === owed,
+      `Digite exatamente ${owed} letras acumuladas.`);
+    requireRule(!/[^A-Za-z]/.test(accumulatedLetters), 'As letras acumuladas devem ser de A a Z, sem espaços, números, acentos ou símbolos.');
+    paidLetters = accumulatedLetters.toUpperCase();
+    requireRule(paidLetters[0] !== room.game.blockedLetter, `A primeira letra acumulada não pode ser ${room.game.blockedLetter}.`);
+    // Apenas a cópia local muda: pagamento e carta só serão salvos juntos após todas as validações.
+    room.game.word += paidLetters;
+    room.game.blockedLetter = null;
+    room.game.letterDebt = { count: 0, playerId: null };
+  } else {
+    requireRule(accumulatedLetters === undefined || accumulatedLetters === '',
+      usesLetters ? 'Não há letras acumuladas para pagar.' : 'Esta carta não paga letras acumuladas.');
+  }
   const letter = card.type === 'letter' ? card.letter : (typeof choice === 'string' ? choice.toUpperCase() : '');
   if (effect === 'appendMany') {
     const rule = CARD_TYPES[card.type];
@@ -216,7 +244,7 @@ export function playCard(original, id, cardId, choice, blockedChoice) {
     requireRule(letter.length >= rule.minLetters && letter.length <= rule.maxLetters,
       `A carta ${rule.label} exige de ${rule.minLetters} a ${rule.maxLetters} letras.`);
     requireRule(letter[0] !== room.game.blockedLetter, `A primeira letra não pode ser ${room.game.blockedLetter}.`);
-  } else if (effect !== 'replay') requireRule(letter.length === 1 && playableLetters(card, room.game).includes(letter),
+  } else if (usesLetters) requireRule(letter.length === 1 && playableLetters(card, room.game, id).includes(letter),
     'Escolha uma letra permitida por essa carta, diferente da letra bloqueada e da última letra ao usar Troca.');
   const blockedLetter = typeof blockedChoice === 'string' ? blockedChoice.toUpperCase() : '';
   if (effect === 'block') requireRule(blockedLetter.length === 1 && ALPHABET.includes(blockedLetter), 'Escolha uma letra de A a Z para bloquear.');
@@ -224,8 +252,8 @@ export function playCard(original, id, cardId, choice, blockedChoice) {
   player.hand.splice(index, 1);
   room.game.discard.push(card);
   // Só uma jogada com letra consome a restrição já validada acima.
-  // 2x preserva o bloqueio para todos; um novo Bloqueio substitui o anterior.
-  if (effect !== 'replay') room.game.blockedLetter = effect === 'block' ? blockedLetter : null;
+  // 2x e Passar letra preservam o bloqueio; um novo Bloqueio substitui o anterior.
+  if (usesLetters) room.game.blockedLetter = effect === 'block' ? blockedLetter : null;
   // Só a Vida recém-jogada protege seu autor. Qualquer próxima carta encerra a marca anterior.
   room.game.protectedPlayerId = CARD_TYPES[card.type].protectsFromLoss ? id : null;
   if (effect === 'replace') {
@@ -237,6 +265,10 @@ export function playCard(original, id, cardId, choice, blockedChoice) {
     room.notice = previous.connected && !previous.left
       ? `${player.name} jogou 2x: ${previous.name} joga de novo; depois a vez volta para ${player.name}.`
       : `${player.name} jogou 2x: ${previous.name} está desconectado; ${player.name} recebe um novo turno.`;
+  } else if (effect === 'pass') {
+    room.game.letterDebt.count += CARD_TYPES[card.type].debtIncrement;
+    room.game.letterDebt.playerId = id;
+    room.notice = `${player.name} jogou Passar letra →.`;
   } else {
     room.game.word += letter;
     room.notice = effect === 'block' ? `${player.name} jogou Bloqueio: adicionou ${letter} e bloqueou ${blockedLetter} até a próxima jogada com letra.`
@@ -245,6 +277,7 @@ export function playCard(original, id, cardId, choice, blockedChoice) {
         : `${player.name} jogou a letra ${letter}.`;
   }
   room.game.lastPlayerId = id;
+  if (paidLetters) room.notice = `${player.name} pagou ${owed} letra${owed === 1 ? '' : 's'} acumulada${owed === 1 ? '' : 's'} (${paidLetters}). ${room.notice}`;
   room.game.canLose = true;
   room.game.version++;
   if (!player.hand.length) {
@@ -252,6 +285,7 @@ export function playCard(original, id, cardId, choice, blockedChoice) {
     room.game.winnerId = id;
     room.game.canLose = false;
     room.game.extraTurns = [];
+    room.game.letterDebt = { count: 0, playerId: null };
     room.notice += ` ${player.name} esvaziou a mão e venceu!`;
   } else if (effect === 'replay') {
     room.game.extraTurns.push(id);
@@ -259,6 +293,11 @@ export function playCard(original, id, cardId, choice, blockedChoice) {
     else advanceTurn(room);
   } else {
     advanceTurn(room);
+  }
+  if (room.phase === 'playing' && effect === 'pass') {
+    const next = room.players.find((p) => p.id === room.game.turnPlayerId);
+    const count = room.game.letterDebt.count;
+    room.notice += ` ${next.name} deve ${count} letra${count === 1 ? '' : 's'}.`;
   }
   return room;
 }
@@ -271,15 +310,18 @@ export function loseRound(original, id, random, expectedVersion = original.game?
   requireRule(room.game.protectedPlayerId !== id, 'Protegido pela Vida. Aguarde uma nova jogada ou sua próxima vez.');
   requireRule(canLoseRound(room, id), 'Só quem baixou a última carta ou está na vez sem carta jogável pode dizer PERDI.');
   const previousBlock = room.game.blockedLetter;
+  const previousDebt = room.game.letterDebt.count;
   const cards = takeCards(room.game, RULES.lossPenalty, random);
   player.hand.push(...cards);
   room.game.word = '';
   room.game.blockedLetter = null;
+  room.game.letterDebt = { count: 0, playerId: null };
   room.game.canLose = false;
   // Histórico real permanece: 2x continua válido após PERDI, mesmo com o visor vazio.
   room.game.version++;
   room.notice = `${player.name} disse PERDI e comprou ${cards.length} carta${cards.length === 1 ? '' : 's'}. A palavra recomeçou!`;
   if (previousBlock) room.notice += ` O bloqueio da letra ${previousBlock} foi cancelado.`;
+  if (previousDebt) room.notice += ` O débito de ${previousDebt} letras acumuladas foi zerado.`;
   const current = room.players.find((p) => p.id === room.game.turnPlayerId);
   if (!hasPlayableCard(current, room.game) && !room.game.deck.length && !room.game.discard.length) {
     advanceTurn(room);
@@ -351,8 +393,9 @@ export function roomView(room, viewerId) {
       winnerId: game.winnerId, turnNumber: game.turnNumber, drawsThisTurn: game.drawsThisTurn,
       version: game.version, blockedLetter: game.blockedLetter, extraTurns: [...game.extraTurns],
       protectedPlayerId: game.protectedPlayerId,
-      playableCardIds: viewer.hand.filter((card) => isCardPlayable(card, game)).map((card) => card.id),
-      allowedLettersByCard: Object.fromEntries(viewer.hand.map((card) => [card.id, playableLetters(card, game)])),
+      letterDebt: structuredClone(game.letterDebt),
+      playableCardIds: viewer.hand.filter((card) => isCardPlayable(card, game, viewerId)).map((card) => card.id),
+      allowedLettersByCard: Object.fromEntries(viewer.hand.map((card) => [card.id, playableLetters(card, game, viewerId)])),
       deckCount: game.deck.length, discardCount: game.discard.length, availableCount: available,
       paused: connected(room).length < RULES.minPlayers,
       canDraw: myTurn && game.drawsThisTurn < RULES.maxDrawsPerTurn && available > 0,
