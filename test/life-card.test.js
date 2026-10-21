@@ -31,7 +31,7 @@ test('Vida soma cinco às 67 anteriores, preserva as quantidades e gera 72 IDs �
   assert.deepEqual([2, 3, 4, 5, 6, 7, 8].map(maxInitialCards), [35, 23, 17, 14, 11, 10, 8]);
 });
 
-test('Vida adiciona uma letra como coringa, inclusive com visor vazio, e publica o aviso', () => {
+test('Vida adiciona uma vogal, inclusive com visor vazio, e publica o aviso', () => {
   for (const word of ['', 'CAS']) {
     const original = fixture({ word });
     const room = playLife(original, 'a');
@@ -54,9 +54,51 @@ test('Vida permanece jogável com qualquer Bloqueio, desabilita sua letra e o co
     const before = structuredClone(room);
     assert.throws(() => playLife(room, blockedLetter), /permitida/);
     assert.deepEqual(room, before);
-    const next = playLife(room, blockedLetter === 'A' ? 'B' : 'A');
+    const choices = roomView(room, 'p1').game.allowedLettersByCard[card.id];
+    const expected = [...'AEIOU'].filter((letter) => letter !== blockedLetter).join('');
+    assert.equal(choices, expected);
+    assert.ok(choices.length >= 4);
+    const next = playLife(room, choices[0]);
     assert.equal(next.game.blockedLetter, null);
     assert.equal(next.game.protectedPlayerId, 'p1');
+  }
+});
+
+test('cada vogal é aceita na Vida, inclusive em minúsculas', () => {
+  for (const letter of 'AEIOUaeiou') {
+    const room = playLife(fixture({ word: 'CAS' }), letter);
+    assert.equal(room.game.word, 'CAS' + letter.toUpperCase());
+    assert.equal(room.game.protectedPlayerId, 'p1');
+  }
+});
+
+test('servidor rejeita qualquer consoante na Vida sem alterar o estado', () => {
+  for (const letter of 'BCDFGHJKLMNPQRSTVWXYZbcdfghjklmnpqrstvwxyz') {
+    const room = fixture();
+    const before = structuredClone(room);
+    assert.throws(() => playLife(room, letter), /permitida/);
+    assert.deepEqual(room, before);
+  }
+});
+
+test('vogal bloqueada deixa exatamente quatro opções no modal da Vida', () => {
+  for (const blockedLetter of 'AEIOU') {
+    const room = fixture({ blockedLetter });
+    const choices = roomView(room, 'p1').game.allowedLettersByCard['life-0'];
+    assert.equal(choices, [...'AEIOU'].filter((letter) => letter !== blockedLetter).join(''));
+    assert.equal(choices.length, 4);
+    const next = playLife(room, choices[0]);
+    assert.equal(next.game.blockedLetter, null);
+  }
+});
+
+test('consoante bloqueada não afeta as cinco vogais e a Vida ainda consome o bloqueio', () => {
+  for (const blockedLetter of 'BCDFGHJKLMNPQRSTVWXYZ') {
+    const room = fixture({ blockedLetter });
+    assert.equal(roomView(room, 'p1').game.allowedLettersByCard['life-0'], 'AEIOU');
+    const next = playLife(room, 'E');
+    assert.equal(next.game.blockedLetter, null);
+    assert.equal(next.game.word, 'E');
   }
 });
 
@@ -93,7 +135,7 @@ test('jogada inválida do próximo não encerra a proteção', () => {
 
 test('outra Vida encerra a marca anterior e protege apenas seu novo autor', () => {
   let room = playLife(fixture({ hands: [['life-0', 'letra-B'], ['life-1', 'letra-C']] }));
-  room = playCard(room, 'p2', 'life-1', 'D');
+  room = playCard(room, 'p2', 'life-1', 'O');
   assert.equal(room.game.protectedPlayerId, 'p2');
   assert.equal(roomView(room, 'p2').game.canLose, false);
   room = playCard(room, 'p1', 'letra-B');

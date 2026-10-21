@@ -62,6 +62,7 @@ test('HTTP: /health responde 200 e o mesmo servidor entrega o front-end e Socket
   assert.equal(config.cardTypes.double.quantity, 6);
   assert.equal(config.cardTypes.multi.quantity, 5);
   assert.equal(config.cardTypes.life.quantity, 5);
+  assert.equal(config.cardTypes.life.letters, 'AEIOU');
   assert.equal(config.cardTypes.multi.minLetters, 2);
   assert.equal(config.cardTypes.multi.maxLetters, 16);
 });
@@ -85,12 +86,17 @@ test('rede: Vida respeita Bloqueio, persiste proteção e rejeita PERDI até a p
   const { a, b, storage, code } = fixture;
   await seedHands(fixture, [['life-0', 'letra-B', 'letra-E'], ['double-0', 'letra-C', 'letra-D']], { word: 'C', blockedLetter: 'A' });
   assert.ok(!a.view.game.allowedLettersByCard['life-0'].includes('A'));
+  assert.equal(a.view.game.allowedLettersByCard['life-0'], 'EIOU');
   const beforeLife = await storage.getRoom(code);
   assert.equal((await emit(a, 'game:play', { cardId: 'life-0', letter: 'A' })).ok, false);
   assert.deepEqual(await storage.getRoom(code), beforeLife);
-  assert.equal((await emit(a, 'game:play', { cardId: 'life-0', letter: 'b' })).ok, true);
+  for (const letter of ['B', 'z', 'Y']) {
+    assert.equal((await emit(a, 'game:play', { cardId: 'life-0', letter })).ok, false);
+    assert.deepEqual(await storage.getRoom(code), beforeLife);
+  }
+  assert.equal((await emit(a, 'game:play', { cardId: 'life-0', letter: 'e' })).ok, true);
   await waitFor(() => b.view.game.protectedPlayerId === a.view.meId);
-  assert.equal(a.view.game.word, 'CB');
+  assert.equal(a.view.game.word, 'CE');
   assert.equal(a.view.game.blockedLetter, null);
   assert.equal(a.view.game.canLose, false);
   assert.equal(b.view.game.canLose, false);
