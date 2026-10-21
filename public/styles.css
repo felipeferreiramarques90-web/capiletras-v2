@@ -186,6 +186,16 @@ fieldset:disabled input, fieldset:disabled select { opacity: .65; }
 .playing-card.wild-card { background: #a6b783; border-color: #96a876; }
 .playing-card.wild-card > strong { font-family: inherit; font-size: 65px; height: 43px; }
 .playing-card.special-card { background: #edc3a6; border-color: #dbb598; }
+.playing-card.card-blue { background: #b8dfef; border-color: #83b9d0; }
+.playing-card.card-red { background: #edb0aa; border-color: #cc807a; color: #602c29; }
+.playing-card.card-orange { background: #f4bf76; border-color: #d39b52; }
+.playing-card.card-blue > strong, .playing-card.card-red > strong { font-size: 27px; }
+.playing-card.card-orange > strong { font-size: 35px; font-weight: 750; }
+.playing-card.unplayable-card { opacity: .45; filter: saturate(.55); border-style: dashed; }
+.block-badge { display: inline-flex; align-items: center; flex-wrap: wrap; justify-content: center; gap: 7px; background: #f5c6be; color: #6f302a; padding: 8px 12px; border-radius: 8px; margin-top: 15px; font-size: 11px; }
+.block-badge strong { font-size: 20px; }
+.block-badge > span { font-size: 9px; }
+.word-area > .extra-turn-notice { color: #f4c889; font-weight: 650; }
 .playing-card > .card-special-title { font-family: inherit; font-size: 17px; line-height: 1.1; font-weight: 600; letter-spacing: -.5px; }
 .hand-note { font-size: 9px; color: #939b85; text-align: center; line-height: 1.6; margin-top: 16px; }
 .victory-panel { text-align: center; border: 1px solid var(--line); background: var(--cream); border-radius: 20px; padding: 40px 20px; }
@@ -207,6 +217,10 @@ dialog .muted { font-size: 12px; }
 .letter-option { border: 1px solid #d0d6c1; border-radius: 7px; min-height: 42px; font-size: 18px; font-family: Georgia, serif; background: #edf0e2; }
 .letter-option:hover:not(:disabled) { background: var(--green); color: var(--cream); }
 .letter-option:disabled { opacity: .25; background: transparent; }
+.letter-option.selected { background: var(--green); color: var(--cream); border-color: var(--green); }
+#block-picker { padding-top: 8px; border-top: 1px solid var(--line); }
+#block-picker h3 { font-size: 15px; }
+#letter-dialog:has(#block-picker:not([hidden])) { width: min(520px, 92vw); }
 .dialog-note { font-size: 10px; color: #929a83; line-height: 1.6; }
 .rules-list { padding-left: 20px; font-size: 12px; line-height: 1.8; color: #77856b; }
 .rules-list li { padding: 6px 0 6px 4px; }

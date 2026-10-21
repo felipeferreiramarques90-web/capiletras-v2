@@ -15,12 +15,21 @@
   let busy = false;
   let replacing = false;
   let selectedCard = null;
+  let selectedLetter = null;
+  let selectedBlock = null;
+  let deckInfo = null;
   let toastTimer;
   const socket = io({ reconnection: true, reconnectionDelay: 800, reconnectionDelayMax: 5000 });
   const escape = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
   const disabled = (condition) => condition ? 'disabled' : '';
-  const labels = { wild: '*', vowel: 'Só vogal', consonant: 'Só consoante', first: 'A até M', last: 'N até Z' };
-  const ranges = { wild: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', vowel: 'AEIOU', consonant: 'BCDFGHJKLMNPQRSTVWXYZ', first: 'ABCDEFGHIJKLM', last: 'NOPQRSTUVWXYZ' };
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  // Quantidades, rótulos e possibilidades vêm do servidor. A UI não decide jogadas.
+  fetch('/api/config').then((response) => { if (!response.ok) throw new Error(); return response.json(); })
+    .then((config) => { deckInfo = config; updateDeckSummary(); render(); })
+    .catch(() => { /* A configuração também chega ao entrar em uma sala. */ });
+  function updateDeckSummary() {
+    if (deckInfo) $('#deck-summary').textContent = `${deckInfo.deckSize} cartas. Infinitas possibilidades.`;
+  }
   const canAct = () => socket.connected && !busy;
   const isHost = () => room?.meId === room?.hostId;
   const avatar = (player, index) => `<span class="avatar color-${index % 4}" aria-hidden="true">${escape(player.name.slice(0, 1).toUpperCase())}</span>`;
@@ -70,8 +79,13 @@
   socket.on('disconnect', () => { connection(); render(); });
   socket.on('room:state', (state) => {
     room = state;
+    deckInfo = state.config;
+    updateDeckSummary();
     storage.set('room', state.code);
-    if (selectedCard && (!room.game?.canPlay || !room.hand.some((c) => c.id === selectedCard.id))) closeLetters();
+    if (selectedCard) {
+      if (!room.game?.canPlay || !room.game.playableCardIds.includes(selectedCard.id)) closeLetters();
+      else refreshLetterOptions();
+    }
     render();
   });
   socket.on('session:replaced', () => {
@@ -124,7 +138,7 @@
     return `<section class="room-layout">${roomBar('AQUELE MOMENTO ANTES DA PRIMEIRA CARTA')}
       <div class="lobby-layout"><section class="panel settings-panel"><span class="eyebrow">DO SEU JEITO</span><h2>Prepare a mesa.</h2><p class="muted">${isHost() ? 'Você é o anfitrião. Escolha o tamanho da roda.' : 'O anfitrião está preparando a partida.'}</p>
         <form id="settings-form"><fieldset ${disabled(!isHost() || !canAct())}><label for="player-count">Número de jogadores <span>2 a 8</span></label><select id="player-count" name="playerCount">${Array.from({ length: 7 }, (_, i) => i + 2).map((n) => `<option value="${n}" ${n === room.settings.playerCount ? 'selected' : ''}>${n} jogadores</option>`).join('')}</select>
-        <label for="initial-cards">Cartas por pessoa <span id="max-cards">3 a ${room.settings.maxInitialCards}</span></label><input id="initial-cards" name="initialCards" type="number" min="3" max="${room.settings.maxInitialCards}" value="${room.settings.initialCards}" required><p class="field-hint">42 cartas no total. Sempre sobra pelo menos uma para comprar.</p>
+        <label for="initial-cards">Cartas por pessoa <span id="max-cards">3 a ${room.settings.maxInitialCards}</span></label><input id="initial-cards" name="initialCards" type="number" min="3" max="${room.settings.maxInitialCards}" value="${room.settings.initialCards}" required><p class="field-hint">${room.deckSize} cartas no total. Sempre sobra pelo menos uma para comprar.</p>
         ${isHost() ? '<button class="button secondary full">Salvar configuração <span>✓</span></button>' : ''}</fieldset></form>
         <div class="lobby-tip"><span aria-hidden="true">✳</span><p>Não precisa saber a palavra inteira.<br>Só a próxima letra.</p></div>
       </section>
@@ -142,22 +156,26 @@
     const ordered = [...room.players.slice(meIndex + 1), ...room.players.slice(0, meIndex)];
     return `<section class="game-layout">${roomBar('PALAVRAS SE CONSTROEM EM BOA COMPANHIA')}
       <div class="opponents">${ordered.map((p) => { const i = room.players.findIndex((item) => item.id === p.id); return `<div class="opponent ${p.id === game.turnPlayerId ? 'active' : ''} ${!p.connected ? 'offline-player' : ''}">${avatar(p, i)}<div><strong>${escape(p.name)}</strong><span>${p.left ? 'Saiu da sala' : !p.connected ? 'Reconectando…' : `${p.cardCount} carta${p.cardCount === 1 ? '' : 's'}`}</span></div><span class="mini-cards" aria-hidden="true">▥</span></div>`; }).join('')}</div>
-      <div class="turn-bar ${myTurn ? 'your-turn' : ''}" role="status"><span class="status-dot connected"></span>${!socket.connected ? 'Reconectando… Suas cartas estão guardadas.' : game.paused ? 'Partida pausada · aguardando outro jogador reconectar' : game.turnPlayerId === room.meId ? 'É a sua vez! Escolha uma carta para jogar.' : `Vez de ${escape(current?.name)}. Prepare sua próxima letra.`}<span class="turn-number">TURNO ${game.turnNumber}</span></div>${game.paused && isHost() ? `<div class="paused-actions"><button class="text-button" data-action="end" ${disabled(!canAct())}>Encerrar partida e voltar à sala →</button></div>` : ''}
+      <div class="turn-bar ${myTurn ? 'your-turn' : ''}" role="status"><span class="status-dot connected"></span>${!socket.connected ? 'Reconectando… Suas cartas estão guardadas.' : game.paused ? 'Partida pausada · aguardando outro jogador reconectar' : game.turnPlayerId === room.meId ? (game.noPlayableCards ? 'Sem carta jogável. Você pode usar PERDI ou comprar uma carta.' : 'É a sua vez! Escolha uma carta para jogar.') : `Vez de ${escape(current?.name)}. Prepare sua próxima letra.`}<span class="turn-number">TURNO ${game.turnNumber}</span></div>${game.paused && isHost() ? `<div class="paused-actions"><button class="text-button" data-action="end" ${disabled(!canAct())}>Encerrar partida e voltar à sala →</button></div>` : ''}
       <section class="table-felt" aria-label="Centro da mesa"><div class="felt-caption">CAPILETRAS · A MESA É DE TODOS</div>
         <div class="table-center"><button class="draw-pile ${game.canDraw ? 'available' : ''}" data-action="draw" ${disabled(!game.canDraw || !canAct())} aria-label="Comprar uma carta. ${game.deckCount} cartas na pilha, ${game.discardCount} para reembaralhar."><span class="deck-back" aria-hidden="true"><span>c<span>*</span></span></span><strong>COMPRAR</strong><small>${game.deckCount} na pilha${game.discardCount ? ` · ${game.discardCount} jogadas` : ''}</small></button>
-        <div class="word-area"><span class="eyebrow">NOSSA PALAVRA</span><div class="word-display ${game.word ? '' : 'word-empty'}" aria-label="Palavra atual: ${escape(game.word || 'vazia')}">${game.word ? escape(game.word) : 'A primeira letra é com você.'}</div><p>${game.word ? `${game.word.length} letra${game.word.length === 1 ? '' : 's'} e contando…` : 'Uma carta é tudo que precisa para começar.'}</p></div>
-        <div class="lose-area"><button class="button lose-button" data-action="lose" ${disabled(!game.canLose || !canAct())}>PERDI <span aria-hidden="true">↺</span></button><p>Compre até 4 cartas.<br>Recomece a palavra.</p></div></div>
+        <div class="word-area"><span class="eyebrow">NOSSA PALAVRA</span><div class="word-display ${game.word ? '' : 'word-empty'}" aria-label="Palavra atual: ${escape(game.word || 'vazia')}">${game.word ? escape(game.word) : 'A primeira letra é com você.'}</div><p>${game.word ? `${game.word.length} letra${game.word.length === 1 ? '' : 's'} e contando…` : 'Uma carta é tudo que precisa para começar.'}</p>${game.blockedLetter ? `<div class="block-badge" role="status">➕🚫 Letra bloqueada: <strong>${game.blockedLetter}</strong><span>até a próxima jogada</span></div>` : ''}${game.extraTurns.length ? `<p class="extra-turn-notice">2x ativo · retorno para ${escape(room.players.find((p) => p.id === game.extraTurns.at(-1))?.name)}</p>` : ''}</div>
+        <div class="lose-area"><button class="button lose-button" data-action="lose" ${disabled(!game.canLose || !canAct())}>PERDI <span aria-hidden="true">↺</span></button><p>Compre até ${room.config.lossPenalty} cartas.<br>Zere palavra e bloqueio.</p></div></div>
         <p class="table-notice" role="status">${escape(room.notice)}</p>
       </section>
-      <section class="hand-section" aria-label="Sua mão"><div class="hand-heading"><div><span class="eyebrow">SUAS POSSIBILIDADES</span><h2>Sua mão <span>${room.hand.length} carta${room.hand.length === 1 ? '' : 's'}</span></h2></div><p>${game.drawsThisTurn && game.turnPlayerId === room.meId ? 'Você já comprou. Agora, baixe uma carta.' : !game.availableCount ? 'Sem cartas para comprar. Escolha uma da mão.' : 'Compre até 1 carta por turno, se quiser.'}</p></div>
-      <div class="hand-cards">${room.hand.map((card) => cardButton(card, myTurn)).join('')}</div><p class="hand-note">${myTurn ? 'Clique em uma carta para jogar.' : 'Sua mão é visível só para você.'} O botão PERDI pertence a quem jogou a última carta.</p></section>
+      <section class="hand-section" aria-label="Sua mão"><div class="hand-heading"><div><span class="eyebrow">SUAS POSSIBILIDADES</span><h2>Sua mão <span>${room.hand.length} carta${room.hand.length === 1 ? '' : 's'}</span></h2></div><p>${game.drawsThisTurn && game.turnPlayerId === room.meId ? (game.noPlayableCards ? 'Você já comprou e segue sem carta jogável. Use PERDI.' : 'Você já comprou. Agora, baixe uma carta.') : !game.availableCount ? 'Sem cartas para comprar. Escolha uma da mão.' : `Compre até ${room.config.maxDrawsPerTurn} carta por turno, se quiser.`}</p></div>
+      <div class="hand-cards">${room.hand.map((card) => cardButton(card, myTurn && game.playableCardIds.includes(card.id))).join('')}</div><p class="hand-note">${myTurn ? (game.noPlayableCards ? 'Sem carta jogável: use PERDI ou compre, se quiser.' : 'Clique em uma carta para jogar.') : 'Sua mão é visível só para você.'} PERDI: última carta jogada ou sua vez sem carta jogável.</p></section>
     </section>`;
   }
 
   function cardButton(card, enabled) {
+    const rule = room.config.cardTypes[card.type];
     const fixed = card.type === 'letter';
-    const title = fixed ? card.letter : labels[card.type];
-    return `<button class="playing-card ${card.type === 'wild' ? 'wild-card' : ''} ${!fixed && card.type !== 'wild' ? 'special-card' : ''}" data-card="${escape(card.id)}" ${disabled(!enabled)} aria-label="Jogar ${escape(title)}"><span class="card-corner">${fixed ? title : card.type === 'wild' ? '*' : '→'}</span><strong class="${!fixed && card.type !== 'wild' ? 'card-special-title' : ''}">${title}</strong><span class="card-bottom">${fixed ? 'LETRA' : card.type === 'wild' ? 'CORINGA' : 'ESCOLHA'}</span></button>`;
+    const title = fixed ? card.letter : rule.label;
+    const symbol = fixed ? card.letter : rule.symbol;
+    const special = !fixed && card.type !== 'wild';
+    const reason = room.game.playableCardIds.includes(card.id) ? '' : card.type === 'swap' && !room.game.word ? 'Visor vazio' : card.type === 'double' ? 'Sem jogada anterior' : 'Letra bloqueada';
+    return `<button class="playing-card card-${rule.color} ${card.type === 'wild' ? 'wild-card' : ''} ${special ? 'special-card' : ''} ${reason ? 'unplayable-card' : ''}" data-card="${escape(card.id)}" ${disabled(!enabled)} aria-label="Jogar ${escape(title)}${reason ? `: ${reason}` : ''}" title="${escape(reason || title)}"><span class="card-corner">${escape(symbol)}</span><strong class="${special ? 'card-special-title' : ''}">${escape(special && ['swap', 'block', 'double'].includes(card.type) ? symbol : fixed ? title : card.type === 'wild' ? '*' : title)}</strong><span class="card-bottom">${escape(reason || title.toUpperCase())}</span></button>`;
   }
 
   function victory() {
@@ -166,12 +184,31 @@
     return `<section class="room-layout">${roomBar('FIM DE PARTIDA · COMEÇO DE OUTRA HISTÓRIA')}<section class="victory-panel"><div class="victory-star" aria-hidden="true">✳</div><span class="eyebrow">MÃO VAZIA. SORRISO CHEIO.</span><h1>${won ? 'Essa foi sua!' : `${escape(winner.name)} venceu!`}</h1><p>${won ? 'Você encontrou a última letra e levou a melhor.' : 'A última carta foi jogada. Vale uma revanche?'}</p><div class="final-word"><span>ÚLTIMA PALAVRA DA MESA</span><strong>${escape(room.game.word)}</strong></div><div class="victory-actions">${isHost() ? `<button class="button primary" data-action="start" ${disabled(!canAct())}>Jogar de novo <span>→</span></button><button class="button secondary" data-action="lobby" ${disabled(!canAct())}>Voltar à sala</button>` : '<p class="muted">O anfitrião pode começar outra partida ou voltar à sala.</p><button class="button secondary" data-action="leave" '+disabled(!canAct())+'>Voltar ao início</button>'}</div><p class="field-hint">${isHost() ? 'Para mudar jogadores ou configurações, volte à sala.' : 'Você pode continuar aqui para a próxima rodada.'}</p></section></section>`;
   }
 
-  function closeLetters() { selectedCard = null; $('#letter-dialog').close(); }
+  function closeLetters() {
+    selectedCard = null;
+    selectedLetter = null;
+    selectedBlock = null;
+    $('#letter-dialog').close();
+  }
+  function refreshLetterOptions() {
+    if (!selectedCard) return;
+    const choices = room.game.allowedLettersByCard[selectedCard.id] || '';
+    if (!choices.includes(selectedLetter)) selectedLetter = null;
+    $('#letter-grid').innerHTML = [...alphabet].map((letter) => `<button class="letter-option ${selectedLetter === letter ? 'selected' : ''}" data-letter="${letter}" aria-pressed="${selectedLetter === letter}" ${disabled(!choices.includes(letter))}>${letter}</button>`).join('');
+    const block = selectedCard.type === 'block';
+    $('#block-picker').hidden = !block;
+    if (block) $('#block-grid').innerHTML = [...alphabet].map((letter) => `<button class="letter-option ${selectedBlock === letter ? 'selected' : ''}" data-block="${letter}" aria-pressed="${selectedBlock === letter}">${letter}</button>`).join('');
+    $('#confirm-block').disabled = !selectedLetter || !selectedBlock || !canAct();
+    $('#letter-hint').textContent = selectedCard.type === 'swap'
+      ? `Substitua ${room.game.word.at(-1)} por outra letra. A letra atual e a bloqueada não valem.`
+      : `${block ? '1. Letra a adicionar. ' : ''}Letras permitidas: ${[...choices].join(', ')}.`;
+  }
   function openLetters(card) {
     selectedCard = card;
-    $('#letter-title').textContent = card.type === 'wild' ? 'Seu coringa, sua letra.' : labels[card.type];
-    $('#letter-hint').textContent = card.type === 'wild' ? 'Vale qualquer letra do alfabeto.' : `Letras permitidas: ${[...ranges[card.type]].join(', ')}.`;
-    $('#letter-grid').innerHTML = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].map((letter) => `<button class="letter-option" data-letter="${letter}" ${disabled(!ranges[card.type].includes(letter))}>${letter}</button>`).join('');
+    selectedLetter = null;
+    selectedBlock = null;
+    $('#letter-title').textContent = room.config.cardTypes[card.type].label;
+    refreshLetterOptions();
     $('#letter-dialog').showModal();
   }
 
@@ -179,7 +216,7 @@
     if (event.target.id === 'player-name') { name = event.target.value; storage.set('name', name); }
     if (event.target.id === 'room-code') { enteredCode = event.target.value.toUpperCase(); event.target.value = enteredCode; }
     if (event.target.id === 'player-count') {
-      const max = Math.floor((room.deckSize - 1) / Number(event.target.value));
+      const max = Math.floor((room.deckSize - room.config.reservedDrawCards) / Number(event.target.value));
       $('#initial-cards').max = max;
       $('#initial-cards').value = Math.min(Number($('#initial-cards').value), max);
       $('#max-cards').textContent = `3 a ${max}`;
@@ -204,7 +241,7 @@
     const cardElement = event.target.closest('[data-card]');
     if (cardElement && !cardElement.disabled && room?.game?.canPlay && canAct()) {
       const card = room.hand.find((item) => item.id === cardElement.dataset.card);
-      if (card.type === 'letter') await send('game:play', { cardId: card.id });
+      if (card.type === 'letter' || card.type === 'double') await send('game:play', { cardId: card.id });
       else openLetters(card);
       return;
     }
@@ -216,7 +253,7 @@
         await send('room:create', { sessionId, name }); break;
       case 'start': await send('game:start'); break;
       case 'draw': await send('game:draw'); break;
-      case 'lose': await send('game:lose'); break;
+      case 'lose': await send('game:lose', { version: room.game.version }); break;
       case 'lobby': await send('room:lobby'); break;
       case 'end':
         if (confirm('Encerrar esta partida pausada? Todos voltarão à sala e uma nova partida terá novas cartas.')) await send('room:lobby');
@@ -235,10 +272,23 @@
   $('#letter-grid').addEventListener('click', async (event) => {
     const button = event.target.closest('[data-letter]');
     if (!button || button.disabled || !selectedCard || !canAct()) return;
+    if (selectedCard.type === 'block') { selectedLetter = button.dataset.letter; refreshLetterOptions(); return; }
     const cardId = selectedCard.id;
     const letter = button.dataset.letter;
     closeLetters();
     await send('game:play', { cardId, letter });
+  });
+  $('#block-grid').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-block]');
+    if (!button || !selectedCard || !canAct()) return;
+    selectedBlock = button.dataset.block;
+    refreshLetterOptions();
+  });
+  $('#confirm-block').addEventListener('click', async () => {
+    if (!selectedCard || !selectedLetter || !selectedBlock || !canAct()) return;
+    const data = { cardId: selectedCard.id, letter: selectedLetter, blockedLetter: selectedBlock };
+    closeLetters();
+    await send('game:play', data);
   });
   $('#close-letter').addEventListener('click', closeLetters);
   $('#letter-dialog').addEventListener('cancel', () => { selectedCard = null; });

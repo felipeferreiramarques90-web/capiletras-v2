@@ -20,14 +20,20 @@
       </div>
     </header>
     <main id="app" aria-label="Jogo Capiletras"></main>
-    <footer class="site-footer"><span>FEITO PARA JUNTAR GENTE.</span><span>42 cartas. Infinitas possibilidades.</span></footer>
+    <footer class="site-footer"><span>FEITO PARA JUNTAR GENTE.</span><span id="deck-summary">Um baralho. Infinitas possibilidades.</span></footer>
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
     <dialog id="letter-dialog" aria-labelledby="letter-title">
       <div class="dialog-heading"><span class="eyebrow">SUA CARTA, SUA ESCOLHA</span><button type="button" class="icon-button" id="close-letter" aria-label="Fechar escolha de letra">×</button></div>
       <h2 id="letter-title">Escolha uma letra</h2>
       <p id="letter-hint" class="muted"></p>
       <div id="letter-grid" class="letter-grid"></div>
-      <p class="dialog-note">A letra escolhida será adicionada à palavra.</p>
+      <section id="block-picker" hidden aria-labelledby="block-picker-title">
+        <h3 id="block-picker-title">2. Letra a bloquear</h3>
+        <p class="muted">A próxima jogada não poderá usar esta letra.</p>
+        <div id="block-grid" class="letter-grid"></div>
+        <button type="button" class="button primary full" id="confirm-block" disabled>Jogar Bloqueio</button>
+      </section>
+      <p class="dialog-note">Sua escolha será aplicada ao visor da mesa.</p>
     </dialog>
     <dialog id="rules-dialog" aria-labelledby="rules-title">
       <div class="dialog-heading"><span class="eyebrow">O COMBINADO DA MESA</span><button type="button" class="icon-button" id="close-rules" aria-label="Fechar regras">×</button></div>
@@ -37,7 +43,10 @@
         <li><strong>Construa a palavra.</strong> Na sua vez, baixe uma carta e acrescente uma letra ao centro da mesa.</li>
         <li><strong>Precisou? Compre.</strong> Você pode comprar uma única carta por turno e depois precisa jogar.</li>
         <li><strong>Escolha com liberdade.</strong> O coringa verde vale de A a Z. As cartas especiais indicam quais letras você pode escolher.</li>
-        <li><strong>Travou? PERDI.</strong> Apenas quem jogou a última carta pode dizer PERDI, até a próxima carta ser jogada. Compra até 4 cartas disponíveis e zera a palavra, sem mudar a vez.</li>
+        <li><strong>Troca 🔄.</strong> Substitua a última letra por outra, de A a Z. Só pode jogar com o visor preenchido.</li>
+        <li><strong>Bloqueio ➕🚫.</strong> Adicione uma letra e escolha outra para bloquear na próxima jogada. Até um 2x consome o bloqueio.</li>
+        <li><strong>Mais uma com 2x.</strong> Quem jogou antes de você joga de novo; depois, a vez volta para você com uma nova compra opcional. Pode haver 2x em cadeia. Não vale na primeira jogada.</li>
+        <li><strong>Travou? PERDI.</strong> Quem jogou a última carta pode usar até a próxima jogada. Quem está na vez sem carta jogável também pode usar, sem precisar comprar antes. Compra até 4 cartas, zera a palavra e cancela o bloqueio; a vez só passa se ainda não houver carta jogável nem cartas para comprar.</li>
         <li><strong>Mão vazia, vitória.</strong> Ganha quem baixar a última carta primeiro.</li>
       </ol>
       <div class="rules-tip">A mesa não consulta um dicionário. Combinem entre vocês quando a palavra deixou de ter continuação. Ao acabar a pilha, as cartas jogadas voltam ao baralho.</div>
