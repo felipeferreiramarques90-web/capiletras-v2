@@ -173,11 +173,12 @@
     const rule = room.config.cardTypes[card.type];
     const fixed = card.type === 'letter';
     const title = fixed ? card.letter : rule.label;
+    const description = rule.description ? `${title} · ${rule.description}` : title;
     // Coração em texto mantém o contraste configurado, sem depender da cor do emoji do sistema.
     const symbol = card.type === 'life' ? '♥' : fixed ? card.letter : rule.symbol;
     const special = !fixed && card.type !== 'wild';
     const reason = room.game.playableCardIds.includes(card.id) ? '' : card.type === 'swap' && !room.game.word ? 'Visor vazio' : card.type === 'double' ? 'Sem jogada anterior' : 'Letra bloqueada';
-    return `<button class="playing-card card-${rule.color} ${card.type === 'wild' ? 'wild-card' : ''} ${special ? 'special-card' : ''} ${reason ? 'unplayable-card' : ''}" data-card="${escape(card.id)}" ${disabled(!enabled)} aria-label="Jogar ${escape(title)}${reason ? `: ${reason}` : ''}" title="${escape(reason || title)}"><span class="card-corner">${escape(symbol)}</span><strong class="${special ? 'card-special-title' : ''}">${escape(special && ['swap', 'block', 'double', 'multi', 'life'].includes(card.type) ? symbol : fixed ? title : card.type === 'wild' ? '*' : title)}</strong><span class="card-bottom">${escape(reason || title.toUpperCase())}</span></button>`;
+    return `<button class="playing-card card-${rule.color} ${card.type === 'wild' ? 'wild-card' : ''} ${special ? 'special-card' : ''} ${reason ? 'unplayable-card' : ''}" data-card="${escape(card.id)}" ${disabled(!enabled)} aria-label="Jogar ${escape(description)}${reason ? `: ${reason}` : ''}" title="${escape(reason || description)}"><span class="card-corner">${escape(symbol)}</span><strong class="${special ? 'card-special-title' : ''}">${escape(special && ['swap', 'block', 'double', 'multi', 'life'].includes(card.type) ? symbol : fixed ? title : card.type === 'wild' ? '*' : title)}</strong><span class="card-bottom">${escape(reason || description.toUpperCase())}</span></button>`;
   }
 
   function victory() {
@@ -219,7 +220,8 @@
       $('#multi-input').focus();
       return;
     }
-    $('#letter-title').textContent = room.config.cardTypes[card.type].label;
+    const rule = room.config.cardTypes[card.type];
+    $('#letter-title').textContent = rule.description ? `${rule.label} · ${rule.description.toLowerCase()}` : rule.label;
     refreshLetterOptions();
     $('#letter-dialog').showModal();
   }
