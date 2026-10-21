@@ -8,7 +8,7 @@ const random = () => randomInt(0, 2 ** 32) / 2 ** 32;
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const newCode = () => Array.from({ length: 6 }, () => CODE_CHARS[randomInt(CODE_CHARS.length)]).join('');
 
-export function registerSockets(io, storage, { cleanupIntervalMs = 60_000 } = {}) {
+export function registerSockets(io, storage, { cleanupIntervalMs = 60_000, randomSource = random } = {}) {
   const owners = new Map();
   const queues = new Map();
   const ownerKey = (code, id) => `${code}:${id}`;
@@ -116,10 +116,11 @@ export function registerSockets(io, storage, { cleanupIntervalMs = 60_000 } = {}
     }
 
     on('room:settings', (data) => action((room, id) => updateSettings(room, id, data)));
-    on('game:start', () => action((room, id) => startGame(room, id, random)));
-    on('game:draw', () => action((room, id) => drawCard(room, id, random)));
-    on('game:play', (data) => action((room, id) => playCard(room, id, data?.cardId, data?.letter)));
-    on('game:lose', () => action((room, id) => loseRound(room, id, random)));
+    on('game:start', () => action((room, id) => startGame(room, id, randomSource)));
+    on('game:draw', () => action((room, id) => drawCard(room, id, randomSource)));
+    on('game:play', (data) => action((room, id) => playCard(room, id, data?.cardId, data?.letter, data?.blockedLetter)));
+    // Versão obrigatória na rede: dois cliques sobre a mesma mesa não cobram duas penalidades.
+    on('game:lose', (data) => action((room, id) => loseRound(room, id, randomSource, data?.version ?? null)));
     on('room:lobby', () => action((room, id) => returnToLobby(room, id)));
     on('room:remove', (data) => action((room, id) => removeFromLobby(room, id, data?.playerId)));
 

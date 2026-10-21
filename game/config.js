@@ -4,7 +4,6 @@ export const RULES = Object.freeze({
   maxPlayers: 8,
   minHand: 3,
   defaultHand: 5,
-  wildCards: 12,
   reservedDrawCards: 1,
   maxDrawsPerTurn: 1,
   lossPenalty: 4,
@@ -14,13 +13,22 @@ export const RULES = Object.freeze({
 });
 
 export const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-export const LETTERS = Object.freeze({
-  letter: ALPHABET,
-  wild: ALPHABET,
-  vowel: 'AEIOU',
-  consonant: 'BCDFGHJKLMNPQRSTVWXYZ',
-  first: 'ABCDEFGHIJKLM',
-  last: 'NOPQRSTUVWXYZ',
-});
-export const DECK_SIZE = RULES.wildCards + ALPHABET.length + 4;
+// Composição e comportamento das cartas em uma única fonte, usada também na interface.
+export const CARD_TYPES = Object.freeze(Object.fromEntries(Object.entries({
+  letter: { quantity: ALPHABET.length, letters: ALPHABET, effect: 'append', label: 'Letra', symbol: '', color: 'ivory' },
+  wild: { quantity: 12, letters: ALPHABET, effect: 'append', label: 'Coringa', symbol: '*', color: 'green' },
+  vowel: { quantity: 1, letters: 'AEIOU', effect: 'append', label: 'Só vogal', symbol: '→', color: 'peach' },
+  consonant: { quantity: 1, letters: 'BCDFGHJKLMNPQRSTVWXYZ', effect: 'append', label: 'Só consoante', symbol: '→', color: 'peach' },
+  first: { quantity: 1, letters: 'ABCDEFGHIJKLM', effect: 'append', label: 'A até M', symbol: '→', color: 'peach' },
+  last: { quantity: 1, letters: 'NOPQRSTUVWXYZ', effect: 'append', label: 'N até Z', symbol: '→', color: 'peach' },
+  swap: { quantity: 8, letters: ALPHABET, effect: 'replace', label: 'Troca', symbol: '🔄', color: 'blue' },
+  block: { quantity: 6, letters: ALPHABET, effect: 'block', label: 'Bloqueio', symbol: '➕🚫', color: 'red' },
+  double: { quantity: 6, letters: '', effect: 'replay', label: '2x', symbol: '2x', color: 'orange' },
+}).map(([type, rule]) => [type, Object.freeze(rule)])));
+export const DECK_SIZE = Object.values(CARD_TYPES).reduce((total, card) => total + card.quantity, 0);
 export const maxInitialCards = (players) => Math.floor((DECK_SIZE - RULES.reservedDrawCards) / players);
+export const PUBLIC_CONFIG = Object.freeze({
+  deckSize: DECK_SIZE, cardTypes: CARD_TYPES,
+  minHand: RULES.minHand, reservedDrawCards: RULES.reservedDrawCards,
+  maxDrawsPerTurn: RULES.maxDrawsPerTurn, lossPenalty: RULES.lossPenalty,
+});

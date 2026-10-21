@@ -1,4 +1,4 @@
-import { ALPHABET, DECK_SIZE, LETTERS, RULES, maxInitialCards } from './config.js';
+import { ALPHABET, CARD_TYPES, DECK_SIZE, PUBLIC_CONFIG, RULES, maxInitialCards } from './config.js';
 
 export class GameError extends Error {}
 const requireRule = (condition, message) => { if (!condition) throw new GameError(message); };
@@ -19,10 +19,12 @@ const cleanName = (value) => {
 
 // Não acessa relógio, rede ou armazenamento; aleatoriedade e horário são injetados.
 export function createDeck() {
-  const deck = [...ALPHABET].map((letter) => ({ id: `letra-${letter}`, type: 'letter', letter }));
-  for (let i = 0; i < RULES.wildCards; i++) deck.push({ id: `coringa-${i}`, type: 'wild' });
-  for (const type of ['vowel', 'consonant', 'first', 'last']) deck.push({ id: type, type });
-  return deck;
+  return Object.entries(CARD_TYPES).flatMap(([type, rule]) => Array.from({ length: rule.quantity }, (_, i) => {
+    if (type !== 'letter') return { id: `${type}-${i}`, type };
+    const letter = rule.letters[i % rule.letters.length];
+    // IDs continuam únicos mesmo se a configuração passar a repetir letras fixas.
+    return { id: `letra-${letter}${i >= rule.letters.length ? `-${i}` : ''}`, type, letter };
+  }));
 }
 
 export function shuffle(cards, random) {
@@ -35,7 +37,31 @@ export function shuffle(cards, random) {
 }
 
 export function allowedLetters(card) {
-  return card.type === 'letter' ? card.letter : (LETTERS[card.type] || '');
+  return card.type === 'letter' ? card.letter : (CARD_TYPES[card.type]?.letters || '');
+}
+
+export function playableLetters(card, game) {
+  const effect = CARD_TYPES[card.type]?.effect;
+  if (!game || (effect === 'replace' && !game.word)) return '';
+  return [...allowedLetters(card)].filter((letter) => letter !== game.blockedLetter
+    && (effect !== 'replace' || letter !== game.word.at(-1))).join('');
+}
+
+export function isCardPlayable(card, game) {
+  if (!game || !CARD_TYPES[card.type]) return false;
+  return CARD_TYPES[card.type].effect === 'replay' ? game.lastPlayerId !== null : playableLetters(card, game).length > 0;
+}
+
+export function hasPlayableCard(player, game) {
+  return player.hand.some((card) => isCardPlayable(card, game));
+}
+
+export function canLoseRound(room, id) {
+  const player = room.players.find((p) => p.id === id && p.connected && !p.left);
+  return Boolean(room.phase === 'playing' && player && (
+    (room.game.canLose && room.game.lastPlayerId === id)
+    || (room.game.turnPlayerId === id && !hasPlayableCard(player, room.game))
+  ));
 }
 
 export function createRoom({ code, playerId, sessionId, name, now }) {
@@ -56,6 +82,7 @@ export function joinRoom(original, { playerId, sessionId, name }) {
     room.emptySince = null;
     if (!room.players.some((p) => p.id === room.hostId && p.connected && !p.left)) room.hostId = existing.id;
     resumeTurn(room);
+    if (room.game) room.game.version++;
     return room;
   }
   requireRule(room.phase === 'lobby', 'Esta partida já começou. Só participantes podem reconectar.');
@@ -94,6 +121,7 @@ export function startGame(original, id, random) {
   room.game = {
     deck, discard: [], word: '', turnPlayerId: room.players[0].id, drawsThisTurn: 0,
     lastPlayerId: null, canLose: false, winnerId: null, turnNumber: 1,
+    blockedLetter: null, extraTurns: [], version: 0,
   };
   room.notice = 'A partida começou. Boa sorte!';
   return room;
@@ -108,15 +136,30 @@ function requireTurn(room, id) {
   return player;
 }
 
+function setTurn(room, id) {
+  room.game.turnPlayerId = id;
+  room.game.drawsThisTurn = 0;
+  room.game.turnNumber++;
+}
+
 function advanceTurn(room) {
   const game = room.game;
-  const index = room.players.findIndex((p) => p.id === game.turnPlayerId);
+  let anchor = game.turnPlayerId;
+  // Pilha de retornos: cada 2x só termina depois do turno de quem o jogou.
+  // Retornos desconectados são pulados e sua posição continua sendo a referência.
+  while (game.extraTurns.length) {
+    const id = game.extraTurns.pop();
+    anchor = id;
+    if (room.players.some((p) => p.id === id && p.connected && !p.left)) {
+      setTurn(room, id);
+      return;
+    }
+  }
+  const index = room.players.findIndex((p) => p.id === anchor);
   for (let offset = 1; offset <= room.players.length; offset++) {
     const next = room.players[(index + offset) % room.players.length];
     if (next.connected && !next.left) {
-      game.turnPlayerId = next.id;
-      game.drawsThisTurn = 0;
-      game.turnNumber++;
+      setTurn(room, next.id);
       return;
     }
   }
@@ -150,47 +193,83 @@ export function drawCard(original, id, random) {
   requireRule(cards.length, 'Não há cartas disponíveis para compra.');
   player.hand.push(...cards);
   room.game.drawsThisTurn++;
+  room.game.version++;
   room.notice = `${player.name} comprou uma carta.`;
   return room;
 }
 
-export function playCard(original, id, cardId, choice) {
+export function playCard(original, id, cardId, choice, blockedChoice) {
   const room = clone(original);
   const player = requireTurn(room, id);
   const index = player.hand.findIndex((card) => card.id === cardId);
   requireRule(index >= 0, 'Essa carta não está na sua mão.');
   const card = player.hand[index];
+  const effect = CARD_TYPES[card.type]?.effect;
+  requireRule(isCardPlayable(card, room.game), 'Essa carta não pode ser jogada agora.');
   const letter = card.type === 'letter' ? card.letter : (typeof choice === 'string' ? choice.toUpperCase() : '');
-  requireRule(letter.length === 1 && allowedLetters(card).includes(letter), 'Escolha uma letra permitida por essa carta.');
+  if (effect !== 'replay') requireRule(letter.length === 1 && playableLetters(card, room.game).includes(letter),
+    'Escolha uma letra permitida por essa carta, diferente da letra bloqueada e da última letra ao usar Troca.');
+  const blockedLetter = typeof blockedChoice === 'string' ? blockedChoice.toUpperCase() : '';
+  if (effect === 'block') requireRule(blockedLetter.length === 1 && ALPHABET.includes(blockedLetter), 'Escolha uma letra de A a Z para bloquear.');
+  const previousPlayerId = room.game.lastPlayerId;
   player.hand.splice(index, 1);
   room.game.discard.push(card);
-  room.game.word += letter;
+  // Toda jogada consome o bloqueio anterior, inclusive 2x; Bloqueio instala o novo.
+  room.game.blockedLetter = effect === 'block' ? blockedLetter : null;
+  if (effect === 'replace') {
+    const previous = room.game.word.at(-1);
+    room.game.word = room.game.word.slice(0, -1) + letter;
+    room.notice = `${player.name} jogou Troca: ${previous} virou ${letter}.`;
+  } else if (effect === 'replay') {
+    const previous = room.players.find((p) => p.id === previousPlayerId);
+    room.notice = previous.connected && !previous.left
+      ? `${player.name} jogou 2x: ${previous.name} joga de novo; depois a vez volta para ${player.name}.`
+      : `${player.name} jogou 2x: ${previous.name} está desconectado; ${player.name} recebe um novo turno.`;
+  } else {
+    room.game.word += letter;
+    room.notice = effect === 'block' ? `${player.name} jogou Bloqueio: adicionou ${letter} e bloqueou ${blockedLetter} para a próxima jogada.`
+      : `${player.name} jogou a letra ${letter}.`;
+  }
   room.game.lastPlayerId = id;
   room.game.canLose = true;
-  room.notice = `${player.name} jogou a letra ${letter}.`;
+  room.game.version++;
   if (!player.hand.length) {
     room.phase = 'finished';
     room.game.winnerId = id;
     room.game.canLose = false;
-    room.notice = `${player.name} esvaziou a mão e venceu!`;
+    room.game.extraTurns = [];
+    room.notice += ` ${player.name} esvaziou a mão e venceu!`;
+  } else if (effect === 'replay') {
+    room.game.extraTurns.push(id);
+    if (room.players.some((p) => p.id === previousPlayerId && p.connected && !p.left)) setTurn(room, previousPlayerId);
+    else advanceTurn(room);
   } else {
     advanceTurn(room);
   }
   return room;
 }
 
-export function loseRound(original, id, random) {
+export function loseRound(original, id, random, expectedVersion = original.game?.version) {
   const room = clone(original);
   requireRule(room.phase === 'playing', 'Não há partida em andamento.');
   const player = playerById(room, id);
-  requireRule(player.connected && room.game.canLose && room.game.lastPlayerId === id,
-    'Só quem baixou a última carta pode dizer PERDI, antes da próxima jogada.');
+  requireRule(Number.isInteger(expectedVersion) && expectedVersion === room.game.version, 'A mesa mudou. Confira o estado e tente novamente.');
+  requireRule(canLoseRound(room, id), 'Só quem baixou a última carta ou está na vez sem carta jogável pode dizer PERDI.');
+  const previousBlock = room.game.blockedLetter;
   const cards = takeCards(room.game, RULES.lossPenalty, random);
   player.hand.push(...cards);
   room.game.word = '';
+  room.game.blockedLetter = null;
   room.game.canLose = false;
-  room.game.lastPlayerId = null;
+  // Histórico real permanece: 2x continua válido após PERDI, mesmo com o visor vazio.
+  room.game.version++;
   room.notice = `${player.name} disse PERDI e comprou ${cards.length} carta${cards.length === 1 ? '' : 's'}. A palavra recomeçou!`;
+  if (previousBlock) room.notice += ` O bloqueio da letra ${previousBlock} foi cancelado.`;
+  const current = room.players.find((p) => p.id === room.game.turnPlayerId);
+  if (!hasPlayableCard(current, room.game) && !room.game.deck.length && !room.game.discard.length) {
+    advanceTurn(room);
+    room.notice += ' Sem carta jogável nem cartas para comprar: a vez passou.';
+  }
   return room;
 }
 
@@ -205,6 +284,7 @@ export function disconnectPlayer(original, id, now, leave = false) {
   if (id === room.hostId && active.length) room.hostId = active[0].id;
   if (!active.length && room.emptySince === null) room.emptySince = now;
   resumeTurn(room);
+  if (room.game) room.game.version++;
   return room;
 }
 
@@ -246,7 +326,7 @@ export function roomView(room, viewerId) {
   return {
     code: room.code, phase: room.phase, hostId: room.hostId, meId: viewerId,
     settings: { ...room.settings, maxInitialCards: maxInitialCards(room.settings.playerCount) },
-    deckSize: DECK_SIZE, notice: room.notice,
+    deckSize: DECK_SIZE, config: PUBLIC_CONFIG, notice: room.notice,
     players: room.players.filter((p) => !p.left || room.phase !== 'lobby').map((p) => ({
       id: p.id, name: p.name, connected: p.connected, left: p.left, cardCount: p.hand.length,
     })),
@@ -254,11 +334,15 @@ export function roomView(room, viewerId) {
     game: game ? {
       word: game.word, turnPlayerId: game.turnPlayerId, lastPlayerId: game.lastPlayerId,
       winnerId: game.winnerId, turnNumber: game.turnNumber, drawsThisTurn: game.drawsThisTurn,
+      version: game.version, blockedLetter: game.blockedLetter, extraTurns: [...game.extraTurns],
+      playableCardIds: viewer.hand.filter((card) => isCardPlayable(card, game)).map((card) => card.id),
+      allowedLettersByCard: Object.fromEntries(viewer.hand.map((card) => [card.id, playableLetters(card, game)])),
       deckCount: game.deck.length, discardCount: game.discard.length, availableCount: available,
       paused: connected(room).length < RULES.minPlayers,
       canDraw: myTurn && game.drawsThisTurn < RULES.maxDrawsPerTurn && available > 0,
       canPlay: myTurn,
-      canLose: room.phase === 'playing' && game.canLose && game.lastPlayerId === viewerId,
+      canLose: canLoseRound(room, viewerId),
+      noPlayableCards: !hasPlayableCard(viewer, game),
     } : null,
   };
 }

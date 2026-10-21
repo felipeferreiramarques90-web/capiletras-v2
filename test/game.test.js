@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   createDeck, createRoom, joinRoom, updateSettings, startGame, drawCard, playCard,
-  loseRound, disconnectPlayer, returnToLobby, removeFromLobby, roomView, allowedLetters, shouldDeleteRoom,
+  loseRound, disconnectPlayer, returnToLobby, removeFromLobby, roomView, allowedLetters, playableLetters, isCardPlayable, shouldDeleteRoom,
 } from '../game/game.js';
 import { DECK_SIZE, RULES, maxInitialCards } from '../game/config.js';
 import { MemoryStorage } from '../storage/memory.js';
@@ -16,15 +16,19 @@ function lobby(count = 2, hand = 5) {
 }
 const playing = (count = 2, hand = 5) => startGame(lobby(count, hand), 'p1', random);
 const firstPlay = (room, id = room.game.turnPlayerId) => {
-  const card = room.players.find((p) => p.id === id).hand[0];
-  return playCard(room, id, card.id, allowedLetters(card)[0]);
+  const hand = room.players.find((p) => p.id === id).hand;
+  const card = hand.find((c) => c.type !== 'double' && isCardPlayable(c, room.game)) || hand.find((c) => isCardPlayable(c, room.game));
+  if (!card) return loseRound(room, id, random);
+  return playCard(room, id, card.id, playableLetters(card, room.game)[0], 'Z');
 };
 const allCards = (room) => [...room.game.deck, ...room.game.discard, ...room.players.flatMap((p) => p.hand)];
 
-test('baralho contém exatamente 42 cartas com identificadores únicos e a composição pedida', () => {
+test('baralho contém exatamente 62 cartas com identificadores únicos e a composição pedida', () => {
   const cards = createDeck();
-  assert.equal(cards.length, 42);
-  assert.equal(new Set(cards.map((c) => c.id)).size, 42);
+  assert.equal(DECK_SIZE, 62);
+  assert.equal(cards.length, DECK_SIZE);
+  for (const [type, count] of [['swap', 8], ['block', 6], ['double', 6]]) assert.equal(cards.filter((c) => c.type === type).length, count);
+  assert.equal(new Set(cards.map((c) => c.id)).size, DECK_SIZE);
   assert.equal(cards.filter((c) => c.type === 'wild').length, 12);
   assert.equal(cards.filter((c) => c.type === 'letter').length, 26);
   for (const type of ['vowel', 'consonant', 'first', 'last']) assert.equal(cards.filter((c) => c.type === type).length, 1);
@@ -37,12 +41,12 @@ test('limites de 2 a 8 jogadores e distribuição máxima sempre reservam compra
     assert.ok(room.players.every((p) => p.hand.length === maximum));
     assert.equal(room.game.deck.length, DECK_SIZE - count * maximum);
     assert.ok(room.game.deck.length >= 1);
-    assert.equal(new Set(allCards(room).map((c) => c.id)).size, 42);
+    assert.equal(new Set(allCards(room).map((c) => c.id)).size, DECK_SIZE);
   }
   for (const playerCount of [1, 9, 2.5, '2', null]) {
     assert.throws(() => updateSettings(lobby(), 'p1', { playerCount, initialCards: 3 }));
   }
-  for (const initialCards of [2, 21, 3.5, '5']) {
+  for (const initialCards of [2, maxInitialCards(2) + 1, 3.5, '5']) {
     assert.throws(() => updateSettings(lobby(), 'p1', { playerCount: 2, initialCards }));
   }
 });
@@ -73,7 +77,10 @@ test('comprar é opcional, limitado a uma vez por turno e não passa a vez', () 
 });
 
 test('a carta recém-comprada pode ser jogada no mesmo turno', () => {
-  let room = drawCard(playing(), 'p1', random);
+  const original = playing();
+  const index = original.game.deck.findIndex((c) => c.type === 'letter');
+  [original.game.deck[index], original.game.deck[original.game.deck.length - 1]] = [original.game.deck.at(-1), original.game.deck[index]];
+  let room = drawCard(original, 'p1', random);
   const card = room.players[0].hand.at(-1);
   room = playCard(room, 'p1', card.id, allowedLetters(card)[0]);
   assert.equal(room.players[0].hand.length, 5);
@@ -144,15 +151,19 @@ test('as 4 cartas do PERDI independem da compra opcional anterior do jogador', (
 });
 
 test('reembaralha o descarte quando a pilha acaba, inclusive durante a penalidade', () => {
-  let room = firstPlay(playing(8, 5)); // 2 na pilha e 1 no descarte.
+  let room = playing(8, 5);
+  // Redistribui o excedente para manter 2 na pilha sem perder cartas.
+  room.players[0].hand.push(...room.game.deck.splice(0, room.game.deck.length - 2));
+  room = firstPlay(room);
+  const beforePenalty = room.players[0].hand.length;
   room = drawCard(room, 'p2', random);
   room = loseRound(room, 'p1', random); // Só há 2 cartas disponíveis.
-  assert.equal(room.players[0].hand.length, 6);
+  assert.equal(room.players[0].hand.length, beforePenalty + 2);
   assert.equal(room.game.deck.length, 0);
   assert.equal(room.game.discard.length, 0);
   assert.equal(roomView(room, 'p2').game.canDraw, false);
-  assert.equal(allCards(room).length, 42);
-  assert.equal(new Set(allCards(room).map((c) => c.id)).size, 42);
+  assert.equal(allCards(room).length, DECK_SIZE);
+  assert.equal(new Set(allCards(room).map((c) => c.id)).size, DECK_SIZE);
   room = firstPlay(room, 'p2');
   assert.equal(roomView(room, 'p3').game.canDraw, true);
   const expected = room.game.discard[0].id;
@@ -249,13 +260,13 @@ test('armazenamento assíncrono isola cópias e implementa get/save/delete/list'
   assert.equal(await storage.getRoom(room.code), null);
 });
 
-test('partida completa preserva todas as 42 cartas e produz vencedor', () => {
+test('partida completa preserva todas as 62 cartas e produz vencedor', () => {
   let room = playing(8, 3);
   let turns = 0;
-  while (room.phase === 'playing' && turns++ < 40) {
+  while (room.phase === 'playing' && turns++ < 150) {
     room = firstPlay(room);
-    assert.equal(allCards(room).length, 42);
-    assert.equal(new Set(allCards(room).map((c) => c.id)).size, 42);
+    assert.equal(allCards(room).length, DECK_SIZE);
+    assert.equal(new Set(allCards(room).map((c) => c.id)).size, DECK_SIZE);
   }
   assert.equal(room.phase, 'finished');
   assert.equal(room.players.find((p) => p.id === room.game.winnerId).hand.length, 0);

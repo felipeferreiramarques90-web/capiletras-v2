@@ -5,8 +5,9 @@ import { resolve } from 'node:path';
 import { Server } from 'socket.io';
 import storage from './storage/memory.js';
 import { registerSockets } from './network/socket.js';
+import { PUBLIC_CONFIG } from './game/config.js';
 
-export function createApp({ roomStorage = storage, cleanupIntervalMs } = {}) {
+export function createApp({ roomStorage = storage, cleanupIntervalMs, randomSource } = {}) {
   const app = express();
   app.disable('x-powered-by');
   app.use((_req, res, next) => {
@@ -16,10 +17,11 @@ export function createApp({ roomStorage = storage, cleanupIntervalMs } = {}) {
     next();
   });
   app.get('/health', (_req, res) => res.status(200).json({ status: 'ok' }));
+  app.get('/api/config', (_req, res) => res.json(PUBLIC_CONFIG));
   app.use(express.static(fileURLToPath(new URL('./public', import.meta.url))));
   const server = createServer(app);
   const io = new Server(server, { maxHttpBufferSize: 8192, serveClient: true });
-  const stopCleanup = registerSockets(io, roomStorage, { cleanupIntervalMs });
+  const stopCleanup = registerSockets(io, roomStorage, { cleanupIntervalMs, randomSource });
   server.on('close', stopCleanup);
   return { app, server, io };
 }
