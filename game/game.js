@@ -207,7 +207,14 @@ export function playCard(original, id, cardId, choice, blockedChoice) {
   const effect = CARD_TYPES[card.type]?.effect;
   requireRule(isCardPlayable(card, room.game), 'Essa carta não pode ser jogada agora.');
   const letter = card.type === 'letter' ? card.letter : (typeof choice === 'string' ? choice.toUpperCase() : '');
-  if (effect !== 'replay') requireRule(letter.length === 1 && playableLetters(card, room.game).includes(letter),
+  if (effect === 'appendMany') {
+    const rule = CARD_TYPES[card.type];
+    // Valida o texto original antes de normalizar: Unicode como ß não pode virar SS.
+    requireRule(typeof choice === 'string' && choice.length > 0 && !/[^A-Za-z]/.test(choice), 'Use somente letras de A a Z, sem espaços, números, acentos ou símbolos.');
+    requireRule(letter.length >= rule.minLetters && letter.length <= rule.maxLetters,
+      `A carta ${rule.label} exige de ${rule.minLetters} a ${rule.maxLetters} letras.`);
+    requireRule(letter[0] !== room.game.blockedLetter, `A primeira letra não pode ser ${room.game.blockedLetter}.`);
+  } else if (effect !== 'replay') requireRule(letter.length === 1 && playableLetters(card, room.game).includes(letter),
     'Escolha uma letra permitida por essa carta, diferente da letra bloqueada e da última letra ao usar Troca.');
   const blockedLetter = typeof blockedChoice === 'string' ? blockedChoice.toUpperCase() : '';
   if (effect === 'block') requireRule(blockedLetter.length === 1 && ALPHABET.includes(blockedLetter), 'Escolha uma letra de A a Z para bloquear.');
@@ -229,7 +236,8 @@ export function playCard(original, id, cardId, choice, blockedChoice) {
   } else {
     room.game.word += letter;
     room.notice = effect === 'block' ? `${player.name} jogou Bloqueio: adicionou ${letter} e bloqueou ${blockedLetter} até a próxima jogada com letra.`
-      : `${player.name} jogou a letra ${letter}.`;
+      : effect === 'appendMany' ? `${player.name} jogou ${CARD_TYPES[card.type].label}: adicionou ${letter}.`
+        : `${player.name} jogou a letra ${letter}.`;
   }
   room.game.lastPlayerId = id;
   room.game.canLose = true;

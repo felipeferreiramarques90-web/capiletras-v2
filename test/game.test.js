@@ -4,7 +4,7 @@ import {
   createDeck, createRoom, joinRoom, updateSettings, startGame, drawCard, playCard,
   loseRound, disconnectPlayer, returnToLobby, removeFromLobby, roomView, allowedLetters, playableLetters, isCardPlayable, shouldDeleteRoom,
 } from '../game/game.js';
-import { DECK_SIZE, RULES, maxInitialCards } from '../game/config.js';
+import { CARD_TYPES, DECK_SIZE, RULES, maxInitialCards } from '../game/config.js';
 import { MemoryStorage } from '../storage/memory.js';
 
 const random = () => 0.375;
@@ -19,15 +19,16 @@ const firstPlay = (room, id = room.game.turnPlayerId) => {
   const hand = room.players.find((p) => p.id === id).hand;
   const card = hand.find((c) => c.type !== 'double' && isCardPlayable(c, room.game)) || hand.find((c) => isCardPlayable(c, room.game));
   if (!card) return loseRound(room, id, random);
-  return playCard(room, id, card.id, playableLetters(card, room.game)[0], 'Z');
+  const choice = playableLetters(card, room.game)[0]?.repeat(CARD_TYPES[card.type].minLetters || 1);
+  return playCard(room, id, card.id, choice, 'Z');
 };
 const allCards = (room) => [...room.game.deck, ...room.game.discard, ...room.players.flatMap((p) => p.hand)];
 
-test('baralho contém exatamente 62 cartas com identificadores únicos e a composição pedida', () => {
+test('baralho contém exatamente 67 cartas com identificadores únicos e a composição pedida', () => {
   const cards = createDeck();
-  assert.equal(DECK_SIZE, 62);
+  assert.equal(DECK_SIZE, 67);
   assert.equal(cards.length, DECK_SIZE);
-  for (const [type, count] of [['swap', 8], ['block', 6], ['double', 6]]) assert.equal(cards.filter((c) => c.type === type).length, count);
+  for (const [type, count] of [['swap', 8], ['block', 6], ['double', 6], ['multi', 5]]) assert.equal(cards.filter((c) => c.type === type).length, count);
   assert.equal(new Set(cards.map((c) => c.id)).size, DECK_SIZE);
   assert.equal(cards.filter((c) => c.type === 'wild').length, 12);
   assert.equal(cards.filter((c) => c.type === 'letter').length, 26);
@@ -260,7 +261,7 @@ test('armazenamento assíncrono isola cópias e implementa get/save/delete/list'
   assert.equal(await storage.getRoom(room.code), null);
 });
 
-test('partida completa preserva todas as 62 cartas e produz vencedor', () => {
+test('partida completa preserva todas as 67 cartas e produz vencedor', () => {
   let room = playing(8, 3);
   let turns = 0;
   while (room.phase === 'playing' && turns++ < 150) {
