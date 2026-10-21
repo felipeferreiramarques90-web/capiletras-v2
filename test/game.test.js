@@ -17,18 +17,18 @@ function lobby(count = 2, hand = 5) {
 const playing = (count = 2, hand = 5) => startGame(lobby(count, hand), 'p1', random);
 const firstPlay = (room, id = room.game.turnPlayerId) => {
   const hand = room.players.find((p) => p.id === id).hand;
-  const card = hand.find((c) => c.type !== 'double' && isCardPlayable(c, room.game)) || hand.find((c) => isCardPlayable(c, room.game));
+  const card = hand.find((c) => c.type !== 'double' && !CARD_TYPES[c.type].protectsFromLoss && isCardPlayable(c, room.game)) || hand.find((c) => isCardPlayable(c, room.game));
   if (!card) return loseRound(room, id, random);
   const choice = playableLetters(card, room.game)[0]?.repeat(CARD_TYPES[card.type].minLetters || 1);
   return playCard(room, id, card.id, choice, 'Z');
 };
 const allCards = (room) => [...room.game.deck, ...room.game.discard, ...room.players.flatMap((p) => p.hand)];
 
-test('baralho contém exatamente 67 cartas com identificadores únicos e a composição pedida', () => {
+test('baralho contém exatamente 72 cartas com identificadores únicos e a composição pedida', () => {
   const cards = createDeck();
-  assert.equal(DECK_SIZE, 67);
+  assert.equal(DECK_SIZE, 72);
   assert.equal(cards.length, DECK_SIZE);
-  for (const [type, count] of [['swap', 8], ['block', 6], ['double', 6], ['multi', 5]]) assert.equal(cards.filter((c) => c.type === type).length, count);
+  for (const [type, count] of [['swap', 8], ['block', 6], ['double', 6], ['multi', 5], ['life', 5]]) assert.equal(cards.filter((c) => c.type === type).length, count);
   assert.equal(new Set(cards.map((c) => c.id)).size, DECK_SIZE);
   assert.equal(cards.filter((c) => c.type === 'wild').length, 12);
   assert.equal(cards.filter((c) => c.type === 'letter').length, 26);
@@ -261,7 +261,7 @@ test('armazenamento assíncrono isola cópias e implementa get/save/delete/list'
   assert.equal(await storage.getRoom(room.code), null);
 });
 
-test('partida completa preserva todas as 67 cartas e produz vencedor', () => {
+test('partida completa preserva todas as 72 cartas e produz vencedor', () => {
   let room = playing(8, 3);
   let turns = 0;
   while (room.phase === 'playing' && turns++ < 150) {

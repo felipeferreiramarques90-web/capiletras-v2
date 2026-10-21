@@ -58,7 +58,7 @@ export function hasPlayableCard(player, game) {
 
 export function canLoseRound(room, id) {
   const player = room.players.find((p) => p.id === id && p.connected && !p.left);
-  return Boolean(room.phase === 'playing' && player && (
+  return Boolean(room.phase === 'playing' && player && room.game.protectedPlayerId !== id && (
     (room.game.canLose && room.game.lastPlayerId === id)
     || (room.game.turnPlayerId === id && !hasPlayableCard(player, room.game))
   ));
@@ -121,7 +121,7 @@ export function startGame(original, id, random) {
   room.game = {
     deck, discard: [], word: '', turnPlayerId: room.players[0].id, drawsThisTurn: 0,
     lastPlayerId: null, canLose: false, winnerId: null, turnNumber: 1,
-    blockedLetter: null, extraTurns: [], version: 0,
+    blockedLetter: null, protectedPlayerId: null, extraTurns: [], version: 0,
   };
   room.notice = 'A partida começou. Boa sorte!';
   return room;
@@ -137,6 +137,8 @@ function requireTurn(room, id) {
 }
 
 function setTurn(room, id) {
+  // Uma nova vez do autor encerra a proteção, inclusive se só houve passagens/desconexões.
+  if (room.game.protectedPlayerId === id) room.game.protectedPlayerId = null;
   room.game.turnPlayerId = id;
   room.game.drawsThisTurn = 0;
   room.game.turnNumber++;
@@ -224,6 +226,8 @@ export function playCard(original, id, cardId, choice, blockedChoice) {
   // Só uma jogada com letra consome a restrição já validada acima.
   // 2x preserva o bloqueio para todos; um novo Bloqueio substitui o anterior.
   if (effect !== 'replay') room.game.blockedLetter = effect === 'block' ? blockedLetter : null;
+  // Só a Vida recém-jogada protege seu autor. Qualquer próxima carta encerra a marca anterior.
+  room.game.protectedPlayerId = CARD_TYPES[card.type].protectsFromLoss ? id : null;
   if (effect === 'replace') {
     const previous = room.game.word.at(-1);
     room.game.word = room.game.word.slice(0, -1) + letter;
@@ -237,6 +241,7 @@ export function playCard(original, id, cardId, choice, blockedChoice) {
     room.game.word += letter;
     room.notice = effect === 'block' ? `${player.name} jogou Bloqueio: adicionou ${letter} e bloqueou ${blockedLetter} até a próxima jogada com letra.`
       : effect === 'appendMany' ? `${player.name} jogou ${CARD_TYPES[card.type].label}: adicionou ${letter}.`
+        : CARD_TYPES[card.type].protectsFromLoss ? `${player.name} jogou Vida ${CARD_TYPES[card.type].symbol}: adicionou ${letter}.`
         : `${player.name} jogou a letra ${letter}.`;
   }
   room.game.lastPlayerId = id;
@@ -263,6 +268,7 @@ export function loseRound(original, id, random, expectedVersion = original.game?
   requireRule(room.phase === 'playing', 'Não há partida em andamento.');
   const player = playerById(room, id);
   requireRule(Number.isInteger(expectedVersion) && expectedVersion === room.game.version, 'A mesa mudou. Confira o estado e tente novamente.');
+  requireRule(room.game.protectedPlayerId !== id, 'Protegido pela Vida. Aguarde uma nova jogada ou sua próxima vez.');
   requireRule(canLoseRound(room, id), 'Só quem baixou a última carta ou está na vez sem carta jogável pode dizer PERDI.');
   const previousBlock = room.game.blockedLetter;
   const cards = takeCards(room.game, RULES.lossPenalty, random);
@@ -344,6 +350,7 @@ export function roomView(room, viewerId) {
       word: game.word, turnPlayerId: game.turnPlayerId, lastPlayerId: game.lastPlayerId,
       winnerId: game.winnerId, turnNumber: game.turnNumber, drawsThisTurn: game.drawsThisTurn,
       version: game.version, blockedLetter: game.blockedLetter, extraTurns: [...game.extraTurns],
+      protectedPlayerId: game.protectedPlayerId,
       playableCardIds: viewer.hand.filter((card) => isCardPlayable(card, game)).map((card) => card.id),
       allowedLettersByCard: Object.fromEntries(viewer.hand.map((card) => [card.id, playableLetters(card, game)])),
       deckCount: game.deck.length, discardCount: game.discard.length, availableCount: available,

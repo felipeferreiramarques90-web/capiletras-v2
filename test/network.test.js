@@ -56,11 +56,12 @@ test('HTTP: /health responde 200 e o mesmo servidor entrega o front-end e Socket
   assert.equal((await fetch(`${url}/socket.io/socket.io.js`)).status, 200);
   assert.equal((await fetch(`${url}/game/game.js`)).status, 404);
   const config = await (await fetch(`${url}/api/config`)).json();
-  assert.equal(config.deckSize, 67);
+  assert.equal(config.deckSize, 72);
   assert.equal(config.cardTypes.swap.quantity, 8);
   assert.equal(config.cardTypes.block.quantity, 6);
   assert.equal(config.cardTypes.double.quantity, 6);
   assert.equal(config.cardTypes.multi.quantity, 5);
+  assert.equal(config.cardTypes.life.quantity, 5);
   assert.equal(config.cardTypes.multi.minLetters, 2);
   assert.equal(config.cardTypes.multi.maxLetters, 16);
 });
@@ -78,6 +79,37 @@ async function seedHands({ a, b, code, storage }, hands, game = {}) {
   await waitFor(() => b.view.game?.version === a.view.game.version);
   return room;
 }
+
+test('rede: Vida respeita Bloqueio, persiste proteção e rejeita PERDI até a próxima carta', async (t) => {
+  const fixture = await setup(t);
+  const { a, b, storage, code } = fixture;
+  await seedHands(fixture, [['life-0', 'letra-B', 'letra-E'], ['double-0', 'letra-C', 'letra-D']], { word: 'C', blockedLetter: 'A' });
+  assert.ok(!a.view.game.allowedLettersByCard['life-0'].includes('A'));
+  const beforeLife = await storage.getRoom(code);
+  assert.equal((await emit(a, 'game:play', { cardId: 'life-0', letter: 'A' })).ok, false);
+  assert.deepEqual(await storage.getRoom(code), beforeLife);
+  assert.equal((await emit(a, 'game:play', { cardId: 'life-0', letter: 'b' })).ok, true);
+  await waitFor(() => b.view.game.protectedPlayerId === a.view.meId);
+  assert.equal(a.view.game.word, 'CB');
+  assert.equal(a.view.game.blockedLetter, null);
+  assert.equal(a.view.game.canLose, false);
+  assert.equal(b.view.game.canLose, false);
+  assert.match(b.view.notice, /Vida ❤️/);
+  assert.equal((await emit(b, 'game:draw')).ok, true);
+  await waitFor(() => a.view.game.version === b.view.game.version);
+  const protectedState = await storage.getRoom(code);
+  const denied = await emit(a, 'game:lose');
+  assert.equal(denied.ok, false);
+  assert.match(denied.error, /Protegido pela Vida/);
+  assert.deepEqual(await storage.getRoom(code), protectedState);
+  assert.equal((await emit(b, 'game:play', { cardId: 'double-0' })).ok, true);
+  await waitFor(() => a.view.game.turnPlayerId === a.view.meId);
+  assert.equal(a.view.game.protectedPlayerId, null);
+  assert.equal((await emit(a, 'game:play', { cardId: 'letra-B' })).ok, true);
+  assert.equal(a.view.game.canLose, true);
+  assert.equal((await emit(a, 'game:lose')).ok, true);
+  assert.ok(b.view.players.every((p) => !p.hand && !p.sessionId));
+});
 
 test('rede: valida 2+* no servidor, salva o estado e publica apenas a mão de cada participante', async (t) => {
   const fixture = await setup(t);
@@ -198,7 +230,7 @@ test('rede: mãos privadas, autoridade do servidor, compra concorrente e PERDI e
   assert.equal(a.view.hand.length, 6);
   const stolen = b.view.hand[0];
   assert.equal((await emit(a, 'game:play', { cardId: stolen.id, letter: allowedLetters(stolen)[0] })).ok, false);
-  const card = a.view.hand.find((c) => a.view.game.playableCardIds.includes(c.id));
+  const card = a.view.hand.find((c) => !a.view.config.cardTypes[c.type].protectsFromLoss && a.view.game.playableCardIds.includes(c.id));
   const letter = a.view.game.allowedLettersByCard[card.id][0].repeat(a.view.config.cardTypes[card.type].minLetters || 1);
   assert.equal((await emit(a, 'game:play', { cardId: card.id, letter, blockedLetter: 'Z' })).ok, true);
   await waitFor(() => b.view.game.turnPlayerId === b.view.meId);
