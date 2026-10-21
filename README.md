@@ -23,15 +23,37 @@ O front-end é estático: recarregue o navegador após editá-lo. Não há etapa
 
 ## Como jogar
 
-- O baralho tem **42 cartas**: 26 letras fixas, 12 coringas verdes, 1 Só vogal, 1 Só consoante, 1 A até M e 1 N até Z.
-- O mínimo de cartas iniciais é 3. O máximo é `floor((42 - 1) / jogadores)`, garantindo pelo menos uma carta para compra. Por exemplo, 20 cartas para 2 jogadores ou 5 para 8.
+- O baralho tem **62 cartas**: as 42 originais (26 letras fixas, 12 coringas verdes e as 4 cartas restritivas), mais **8 Trocas, 6 Bloqueios e 6 cartas 2x**.
+- O mínimo de cartas iniciais é 3. O máximo é `floor((tamanhoDoBaralho - reservaDeCompra) / jogadores)`. A reserva padrão é 1: são até **30 cartas para 2 jogadores** ou **7 para 8**. O tamanho do baralho é calculado a partir das quantidades em `CARD_TYPES`, em `game/config.js`; a interface recebe a mesma configuração do servidor.
 - Na sua vez, você pode comprar **no máximo uma carta**, opcionalmente. Comprar não passa a vez: baixe uma carta, inclusive a recém-comprada. Sem comprar, também pode jogar diretamente.
 - Cartas fixas acrescentam sua letra. Nas demais, um seletor habilita somente as letras válidas. As escolhas vão de A a Z, sem acentos; Y é tratado como consoante.
-- **PERDI** pertence apenas a quem baixou a última carta, enquanto o próximo jogador ainda não tiver jogado. A compra opcional do próximo jogador não encerra essa janela. A penalidade compra 4 cartas, zera a palavra e mantém a vez e o contador de compras de quem já estava jogando. A penalidade independe da compra opcional e não pode ser repetida sem uma nova jogada.
+- **PERDI** pode ser usado por quem baixou a última carta (inclusive 2x), enquanto ninguém ainda tiver jogado depois, **ou por quem está na vez sem nenhuma carta jogável**. Não é preciso comprar antes; a compra opcional continua disponível e pode trazer uma carta jogável. A penalidade compra até 4 cartas, zera a palavra, cancela o bloqueio e mantém a vez e o contador de compras de quem já estava jogando. A penalidade independe da compra opcional. O último jogador perde sua janela depois de um PERDI, mas quem continua na vez sem carta jogável pode usar novamente.
+- Se, depois do PERDI, o jogador da vez continuar sem carta jogável e não restar compra nem descarte, a vez passa para o próximo, respeitando retornos pendentes de 2x. **A palavra é zerada antes dessa passagem**, inclusive se já não havia cartas para comprar. Não há compra extra nem passagem automática por uma mão injogável: a passagem excepcional só ocorre ao usar PERDI.
 - Se a pilha acabar, as cartas já jogadas são embaralhadas e voltam para compra, sem apagar a palavra. Se nem o descarte tiver cartas, a compra é desabilitada. Se restarem menos de 4 cartas disponíveis para uma penalidade, compram-se todas as disponíveis, sem criar cartas extras.
 - Ao baixar a última carta, a vitória é imediata e não há mais PERDI. Todos veem o resultado; o anfitrião pode começar uma revanche ou voltar à sala. Os demais podem aguardar ou sair para o início.
 
 A mesa **não valida palavras em dicionário**. O grupo combina quando uma sequência não tem continuação e usa o botão PERDI.
+
+### Cartas novas
+
+| Carta | Quantidade | Cor e símbolo | Efeito |
+| --- | ---: | --- | --- |
+| Troca | 8 | Azul clara, 🔄 | Escolha A–Z para **substituir a última letra**, sem aumentar o comprimento. Não vale com visor vazio, não pode repetir a letra substituída e respeita bloqueios. |
+| Bloqueio | 6 | Vermelha, ➕🚫 | Escolha uma letra para adicionar e outra para bloquear na **próxima jogada**. Os seletores são independentes: pode bloquear a própria letra adicionada. |
+| 2x | 6 | Laranja, 2x | Não muda o visor. Quem baixou a carta imediatamente anterior joga novamente; depois, o autor do 2x recebe um novo turno com nova compra opcional. Só então a ordem normal continua. Não vale antes da primeira jogada. |
+
+O bloqueio fica visível no centro da mesa. Cartas fixas da letra bloqueada e essa letra em todos os seletores ficam desabilitadas. Comprar ou desconectar não consome o bloqueio: **a próxima carta jogada** o consome, inclusive um 2x; se essa carta também for Bloqueio, instala a nova restrição. Todo PERDI cancela o bloqueio. A escolha de qual letra bloquear pode ser qualquer A–Z, mesmo a que estava bloqueada.
+
+O 2x pode formar uma cadeia. Exemplo com a ordem normal Ana → Bia → Caio:
+
+```text
+Ana joga → Bia joga 2x → Ana joga 2x → Bia joga
+         → Ana joga → Bia joga → Caio joga normalmente
+```
+
+Cada seta inicia um novo turno com o contador de compra zerado. Os retornos ficam numa pilha serializável (`game.extraTurns`). Se um participante envolvido desconectar, seu turno é pulado conforme a política de conexão existente. PERDI não apaga o histórico da última carta: o 2x continua válido depois de o visor ser zerado. Baixar a última carta com 2x também vence imediatamente.
+
+As cartas injogáveis ficam esmaecidas e desabilitadas, e as opções dos seletores são recalculadas quando a mão, o visor ou o bloqueio mudam. O servidor recalcula e valida as mesmas condições independentemente do cliente. Quando os dois casos de PERDI estão disponíveis, o primeiro clique aceito altera `game.version`; cliques com a versão anterior são rejeitados, evitando duas penalidades simultâneas. Se o botão continuar habilitado, um novo clique usa a nova versão.
 
 ## Desconexão e duração das salas
 
@@ -74,7 +96,7 @@ render.yaml          Blueprint do Render
 
 A lógica não depende de Socket.IO, armazenamento ou relógio global: recebe a aleatoriedade e o horário como argumentos quando necessário, devolvendo um novo estado. Sala e partida são objetos serializáveis em JSON, sem funções, Sets ou ciclos. Todas as ações são validadas no servidor e salvas antes do envio dos estados. O cliente recebe apenas campos públicos, a contagem dos adversários e a própria mão; identificadores de sessão, cartas adversárias e a ordem do baralho não são enviados.
 
-As filas por sala evitam conflitos entre compras, jogadas e reconexões simultâneas no mesmo processo. A identidade de retomada não é o ID público do jogador. O servidor também limita tamanho e frequência de mensagens. Ajuste as regras em `game/config.js`, em especial `maxDrawsPerTurn`, `lossPenalty`, os limites de jogadores e as durações de expiração.
+As filas por sala evitam conflitos entre compras, jogadas e reconexões simultâneas no mesmo processo. A identidade de retomada não é o ID público do jogador. O servidor também limita tamanho e frequência de mensagens. Ajuste as regras em `game/config.js`, em especial a composição e os efeitos em `CARD_TYPES`, `maxDrawsPerTurn`, `lossPenalty`, os limites de jogadores e as durações de expiração.
 
 ## Trocar a memória por um banco de dados
 
