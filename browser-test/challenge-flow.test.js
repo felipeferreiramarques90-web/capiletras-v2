@@ -71,14 +71,10 @@ test('desafio cancela a escolha de carta, transmite a prévia e revela os votos 
   await b.locator('[data-vote="nao"]').waitFor();
   assert.equal(await a.locator('#challenge-vote-actions').isHidden(), true);
   assert.match(await a.locator('#challenge-description').innerText(), /não vota/);
-  await b.locator('[data-vote="nao"]').click();
+  await b.locator('[data-vote="sim"]').click();
   await c.locator('#challenge-progress').filter({ hasText: '1/2' }).waitFor();
   assert.equal(await c.locator('#challenge-votes').innerText(), '');
-  await c.locator('[data-vote="sim"]').click();
-  await a.locator('#challenge-title').filter({ hasText: 'Palavra recusada' }).waitFor();
-  assert.match(await a.locator('#challenge-votes').innerText(), /1 Sim \/ 1 Não/);
-  assert.equal(await a.locator('#challenge-ok').isHidden(), true);
-  await a.locator('#challenge-loss').click();
+  await c.locator('[data-vote="nao"]').click();
   for (const page of [a, b, c]) await page.locator('#challenge-dialog').waitFor({ state: 'hidden' });
   const after = await current();
   assert.equal(after.game.word, '');
@@ -93,22 +89,50 @@ test('desafio cancela a escolha de carta, transmite a prévia e revela os votos 
   assert.equal(await a.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 });
 
-test('OK sem letras e fechar a votação conta como Sim, penalizando o desafiante', async (t) => {
-  const { a, b, seed, current } = await setup(t);
-  const before = await seed([['letra-A', 'letra-B'], ['letra-C', 'letra-D']], { word: 'CA', debt: 0 });
+test('modais não fecham por Esc, clique fora ou voltar; reconexão restaura fase, prazo e voto', async (t) => {
+  let clock = Date.now();
+  const { a, b, c, seed, current } = await setup(t, { players: 3, nowSource: () => clock });
+  const before = await seed([['letra-A', 'letra-B'], ['letra-C', 'letra-D'], ['letra-E', 'letra-F']], { word: 'CA', debt: 0 });
   await b.locator('[data-action="challenge"]').click();
+  await a.locator('#challenge-input').fill('TO');
+  await b.locator('#challenge-word').filter({ hasText: 'CATO' }).waitFor();
+  const challenge = (await current()).game.challenge;
+  async function cannotClose(page) {
+    assert.equal(await page.locator('#close-challenge').count(), 0);
+    await page.keyboard.press('Escape');
+    await page.mouse.click(1, 1);
+    await page.evaluate(() => history.back());
+    await waitFor(() => page.evaluate(() => Boolean(document.querySelector('#challenge-dialog').open)
+      && history.state?.capiletrasChallenge != null));
+    assert.equal(await page.locator('#challenge-dialog').isVisible(), true);
+  }
+  await cannotClose(a);
+  await cannotClose(b);
+  assert.deepEqual((await current()).game.challenge.votes, {});
+  await b.reload();
+  await b.locator('#challenge-dialog').waitFor();
+  assert.equal((await current()).game.challenge.id, challenge.id);
+  assert.equal((await current()).game.challenge.completionDeadline, challenge.completionDeadline);
+  assert.equal(await b.locator('#challenge-word').innerText(), 'CATO');
   await a.locator('#challenge-ok').click();
   await b.locator('#challenge-title').filter({ hasText: 'Aceitar palavra?' }).waitFor();
-  await b.keyboard.press('Escape');
-  await waitFor(async () => !(await current()).game.challenge);
+  await cannotClose(b);
+  assert.deepEqual((await current()).game.challenge.votes, {}, 'fechar não gera um voto Sim');
+  await b.locator('[data-vote="sim"]').click();
+  await c.locator('#challenge-progress').filter({ hasText: '1/2' }).waitFor();
+  const votingDeadline = (await current()).game.challenge.voteDeadline;
+  await b.reload();
+  await b.locator('#challenge-progress').filter({ hasText: 'Seu voto foi registrado' }).waitFor();
+  assert.equal(await b.locator('#challenge-vote-actions').isHidden(), true);
+  assert.equal((await current()).game.challenge.voteDeadline, votingDeadline);
+  await cannotClose(b);
+  await c.locator('[data-vote="sim"]').click();
+  for (const page of [a, b, c]) await page.locator('#challenge-dialog').waitFor({ state: 'hidden' });
   const after = await current();
-  assert.equal(after.game.challengeResult.word, 'CA');
-  assert.equal(after.game.challengeResult.tally.yes, 1);
+  assert.equal(after.game.challengeResult.word, 'CATO');
+  assert.equal(after.game.challengeResult.tally.yes, 2);
   assert.equal(after.players[1].hand.length, before.players[1].hand.length + 4);
-  await a.locator('.challenge-result').filter({ hasText: 'Palavra aceita' }).waitFor();
-  assert.match(await a.locator('.table-notice').innerText(), /Bia comprou 4/);
   assert.equal(after.game.word, '');
-  assert.equal(after.game.lastLetterPlayerId, null);
 });
 
 test('prazos no navegador: OK expira, PERDI automático e ausência de voto conta como Sim', async (t) => {
@@ -117,14 +141,13 @@ test('prazos no navegador: OK expira, PERDI automático e ausência de voto cont
   const before = await seed([['letra-A', 'letra-B'], ['letra-C', 'letra-D']], { word: 'CA', debt: 0 });
   await b.locator('[data-action="challenge"]').click();
   await a.locator('#challenge-input').fill('TO');
+  await waitFor(async () => (await current()).game.challenge.addedLetters === 'TO');
+  assert.match(await a.locator('#challenge-auto-loss').innerText(), /Se Ana não apertar OK em [0-9]+s, perde automaticamente/);
   clock += 30_000;
-  await a.locator('#challenge-title').filter({ hasText: 'O tempo acabou' }).waitFor();
-  assert.equal(await a.locator('#challenge-ok').isHidden(), true);
-  assert.equal(await a.locator('#challenge-loss').isEnabled(), true);
-  clock += 10_000;
   await a.locator('#challenge-dialog').waitFor({ state: 'hidden' });
   assert.equal((await current()).players[0].hand.length, before.players[0].hand.length + 4);
   assert.equal((await current()).game.challengeResult.automatic, true);
+  assert.equal((await current()).game.challengeResult.word, 'CA');
   const next = await seed([['letra-A', 'letra-B'], ['letra-C', 'letra-D']], { word: 'CA', debt: 0 });
   await b.locator('[data-action="challenge"]').click();
   await a.locator('#challenge-ok').click();

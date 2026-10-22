@@ -66,13 +66,14 @@
         <div class="multi-actions"><button type="submit" class="button primary full" id="confirm-debt" disabled>Continuar <span aria-hidden="true">→</span></button></div>
       </form>
     </dialog>
-    <dialog id="challenge-dialog" class="text-entry-dialog" aria-labelledby="challenge-title">
+    <dialog id="challenge-dialog" closedby="none" class="text-entry-dialog" aria-labelledby="challenge-title">
       <form id="challenge-form" class="text-entry-form" novalidate>
         <div class="multi-body">
-          <div class="dialog-heading"><span class="eyebrow">A PALAVRA ESTÁ EM JOGO</span><button type="button" class="icon-button" id="close-challenge" aria-label="Fechar desafio">×</button></div>
+          <div class="dialog-heading"><span class="eyebrow">A PALAVRA ESTÁ EM JOGO</span></div>
           <h2 id="challenge-title">Completar a palavra</h2>
           <p id="challenge-description" class="muted"></p>
           <p id="challenge-timer" class="challenge-timer" role="timer" aria-label="Tempo restante"></p>
+          <p id="challenge-auto-loss" class="multi-warning"></p>
           <div class="multi-preview-box"><span class="eyebrow">PALAVRA COMPLETA</span><div id="challenge-word" class="multi-preview" aria-live="polite"></div></div>
           <div id="challenge-edit">
             <label for="challenge-input">Letras a acrescentar <output id="challenge-count" for="challenge-input"></output></label>
@@ -104,7 +105,7 @@
         <li><strong>Várias letras com 2+*.</strong> Digite pelo menos duas letras para adicionar ao visor. Sob bloqueio, só a primeira não pode ser a letra bloqueada; as demais podem repeti-la. A jogada consome o bloqueio.</li>
         <li><strong>Vida ❤️ — só vogais.</strong> Escolha A, E, I, O ou U. Respeita e consome o Bloqueio. Protege seu autor contra desafios até outra carta ser jogada ou a vez voltar. Não interfere no botão Não consigo jogar. Como última carta, vence imediatamente.</li>
         <li><strong>Passar letra →.</strong> Passe a vez sem colocar letra: o próximo deve uma letra a mais. Antes de jogar uma carta com letra, digite todas as acumuladas e só depois escolha a letra da carta. O 2x transfere o débito; as penalidades zeram o débito. Só a primeira letra acumulada respeita o Bloqueio.</li>
-        <li><strong>Duvidar da palavra.</strong> Só é permitido sem letras acumuladas pendentes: quite o débito antes. O 2x só transfere o débito e não libera o desafio. Desafie quem colocou a última letra (2x e Passar letra não contam). A Vida protege seu autor. O desafiado tem 30 segundos para acrescentar até 16 letras livres e usar OK ou PERDI. Os demais votam em 15 segundos: fechar, desconectar ou não responder conta como Sim. Metade ou mais de Não recusa a palavra. Aceita: o desafiante compra 4 cartas; recusada ou prazo esgotado: o desafiado usa PERDI em até 10 segundos, ou ele é automático. O desafio comum zera palavra, débito, bloqueio e proteção, mantendo a vez. A última carta segue a regra de vitória pendente.</li>
+        <li><strong>Duvidar da palavra.</strong> Só é permitido sem letras acumuladas pendentes: quite o débito antes. O 2x só transfere o débito e não libera o desafio. Desafie quem colocou a última letra (2x e Passar letra não contam). A Vida protege seu autor. O desafiado tem 30 segundos para acrescentar até 16 letras livres e usar OK ou PERDI; sem OK no prazo, perde automaticamente. Os demais votam em até 15 segundos: desconectar sem votar ou não responder conta como Sim. A votação termina assim que o resultado for certo. Metade ou mais de Não recusa a palavra. Aceita: o desafiante compra 4 cartas; recusada ou desafiado desconectado: PERDI automático imediato. Os modais só fecham quando o servidor encerra a fase. O desafio comum zera palavra, débito, bloqueio e proteção, mantendo a vez. A última carta segue a regra de vitória pendente.</li>
         <li><strong>Não consigo jogar.</strong> Só quem está na vez, com cartas e nenhuma jogável, pode usar depois de comprar a carta opcional do turno. Se baralho e descarte estiverem vazios, não precisa comprar antes. Compre até 4 cartas, zere palavra, Bloqueio e débito e perca a vez, respeitando os retornos de 2x. Se não houver cartas para comprar, o visor permanece. O histórico da última carta é apagado: 2x exige uma nova jogada. O PERDI do desafio continua separado.</li>
         <li><strong>Última carta: vitória pendente.</strong> Há 10 segundos para os outros duvidarem ou usarem Aceito a palavra. Unanimidade ou fim do prazo confirma a vitória. Se o desafio aceitar a palavra, vence; se recusar ou o autor usar PERDI, ele compra até 4 cartas, a mesa é zerada e a vez passa. Vida, Passar letra e 2x como última carta vencem imediatamente.</li>
       </ol>

@@ -20,7 +20,7 @@
   let pendingDebtLetters = '';
   let pendingDebtVersion = null;
   let challengeDialogId = null;
-  let dismissedChallengePhase = null;
+  let challengeHistoryGuard = null;
   let challengePreviewTimer;
   let serverClockOffset = 0;
   let deckInfo = null;
@@ -407,7 +407,7 @@
         await send('room:create', { sessionId, name }); break;
       case 'start': await send('game:start'); break;
       case 'challenge': await send('challenge:start'); break;
-      case 'challenge-view': dismissedChallengePhase = null; renderChallenge(); break;
+      case 'challenge-view': renderChallenge(); break;
       case 'draw': await send('game:draw'); break;
       case 'skip': await send('game:skip', { version: room.game.version }); break;
       case 'accept-victory': await send('victory:accept', { pendingId: room.game.pendingVictory.id }); break;
@@ -429,7 +429,7 @@
   function challengeVotesMarkup(result) {
     const tally = result.tally;
     if (!tally) return '<p>Desafio encerrado sem votação.</p>';
-    return `<p>${tally.rejected ? 'Palavra recusada' : 'Palavra aceita'} · ${tally.yes} Sim / ${tally.no} Não</p><ul class="challenge-vote-list">${Object.entries(result.votes).map(([id, vote]) => `<li><span>${escape(room.players.find((p) => p.id === id)?.name || 'Jogador')}</span><strong>${vote === 'sim' ? 'Sim' : 'Não'}</strong></li>`).join('')}</ul>`;
+    return `<p>${tally.rejected ? 'Palavra recusada' : 'Palavra aceita'} · ${tally.yes} Sim / ${tally.no} Não${tally.early ? ` · Encerrada antecipadamente (${tally.pending} dispensados)` : ''}</p><ul class="challenge-vote-list">${Object.entries(result.votes).map(([id, vote]) => `<li><span>${escape(room.players.find((p) => p.id === id)?.name || 'Jogador')}</span><strong>${vote === 'sim' ? 'Sim' : 'Não'}</strong></li>`).join('')}</ul>`;
   }
 
   const challengeNow = () => Date.now() + serverClockOffset;
@@ -445,13 +445,16 @@
     const challenge = room?.game?.challenge;
     if (!challenge) return;
     const completing = challenge.phase === 'completando', voting = challenge.phase === 'votando';
-    const deadline = completing ? challenge.completionDeadline : voting ? challenge.voteDeadline : challenge.lossDeadline;
+    const deadline = completing ? challenge.completionDeadline : challenge.voteDeadline;
     const remaining = Math.max(0, Math.ceil((deadline - challengeNow()) / 1000));
-    $('#challenge-timer').textContent = `${remaining}s · ${completing ? 'para completar' : voting ? 'para votar' : 'para usar PERDI'}`;
+    $('#challenge-timer').textContent = `${remaining}s · ${completing ? 'para completar' : 'para votar'}`;
+    const challenged = room.players.find((p) => p.id === challenge.challengedId);
+    $('#challenge-auto-loss').hidden = !completing;
+    $('#challenge-auto-loss').textContent = completing ? `Se ${challenged?.name} não apertar OK em ${remaining}s, perde automaticamente.` : '';
     const mine = challenge.challengedId === room.meId;
     $('#challenge-input').readOnly = !mine || !completing || remaining === 0 || !canAct();
     $('#challenge-ok').disabled = !canAct() || !completing || remaining === 0;
-    $('#challenge-loss').disabled = !canAct() || voting;
+    $('#challenge-loss').disabled = !canAct() || voting || remaining === 0;
     for (const button of document.querySelectorAll('[data-vote]')) button.disabled = !canAct() || !challenge.canVote || remaining === 0;
   }
 
@@ -468,7 +471,7 @@
     if (!challenge) {
       dialog.close();
       challengeDialogId = null;
-      dismissedChallengePhase = null;
+      releaseChallengeHistory();
       clearTimeout(challengePreviewTimer);
       return;
     }
@@ -477,25 +480,23 @@
     const completing = challenge.phase === 'completando', voting = challenge.phase === 'votando';
     if (challengeDialogId !== challenge.id) {
       challengeDialogId = challenge.id;
-      dismissedChallengePhase = null;
       $('#challenge-input').value = challenge.addedLetters;
     } else if (!mine) $('#challenge-input').value = challenge.addedLetters;
     const nameOf = (id) => room.players.find((p) => p.id === id)?.name || 'Jogador';
-    $('#challenge-title').textContent = completing ? 'Completar a palavra' : voting ? 'Aceitar palavra?' : challenge.reason === 'prazo' ? 'O tempo acabou' : 'Palavra recusada';
+    $('#challenge-title').textContent = completing ? 'Completar a palavra' : 'Aceitar palavra?';
     $('#challenge-description').textContent = `${nameOf(challenge.challengerId)} desafia ${nameOf(challenge.challengedId)} a completar a palavra. ${mine ? 'Você é o desafiado e não vota.' : 'Acompanhe a palavra em tempo real.'}`;
     $('#challenge-input').maxLength = room.config.challenge.maxLetters;
     $('#challenge-edit').hidden = !completing;
     $('#challenge-ok').hidden = !mine || !completing;
     $('#challenge-loss').hidden = !mine || voting;
     $('#challenge-vote-actions').hidden = !voting || !challenge.canVote;
-    $('#close-challenge').hidden = mine && !voting;
-    $('#close-challenge').setAttribute('aria-label', voting && challenge.canVote ? 'Fechar votação e votar Sim' : 'Fechar acompanhamento do desafio');
-    $('#challenge-progress').textContent = voting ? `${challenge.respondedCount}/${challenge.voterCount} responderam. ${challenge.hasVoted ? 'Seu voto foi registrado.' : ''} Os votos ficam ocultos até o resultado.` : completing ? (mine ? 'Complete a palavra ou use PERDI.' : 'Só o desafiado pode completar ou usar PERDI.') : 'O desafiado deve usar PERDI. Ao fim do prazo, será automático.';
+    $('#challenge-progress').textContent = voting ? `${challenge.respondedCount}/${challenge.voterCount} responderam. ${challenge.hasVoted ? 'Seu voto foi registrado.' : ''} Os votos ficam ocultos até o resultado.` : (mine ? 'Complete a palavra ou use PERDI.' : 'Só o desafiado pode completar ou usar PERDI.');
     $('#challenge-votes').innerHTML = challenge.tally ? challengeVotesMarkup(challenge) : '';
-    $('#challenge-action-help').textContent = voting ? (mine ? 'Você não vota. Aguarde o resultado.' : challenge.hasVoted ? 'Aguarde os demais votantes.' : 'Fechar ou não responder conta como Sim.') : completing ? 'As ações da partida ficam suspensas durante o desafio.' : 'A mesa será zerada e a vez será mantida.';
+    $('#challenge-action-help').textContent = voting ? (mine ? 'Você não vota. Aguarde o resultado.' : challenge.hasVoted ? 'Aguarde os demais votantes.' : 'Não responder no prazo ou estar desconectado conta como Sim.') : 'As ações da partida ficam suspensas durante o desafio.';
     refreshChallengePreview();
     updateChallengeClock();
-    if (dismissedChallengePhase !== `${challenge.id}:${challenge.phase}` && !dialog.open) {
+    guardChallengeHistory(challenge.id);
+    if (!dialog.open) {
       dialog.showModal();
       fitTextDialogs();
       if (mine && completing) $('#challenge-input').focus();
@@ -531,19 +532,28 @@
   for (const button of document.querySelectorAll('[data-vote]')) button.addEventListener('click', async () => {
     await send('challenge:vote', { challengeId: room.game.challenge.id, vote: button.dataset.vote });
   });
-  async function dismissChallenge() {
-    const challenge = room?.game?.challenge;
-    if (!challenge || (challenge.challengedId === room.meId && challenge.phase !== 'votando')) return;
-    dismissedChallengePhase = `${challenge.id}:${challenge.phase}`;
-    $('#challenge-dialog').close();
-    if (challenge.canVote) await send('challenge:vote', { challengeId: challenge.id, vote: 'sim' });
+  // O evento cancel cobre Esc e o fechamento nativo do dialog no botão voltar.
+  $('#challenge-dialog').addEventListener('cancel', (event) => event.preventDefault());
+  $('#challenge-dialog').addEventListener('close', () => {
+    if (room?.game?.challenge) queueMicrotask(renderChallenge);
+  });
+  function guardChallengeHistory(id) {
+    if (challengeHistoryGuard === id) return;
+    if (history.state?.capiletrasChallenge !== id) history.pushState({ ...history.state, capiletrasChallenge: id }, '', location.href);
+    challengeHistoryGuard = id;
   }
-  $('#close-challenge').addEventListener('click', dismissChallenge);
-  $('#challenge-dialog').addEventListener('cancel', (event) => { event.preventDefault(); void dismissChallenge(); });
-  $('#challenge-dialog').addEventListener('click', (event) => {
-    if (event.target !== event.currentTarget) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) void dismissChallenge();
+  function releaseChallengeHistory() {
+    const id = challengeHistoryGuard;
+    challengeHistoryGuard = null;
+    if (id !== null && history.state?.capiletrasChallenge === id) history.back();
+  }
+  window.addEventListener('popstate', () => {
+    const challenge = room?.game?.challenge;
+    if (!challenge) return;
+    // Mantém uma entrada da própria página para o voltar do celular não sair do desafio.
+    if (history.state?.capiletrasChallenge !== challenge.id) history.pushState({ ...history.state, capiletrasChallenge: challenge.id }, '', location.href);
+    challengeHistoryGuard = challenge.id;
+    renderChallenge();
   });
   setTimeout(function tickChallengeClock() {
     updateChallengeClock();

@@ -56,7 +56,6 @@ for (const outcome of ['prazo', 'aceite', 'aceita no desafio', 'recusada no desa
       assert.equal(await b.locator('.word-turn-label').textContent(), 'É a vez de: Ana');
       await b.locator(`[data-vote="${outcome.startsWith('aceita') ? 'sim' : 'nao'}"]`).click();
       if (outcome.startsWith('recusada')) {
-        await a.locator('#challenge-loss').click();
         await b.locator('.turn-bar').filter({ hasText: 'É a sua vez' }).waitFor();
         assert.equal((await current()).players[0].hand.length, 4);
         assert.equal((await current()).game.word, '');
