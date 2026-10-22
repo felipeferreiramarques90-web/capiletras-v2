@@ -406,7 +406,7 @@ test('rede: Bloqueio permanece visível na cadeia de 2x e restringe seu próprio
 test('rede: só o jogador da vez sem carta jogável pode passar; cliques duplicados não duplicam penalidade', async (t) => {
   const fixture = await setup(t);
   const { a, b, storage, code } = fixture;
-  await seedHands(fixture, [['letra-B'], ['letra-A']], { word: 'X', blockedLetter: 'A', turnPlayerId: b.view.meId });
+  await seedHands(fixture, [['letra-B'], ['letra-A']], { word: 'X', blockedLetter: 'A', turnPlayerId: b.view.meId, drawsThisTurn: 1 });
   assert.equal(a.view.game.canSkipTurn, false);
   assert.equal(b.view.game.canSkipTurn, true);
   const before = await storage.getRoom(code);
@@ -424,14 +424,22 @@ test('rede: só o jogador da vez sem carta jogável pode passar; cliques duplica
 
 test('rede: Não consigo jogar exige versão e passa a vez somente ao clicar', async (t) => {
   const fixture = await setup(t);
-  const { a } = fixture;
-  await seedHands(fixture, [['swap-0', 'double-0'], ['letra-A', 'letra-B']]);
+  const { a, storage, code } = fixture;
+  const cards = createDeck();
+  const deck = cards.filter((c) => !['swap-0', 'double-0', 'letra-A', 'letra-B', 'swap-1'].includes(c.id));
+  deck.push(cards.find((c) => c.id === 'swap-1'));
+  await seedHands(fixture, [['swap-0', 'double-0'], ['letra-A', 'letra-B']], { deck });
+  assert.equal(a.view.game.canSkipTurn, false);
+  const before = await storage.getRoom(code);
+  assert.match((await emit(a, 'game:skip')).error, /Compre uma carta primeiro/);
+  assert.deepEqual(await storage.getRoom(code), before);
+  assert.equal((await emit(a, 'game:draw')).ok, true);
   assert.equal(a.view.game.canSkipTurn, true);
-  assert.equal(a.view.game.canDraw, true);
+  assert.equal(a.view.game.canDraw, false);
   assert.equal(a.view.game.turnPlayerId, a.view.meId);
   assert.equal((await a.timeout(3000).emitWithAck('game:skip', {})).ok, false);
   assert.equal((await emit(a, 'game:skip')).ok, true);
-  assert.equal(a.view.hand.length, 6);
+  assert.equal(a.view.hand.length, 7);
   assert.notEqual(a.view.game.turnPlayerId, a.view.meId);
 });
 
@@ -502,7 +510,8 @@ test('rede: uma partida completa mostra a mesma vitória e permite revanche e lo
     await waitFor(() => active.view.game.version === a.view.game.version);
     const card = active.view.hand.find((c) => active.view.game.playableCardIds.includes(c.id));
     if (!card) {
-      assert.equal((await emit(active, 'game:skip')).ok, true);
+      const event = !active.view.game.drawsThisTurn && active.view.game.availableCount ? 'game:draw' : 'game:skip';
+      assert.equal((await emit(active, event)).ok, true);
     } else {
       const usesLetters = !['double', 'pass'].includes(card.type);
       const debt = active.view.game.letterDebt.playerId === active.view.meId ? active.view.game.letterDebt.count : 0;

@@ -19,7 +19,8 @@ const playing = (count = 2, hand = 5) => startGame(lobby(count, hand), 'p1', ran
 const firstPlay = (room, id = room.game.turnPlayerId) => {
   const hand = room.players.find((p) => p.id === id).hand;
   const card = hand.find((c) => !['double', 'pass'].includes(c.type) && !CARD_TYPES[c.type].protectsFromChallenge && isCardPlayable(c, room.game)) || hand.find((c) => isCardPlayable(c, room.game));
-  if (!card) return skipTurn(room, id, random);
+  if (!card) return room.game.drawsThisTurn === 0 && room.game.deck.length + room.game.discard.length > 0
+    ? firstPlay(drawCard(room, id, random), id) : skipTurn(room, id, random);
   const usesLetters = !['double', 'pass'].includes(card.type);
   const debt = room.game.letterDebt.playerId === id ? room.game.letterDebt.count : 0;
   const payment = usesLetters ? (room.game.blockedLetter === 'A' ? 'B' : 'A').repeat(debt) : '';

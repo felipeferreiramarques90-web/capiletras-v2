@@ -71,6 +71,7 @@ export function canSkipTurn(room, id) {
   const player = room.players.find((p) => p.id === id && p.connected && !p.left);
   return Boolean(room.phase === 'playing' && !room.game.challenge && !room.game.pendingVictory && player
     && connected(room).length >= RULES.minPlayers && player.hand.length > 0
+    && (room.game.drawsThisTurn > 0 || room.game.deck.length + room.game.discard.length === 0)
     && room.game.turnPlayerId === id && !hasPlayableCard(player, room.game));
 }
 
@@ -313,6 +314,8 @@ export function skipTurn(original, id, random, expectedVersion = original.game?.
   requireRule(!room.game.pendingVictory, 'Aguarde a resolução da vitória pendente.');
   const player = playerById(room, id);
   requireRule(Number.isInteger(expectedVersion) && expectedVersion === room.game.version, 'A mesa mudou. Confira o estado e tente novamente.');
+  requireRule(room.game.turnPlayerId !== id || room.game.drawsThisTurn > 0 || room.game.deck.length + room.game.discard.length === 0,
+    'Compre uma carta primeiro.');
   requireRule(canSkipTurn(room, id), 'Só o jogador da vez com cartas na mão e sem carta jogável pode dizer Não consigo jogar.');
   const previousBlock = room.game.blockedLetter;
   const previousDebt = room.game.letterDebt.count;

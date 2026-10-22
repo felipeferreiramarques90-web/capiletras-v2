@@ -218,13 +218,14 @@ for (const [name, hands, blocked] of [
   ['2x sem jogada anterior', [['double'], ['A']], null],
   ['letra fixa bloqueada', [['A'], ['B']], 'A'],
 ]) {
-  test(`Não consigo jogar fica habilitado imediatamente sem compra: ${name}`, () => {
+  test(`Não consigo jogar fica habilitado após a compra: ${name}`, () => {
     const room = scenario({ hands, blocked });
+    room.game.drawsThisTurn = 1;
     const view = roomView(room, 'p1');
     assert.equal(view.game.canSkipTurn, true);
-    assert.equal(view.game.canDraw, true);
+    assert.equal(view.game.canDraw, false);
     assert.equal(view.game.noPlayableCards, true);
-    assert.equal(room.game.drawsThisTurn, 0);
+    assert.equal(room.game.drawsThisTurn, 1);
     const next = skipTurn(room, 'p1', random);
     assert.equal(next.players[0].hand.length, 5);
     assert.equal(next.game.turnPlayerId, 'p2');
@@ -253,7 +254,9 @@ test('comprar uma carta injogável mantém Não consigo jogar, sem compras extra
 });
 
 test('Não consigo jogar passa após esgotar as cartas se a penalidade não trouxe carta jogável', () => {
-  const room = skipTurn(scenario({ hands: [['swap'], ['A']], supply: ['swap:1', 'swap:2'] }), 'p1', random);
+  const original = scenario({ hands: [['swap'], ['A']], supply: ['swap:1', 'swap:2'] });
+  original.game.drawsThisTurn = 1;
+  const room = skipTurn(original, 'p1', random);
   assert.equal(room.players[0].hand.length, 3);
   assert.equal(room.game.turnPlayerId, 'p2');
   assert.equal(room.game.drawsThisTurn, 0);

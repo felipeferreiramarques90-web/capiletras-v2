@@ -29,8 +29,51 @@ function voting() {
   return confirmChallenge(room, 'p1', room.game.challenge.id, 'TO', now + 200, random);
 }
 
+test('exige compra prévia, rejeita sem mutações e habilita só se continuar sem carta jogável', () => {
+  const room = fixture([['swap-0'], ['letra-B']]);
+  room.game.word = '';
+  room.game.deck = createDeck().filter((c) => ['swap-1', 'swap-2'].includes(c.id));
+  assert.equal(canSkipTurn(room, 'p1'), false);
+  unchanged(room, () => skipTurn(room, 'p1', random), /Compre uma carta primeiro/);
+  const drawn = drawCard(room, 'p1', random);
+  assert.equal(drawn.game.drawsThisTurn, 1);
+  assert.equal(canSkipTurn(drawn, 'p1'), true);
+  assert.equal(drawn.game.deck.length, 1, 'a compra é exigida mesmo quando ainda há outras cartas');
+});
+
+test('sem compra nem descarte a mão injogável pode passar sem comprar; descarte disponível exige compra', () => {
+  const room = fixture();
+  room.game.deck = [];
+  room.game.discard = [{ id: 'swap-0', type: 'swap' }];
+  assert.equal(canSkipTurn(room, 'p1'), false);
+  room.game.discard = [];
+  assert.equal(canSkipTurn(room, 'p1'), true);
+  assert.doesNotThrow(() => skipTurn(room, 'p1', random));
+});
+
+test('novo turno normal, forçado pelo 2x e retorno zeram a compra exigida para passar', () => {
+  const normal = fixture([['letra-A', 'letra-B'], ['swap-0'], ['letra-C']]);
+  normal.game.drawsThisTurn = 1;
+  assert.equal(play(normal, 'letra-A').game.drawsThisTurn, 0);
+  const room = fixture([['swap-0'], ['double-0', 'letra-B'], ['letra-C']]);
+  Object.assign(room.game, { word: '', lastPlayerId: 'p1', turnPlayerId: 'p2', drawsThisTurn: 1 });
+  const extra = room.game.deck.findIndex((c) => c.id === 'swap-1');
+  room.game.deck.push(...room.game.deck.splice(extra, 1));
+  const forced = play(room, 'double-0');
+  assert.equal(forced.game.turnPlayerId, 'p1');
+  assert.equal(forced.game.drawsThisTurn, 0);
+  assert.equal(canSkipTurn(forced, 'p1'), false);
+  unchanged(forced, () => skipTurn(forced, 'p1', random), /Compre uma carta primeiro/);
+  const drawn = drawCard(forced, 'p1', random);
+  assert.equal(canSkipTurn(drawn, 'p1'), true);
+  const returned = skipTurn(drawn, 'p1', random);
+  assert.equal(returned.game.turnPlayerId, 'p2');
+  assert.equal(returned.game.drawsThisTurn, 0);
+});
+
 test('Não consigo jogar: só a vez com mão não vazia e nenhuma carta jogável, sem proteção da Vida', () => {
   const room = fixture();
+  room.game.drawsThisTurn = 1;
   assert.equal(canSkipTurn(room, 'p1'), true);
   assert.equal(canSkipTurn(room, 'p2'), false);
   unchanged(room, () => skipTurn(room, 'p2', random), /jogador da vez/);
@@ -43,6 +86,7 @@ test('Não consigo jogar: só a vez com mão não vazia e nenhuma carta jogável
 
 for (const id of ['letra-A', 'pass-0', 'life-0']) test(`${id} jogável impede Não consigo jogar`, () => {
   const room = fixture([[id, 'letra-K'], ['letra-B']]);
+  room.game.drawsThisTurn = 1;
   assert.equal(canSkipTurn(room, 'p1'), false);
   unchanged(room, () => skipTurn(room, 'p1', random), /sem carta jogável/);
 });
@@ -60,6 +104,7 @@ test('compra opcional jogável desabilita o botão; compra injogável mantém ha
 
 test('compra 4, zera a mesa e perde a vez mesmo recebendo cartas jogáveis; 2x perde o histórico', () => {
   const room = fixture();
+  room.game.drawsThisTurn = 1;
   const next = skipTurn(room, 'p1', random);
   assert.equal(next.players[0].hand.length, 5);
   assert.equal(next.game.turnPlayerId, 'p2');
@@ -85,6 +130,7 @@ test('perde a jogada forçada e devolve ao autor do 2x; compra opcional zera no 
 test('sem compra nem descarte, passa a vez preservando o visor; com descarte reembaralha', () => {
   for (const count of [0, 2, 4]) {
     const room = fixture();
+    room.game.drawsThisTurn = count ? 1 : 0;
     room.game.deck = [];
     room.game.discard = createDeck().filter((c) => c.id !== 'letra-K').slice(0, count);
     const next = skipTurn(room, 'p1', random);

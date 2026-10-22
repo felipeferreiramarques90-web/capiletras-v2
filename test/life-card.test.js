@@ -133,7 +133,7 @@ test('Vida seguida de 2x encerra a proteção antes do turno forçado', () => {
 test('Vida não interfere em Não consigo jogar do jogador da vez', () => {
   // Estado explícito da condição de exceção: só o autor da Vida é protegido.
   const room = fixture({ hands: [['letra-B'], ['letra-A']], word: 'CAS', blockedLetter: 'A' });
-  Object.assign(room.game, { lastPlayerId: 'p1', protectedPlayerId: 'p1', turnPlayerId: 'p2', });
+  Object.assign(room.game, { lastPlayerId: 'p1', protectedPlayerId: 'p1', turnPlayerId: 'p2', drawsThisTurn: 1 });
   assert.equal(canSkipTurn(room, 'p1'), false);
   assert.equal(canSkipTurn(room, 'p2'), true);
   const next = skipTurn(room, 'p2', random);
@@ -161,7 +161,7 @@ test('quando a vez volta normalmente, Não consigo jogar está disponível sem c
   room = playCard(room, 'p3', 'block-0', 'X', 'A');
   assert.equal(room.game.turnPlayerId, 'p1');
   assert.equal(room.game.protectedPlayerId, null);
-  assert.equal(canSkipTurn(room, 'p1'), true);
+  assert.equal(canSkipTurn(room, 'p1'), false, 'novo turno exige nova compra');
 });
 
 test('Vida como última carta vence normalmente', () => {
