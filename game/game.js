@@ -67,7 +67,7 @@ export function hasPlayableCard(player, game) {
 
 export function canLoseRound(room, id) {
   const player = room.players.find((p) => p.id === id && p.connected && !p.left);
-  return Boolean(room.phase === 'playing' && player && room.game.protectedPlayerId !== id && (
+  return Boolean(room.phase === 'playing' && !room.game.challenge && player && room.game.protectedPlayerId !== id && (
     (room.game.canLose && room.game.lastPlayerId === id)
     || (room.game.turnPlayerId === id && !hasPlayableCard(player, room.game))
   ));
@@ -132,6 +132,7 @@ export function startGame(original, id, random) {
     lastPlayerId: null, canLose: false, winnerId: null, turnNumber: 1,
     blockedLetter: null, protectedPlayerId: null, extraTurns: [], version: 0,
     letterDebt: { count: 0, playerId: null },
+    lastLetterPlayerId: null, challenge: null, challengeResult: null,
   };
   room.notice = 'A partida começou. Boa sorte!';
   return room;
@@ -139,6 +140,7 @@ export function startGame(original, id, random) {
 
 function requireTurn(room, id) {
   requireRule(room.phase === 'playing', 'Não há partida em andamento.');
+  requireRule(!room.game.challenge, 'Aguarde o fim do desafio para continuar a partida.');
   const player = playerById(room, id);
   requireRule(player.connected, 'Reconecte para continuar.');
   requireRule(connected(room).length >= RULES.minPlayers, 'Partida pausada. Aguardando outro jogador reconectar.');
@@ -179,13 +181,13 @@ function advanceTurn(room) {
 }
 
 function resumeTurn(room) {
-  if (room.phase !== 'playing') return;
+  if (room.phase !== 'playing' || room.game.challenge) return;
   const current = room.players.find((p) => p.id === room.game.turnPlayerId);
   if (!current?.connected || current.left) advanceTurn(room);
 }
 
 // A mesma compra é usada na compra opcional e na penalidade; só a primeira conta no limite do turno.
-function takeCards(game, count, random) {
+export function takeCards(game, count, random) {
   const cards = [];
   for (let i = 0; i < count; i++) {
     if (!game.deck.length && game.discard.length) {
@@ -211,9 +213,10 @@ export function drawCard(original, id, random) {
   return room;
 }
 
-export function playCard(original, id, cardId, choice, blockedChoice, accumulatedLetters) {
+export function playCard(original, id, cardId, choice, blockedChoice, accumulatedLetters, expectedVersion = original.game?.version) {
   const room = clone(original);
   const player = requireTurn(room, id);
+  requireRule(Number.isInteger(expectedVersion) && expectedVersion === room.game.version, 'A mesa mudou. Escolha sua carta novamente.');
   const index = player.hand.findIndex((card) => card.id === cardId);
   requireRule(index >= 0, 'Essa carta não está na sua mão.');
   const card = player.hand[index];
@@ -277,6 +280,7 @@ export function playCard(original, id, cardId, choice, blockedChoice, accumulate
         : `${player.name} jogou a letra ${letter}.`;
   }
   room.game.lastPlayerId = id;
+  if (usesLetters) room.game.lastLetterPlayerId = id;
   if (paidLetters) room.notice = `${player.name} pagou ${owed} letra${owed === 1 ? '' : 's'} acumulada${owed === 1 ? '' : 's'} (${paidLetters}). ${room.notice}`;
   room.game.canLose = true;
   room.game.version++;
@@ -305,6 +309,7 @@ export function playCard(original, id, cardId, choice, blockedChoice, accumulate
 export function loseRound(original, id, random, expectedVersion = original.game?.version) {
   const room = clone(original);
   requireRule(room.phase === 'playing', 'Não há partida em andamento.');
+  requireRule(!room.game.challenge, 'Use os botões do desafio enquanto ele estiver em andamento.');
   const player = playerById(room, id);
   requireRule(Number.isInteger(expectedVersion) && expectedVersion === room.game.version, 'A mesa mudou. Confira o estado e tente novamente.');
   requireRule(room.game.protectedPlayerId !== id, 'Protegido pela Vida. Aguarde uma nova jogada ou sua próxima vez.');
@@ -314,6 +319,7 @@ export function loseRound(original, id, random, expectedVersion = original.game?
   const cards = takeCards(room.game, RULES.lossPenalty, random);
   player.hand.push(...cards);
   room.game.word = '';
+  room.game.lastLetterPlayerId = null;
   room.game.blockedLetter = null;
   room.game.letterDebt = { count: 0, playerId: null };
   room.game.canLose = false;
@@ -348,7 +354,9 @@ export function disconnectPlayer(original, id, now, leave = false) {
 export function returnToLobby(original, id) {
   const room = clone(original);
   requireHost(room, id);
-  requireRule(room.phase === 'finished' || (room.phase === 'playing' && connected(room).length < RULES.minPlayers),
+  requireRule(!room.game?.challenge, 'Aguarde o fim do desafio para voltar à sala.');
+  const currentOnline = room.players.some((p) => p.id === room.game?.turnPlayerId && p.connected && !p.left);
+  requireRule(room.phase === 'finished' || (room.phase === 'playing' && (connected(room).length < RULES.minPlayers || !currentOnline)),
     'A partida ainda não terminou. Só é possível encerrar antecipadamente uma partida pausada.');
   room.phase = 'lobby';
   room.game = null;
@@ -379,7 +387,8 @@ export function roomView(room, viewerId) {
   const viewer = playerById(room, viewerId);
   const game = room.game;
   const available = game ? game.deck.length + game.discard.length : 0;
-  const myTurn = room.phase === 'playing' && game.turnPlayerId === viewerId && connected(room).length >= RULES.minPlayers;
+  const myTurn = room.phase === 'playing' && !game.challenge && game.turnPlayerId === viewerId && connected(room).length >= RULES.minPlayers;
+  const challenge = game?.challenge;
   return {
     code: room.code, phase: room.phase, hostId: room.hostId, meId: viewerId,
     settings: { ...room.settings, maxInitialCards: maxInitialCards(room.settings.playerCount) },
@@ -393,11 +402,24 @@ export function roomView(room, viewerId) {
       winnerId: game.winnerId, turnNumber: game.turnNumber, drawsThisTurn: game.drawsThisTurn,
       version: game.version, blockedLetter: game.blockedLetter, extraTurns: [...game.extraTurns],
       protectedPlayerId: game.protectedPlayerId,
+      lastLetterPlayerId: game.lastLetterPlayerId,
+      challenge: challenge ? {
+        id: challenge.id, phase: challenge.phase, challengerId: challenge.challengerId,
+        challengedId: challenge.challengedId, baseWord: challenge.baseWord, addedLetters: challenge.addedLetters,
+        completionDeadline: challenge.completionDeadline, voteDeadline: challenge.voteDeadline,
+        lossDeadline: challenge.lossDeadline, reason: challenge.reason,
+        voterCount: challenge.voterIds.length, respondedCount: Object.keys(challenge.votes).length,
+        hasVoted: Object.hasOwn(challenge.votes, viewerId),
+        canVote: challenge.phase === 'votando' && challenge.voterIds.includes(viewerId) && !Object.hasOwn(challenge.votes, viewerId),
+        // As cédulas só saem do servidor depois do encerramento da votação.
+        ...(challenge.phase === 'perdi' && challenge.tally ? { votes: { ...challenge.votes }, tally: { ...challenge.tally } } : {}),
+      } : null,
+      challengeResult: game.challengeResult ? structuredClone(game.challengeResult) : null,
       letterDebt: structuredClone(game.letterDebt),
       playableCardIds: viewer.hand.filter((card) => isCardPlayable(card, game, viewerId)).map((card) => card.id),
       allowedLettersByCard: Object.fromEntries(viewer.hand.map((card) => [card.id, playableLetters(card, game, viewerId)])),
       deckCount: game.deck.length, discardCount: game.discard.length, availableCount: available,
-      paused: connected(room).length < RULES.minPlayers,
+      paused: connected(room).length < RULES.minPlayers || !room.players.some((p) => p.id === game.turnPlayerId && p.connected && !p.left),
       canDraw: myTurn && game.drawsThisTurn < RULES.maxDrawsPerTurn && available > 0,
       canPlay: myTurn,
       canLose: canLoseRound(room, viewerId),

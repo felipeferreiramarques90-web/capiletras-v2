@@ -13,6 +13,16 @@ export const RULES = Object.freeze({
 });
 
 export const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+export const CHALLENGE_RULES = Object.freeze({
+  completionMs: 30_000,
+  voteMs: 15_000,
+  lossMs: 10_000,
+  minLetters: 0,
+  maxLetters: 16,
+  rejectionRatio: 0.5,
+  tickMs: 250,
+  previewIntervalMs: 300,
+});
 // Composição e comportamento das cartas em uma única fonte, usada também na interface.
 export const CARD_TYPES = Object.freeze(Object.fromEntries(Object.entries({
   letter: { quantity: ALPHABET.length, letters: ALPHABET, effect: 'append', label: 'Letra', symbol: '', color: 'ivory' },
@@ -34,4 +44,5 @@ export const PUBLIC_CONFIG = Object.freeze({
   deckSize: DECK_SIZE, cardTypes: CARD_TYPES,
   minHand: RULES.minHand, reservedDrawCards: RULES.reservedDrawCards,
   maxDrawsPerTurn: RULES.maxDrawsPerTurn, lossPenalty: RULES.lossPenalty,
+  challenge: CHALLENGE_RULES,
 });
