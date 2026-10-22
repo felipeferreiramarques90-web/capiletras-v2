@@ -40,6 +40,32 @@
   const isHost = () => room?.meId === room?.hostId;
   const avatar = (player, index) => `<span class="avatar color-${index % 4}" aria-hidden="true">${escape(player.name.slice(0, 1).toUpperCase())}</span>`;
 
+  // Ilustração original, reutilizada apenas na apresentação dos versos.
+  const capybaraSvg = () => `<svg class="capybara" viewBox="0 0 120 120" aria-hidden="true" focusable="false">
+    <circle class="capybara-medallion" cx="60" cy="60" r="49"/>
+    <path class="capybara-ground" d="M22 92c20 6 56 6 77-1"/>
+    <g class="capybara-body">
+      <path d="M27 80c-5-7-7-18-1-27 6-9 20-12 34-8l13 10 4 29-7 9H59l-2-10H42l-2 10H29z"/>
+      <path d="M58 57c-1-13 5-22 17-22 10 0 18 5 20 15l7 8v13c-6 7-17 8-30 4L62 88H51"/>
+      <path d="M65 42c-5-7-1-14 4-13 5 1 7 6 5 11"/>
+    </g>
+    <path class="capybara-muzzle" d="M81 58c5-3 14-3 21 0v13c-6 5-14 5-20 2-4-3-4-11-1-15z"/>
+    <g class="capybara-details"><path d="M94 66h4m-5 7 5-1M34 71l-2 9m32-44 4 3"/><circle cx="83" cy="49" r="2.5"/><circle cx="101" cy="60" r="2"/></g>
+  </svg>`;
+  const bombSvg = () => `<svg class="card-bomb" viewBox="0 0 80 80" aria-hidden="true" focusable="false"><circle cx="34" cy="49" r="23" fill="currentColor"/><path d="m46 28 5-9 8 4-5 9M56 20c-1-8 9-8 8-14m-9 1-2-4m17 10 5 1m-4-8 4-3" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M19 46c1-5 4-9 9-10" class="bomb-shine" fill="none" stroke-width="4" stroke-linecap="round"/></svg>`;
+
+  // Identidade visual independente da configuração de regras recebida do servidor.
+  function cardArtwork(card) {
+    const faces = {
+      letter: ['+', card.letter], wild: ['+', '*'], vowel: ['+', 'vogal'],
+      consonant: ['+', 'consoante'], first: ['+', 'a-m'], last: ['+', 'n-z'],
+      swap: ['🔄', '🔄'], block: ['+', '🚫'], double: ['', '2x'],
+      multi: ['2+*', bombSvg()], life: ['♥', '♥'], pass: ['→', '→'],
+    };
+    const [corner, center] = faces[card.type] || ['', ''];
+    return { corner, center: card.type === 'multi' ? center : escape(center) };
+  }
+
   function toast(message) {
     $('#toast').textContent = message;
     $('#toast').hidden = false;
@@ -131,7 +157,7 @@
         <h1>Uma letra.<br>Mil <em>possibilidades.</em></h1>
         <p class="hero-description">Junte os amigos, puxe uma cadeira e deixe a palavra crescer. Quem ficar sem cartas primeiro, vence.</p>
         <div class="home-facts"><span>2–8 jogadores</span><span>Em tempo real</span><span>Sem cadastro</span></div>
-        <div class="card-scene" aria-hidden="true"><div class="deco-card deco-a"><small>A</small><b>A</b><small>A</small></div><div class="deco-card deco-star"><small>*</small><b>*</b><span>CORINGA</span></div><div class="deco-card deco-z"><small>Z</small><b>Z</b><small>Z</small></div><span class="scene-caption">A próxima letra é sua. →</span></div>
+        <div class="card-scene" aria-hidden="true"><div class="deco-card deco-a"><small>+</small><b>A</b><small>A</small></div><div class="deco-card deco-star"><small>+</small><b>*</b><span>CORINGA</span></div><div class="deco-card deco-z"><small>+</small><b>Z</b><small>Z</small></div><span class="scene-caption">A próxima letra é sua. →</span></div>
       </div>
       <section class="entry-panel"><span class="panel-number">01 / VAMOS COMEÇAR</span><h2>Sua próxima<br>boa companhia.</h2><p class="muted">Uma mesa, muitas ideias. Só falta você.</p>
         <label for="player-name">Como podemos te chamar?</label><input id="player-name" name="name" maxlength="20" autocomplete="nickname" placeholder="Seu nome" value="${escape(name)}" ${disabled(busy)}>
@@ -175,10 +201,10 @@
     const meIndex = room.players.findIndex((p) => p.id === room.meId);
     const ordered = [...room.players.slice(meIndex + 1), ...room.players.slice(0, meIndex)];
     return `<section class="game-layout">${roomBar('PALAVRAS SE CONSTROEM EM BOA COMPANHIA')}
-      <div class="opponents">${ordered.map((p) => { const i = room.players.findIndex((item) => item.id === p.id); return `<div class="opponent ${p.id === game.turnPlayerId ? 'active' : ''} ${!p.connected ? 'offline-player' : ''}">${avatar(p, i)}<div><strong>${escape(p.name)}</strong><span>${p.left ? 'Saiu da sala' : !p.connected ? 'Reconectando…' : `${p.cardCount} carta${p.cardCount === 1 ? '' : 's'}`}</span></div><span class="mini-cards" aria-hidden="true">▥</span></div>`; }).join('')}</div>
+      <div class="opponents">${ordered.map((p) => { const i = room.players.findIndex((item) => item.id === p.id); return `<div class="opponent ${p.id === game.turnPlayerId ? 'active' : ''} ${!p.connected ? 'offline-player' : ''}">${avatar(p, i)}<div><strong>${escape(p.name)}</strong><span>${p.left ? 'Saiu da sala' : !p.connected ? 'Reconectando…' : `${p.cardCount} carta${p.cardCount === 1 ? '' : 's'}`}</span></div><span class="mini-cards card-back" aria-hidden="true">${capybaraSvg()}</span></div>`; }).join('')}</div>
       <div class="turn-bar ${myTurn ? 'your-turn' : ''}" role="status"><span class="status-dot connected"></span>${!socket.connected ? 'Reconectando… Suas cartas estão guardadas.' : game.challenge ? 'Desafio em andamento · a partida aguarda o resultado.' : game.pendingVictory ? 'Última carta na mesa · vitória pendente.' : game.paused ? 'Partida pausada · aguardando outro jogador reconectar' : game.turnPlayerId === room.meId ? (game.noPlayableCards ? (game.canSkipTurn ? 'Sem carta jogável. Você pode usar Não consigo jogar.' : 'Sem carta jogável. Compre uma carta primeiro.') : 'É a sua vez! Escolha uma carta para jogar.') : `Vez de ${escape(current?.name)}. Prepare sua próxima letra.`}<span class="turn-number">TURNO ${game.turnNumber}</span></div>${game.paused && !game.challenge && !game.pendingVictory && isHost() ? `<div class="paused-actions"><button class="text-button" data-action="end" ${disabled(!canAct())}>Encerrar partida e voltar à sala →</button></div>` : ''}
       <section class="table-felt" aria-label="Centro da mesa"><div class="felt-caption">CAPILETRAS · A MESA É DE TODOS</div>${game.pendingVictory && !game.challenge ? `<section class="pending-victory" aria-label="Vitória pendente"><p id="victory-countdown" role="status"></p><small>${game.pendingVictory.acceptedCount}/${game.pendingVictory.voterCount} aceitaram</small>${game.pendingVictory.playerId !== room.meId ? `<button class="button primary" data-action="accept-victory" ${disabled(!canAct() || !game.pendingVictory.canAccept)}>Aceito a palavra</button>` : '<small>Aguardando os outros jogadores.</small>'}</section>` : ''}
-        <div class="table-center"><button class="draw-pile ${game.canDraw ? 'available' : ''}" data-action="draw" ${disabled(!game.canDraw || !canAct())} aria-label="Comprar uma carta. ${game.deckCount} cartas na pilha, ${game.discardCount} para reembaralhar."><span class="deck-back" aria-hidden="true"><span>c<span>*</span></span></span><strong>COMPRAR</strong><small>${game.deckCount} na pilha${game.discardCount ? ` · ${game.discardCount} jogadas` : ''}</small></button>
+        <div class="table-center"><button class="draw-pile ${game.canDraw ? 'available' : ''}" data-action="draw" ${disabled(!game.canDraw || !canAct())} aria-label="Comprar uma carta. ${game.deckCount} cartas na pilha, ${game.discardCount} para reembaralhar."><span class="deck-back card-back" aria-hidden="true">${capybaraSvg()}</span><strong>COMPRAR</strong><small>${game.deckCount} na pilha${game.discardCount ? ` · ${game.discardCount} jogadas` : ''}</small></button>
         <div class="word-area">${wordHeading(current)}<div class="word-display ${game.word ? '' : 'word-empty'}" aria-label="Palavra atual: ${escape(game.word || 'vazia')}">${game.word ? escape(game.word) : 'A primeira letra é com você.'}</div><p>${game.word ? `${game.word.length} letra${game.word.length === 1 ? '' : 's'} e contando…` : 'Uma carta é tudo que precisa para começar.'}</p>${game.blockedLetter ? `<div class="block-badge" role="status">➕🚫 Letra bloqueada: <strong>${game.blockedLetter}</strong><span>até a próxima jogada com letra</span></div>` : ''}${game.letterDebt.count ? `<div class="debt-badge" role="status"><span aria-hidden="true">→</span> ${escape(room.players.find((p) => p.id === game.letterDebt.playerId)?.name)} deve ${game.letterDebt.count} letra${game.letterDebt.count === 1 ? '' : 's'}</div>` : ''}${game.extraTurns.length ? `<p class="extra-turn-notice">2x ativo · retorno para ${escape(room.players.find((p) => p.id === game.extraTurns.at(-1))?.name)}</p>` : ''}</div>
         <div class="lose-area"><button class="button lose-button skip-button" data-action="skip" aria-describedby="loss-help" ${disabled(!game.canSkipTurn || !canAct())}>Não consigo jogar <span aria-hidden="true">↺</span></button><p id="loss-help">${escape(skipReason)}</p></div></div>
         <div class="challenge-table-actions"><button class="button challenge-button" data-action="challenge" aria-describedby="challenge-help-debt" ${disabled(!canAct() || Boolean(game.challenge) || game.letterDebt.count > 0)}>Duvidar da palavra <span aria-hidden="true">?</span></button>${game.letterDebt.count > 0 ? '<p id="challenge-help-debt" class="challenge-debt-reason" role="status">Há letras acumuladas pendentes.</p>' : '<span id="challenge-help-debt" hidden></span>'}${game.challenge ? '<button class="text-button" data-action="challenge-view">Acompanhar desafio →</button>' : ''}</div>
@@ -194,11 +220,10 @@
     const fixed = card.type === 'letter';
     const title = fixed ? card.letter : rule.label;
     const description = rule.description ? `${title} · ${rule.description}` : title;
-    // Coração em texto mantém o contraste configurado, sem depender da cor do emoji do sistema.
-    const symbol = card.type === 'life' ? '♥' : fixed ? card.letter : rule.symbol;
+    const artwork = cardArtwork(card);
     const special = !fixed && card.type !== 'wild';
     const reason = room.game.playableCardIds.includes(card.id) ? '' : card.type === 'swap' && !room.game.word ? 'Visor vazio' : card.type === 'double' ? 'Sem jogada anterior' : 'Letra bloqueada';
-    return `<button class="playing-card card-${rule.color} ${card.type === 'wild' ? 'wild-card' : ''} ${special ? 'special-card' : ''} ${reason ? 'unplayable-card' : ''}" data-card="${escape(card.id)}" ${disabled(!enabled)} aria-label="Jogar ${escape(description)}${reason ? `: ${reason}` : ''}" title="${escape(reason || description)}"><span class="card-corner">${escape(symbol)}</span><strong class="${special ? 'card-special-title' : ''}">${escape(special && ['swap', 'block', 'double', 'multi', 'life', 'pass'].includes(card.type) ? symbol : fixed ? title : card.type === 'wild' ? '*' : title)}</strong><span class="card-bottom">${escape(reason || description.toUpperCase())}</span></button>`;
+    return `<button class="playing-card card-${rule.color} card-face-${card.type} ${card.type === 'wild' ? 'wild-card' : ''} ${special ? 'special-card' : ''} ${reason ? 'unplayable-card' : ''}" data-card="${escape(card.id)}" ${disabled(!enabled)} aria-label="Jogar ${escape(description)}${reason ? `: ${reason}` : ''}" title="${escape(reason || description)}"><span class="card-corner" aria-hidden="true">${escape(artwork.corner)}</span><strong class="${special ? 'card-special-title' : ''}" aria-hidden="true">${artwork.center}</strong>${card.type === 'pass' ? '<span class="card-corner card-corner-right" aria-hidden="true">→</span>' : ''}<span class="card-bottom">${escape(reason || description.toUpperCase())}</span></button>`;
   }
 
   function victory() {
@@ -234,6 +259,7 @@
     if (pendingDebtLetters) $('#letter-hint').textContent = `Letras acumuladas: ${pendingDebtLetters}. ` + $('#letter-hint').textContent;
   }
   function openLetters(card) {
+    $('#letter-dialog').dataset.cardTheme = card.type;
     selectedCard = card;
     selectedLetter = null;
     selectedBlock = null;
@@ -320,6 +346,7 @@
     else openLetters(card);
   }
   function beginDebt(card) {
+    $('#debt-dialog').dataset.cardTheme = card.type;
     closeLetters();
     selectedCard = card;
     pendingDebtVersion = room.game.version;
