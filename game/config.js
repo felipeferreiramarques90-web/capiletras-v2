@@ -7,6 +7,7 @@ export const RULES = Object.freeze({
   reservedDrawCards: 1,
   maxDrawsPerTurn: 1,
   lossPenalty: 4,
+  victoryWindowMs: 10_000,
   nameMaxLength: 20,
   emptyRoomTtlMs: 30 * 60 * 1000,
   inactiveRoomTtlMs: 6 * 60 * 60 * 1000,
@@ -35,7 +36,7 @@ export const CARD_TYPES = Object.freeze(Object.fromEntries(Object.entries({
   block: { quantity: 6, letters: ALPHABET, effect: 'block', label: 'Bloqueio', symbol: '➕🚫', color: 'red' },
   double: { quantity: 6, letters: '', effect: 'replay', label: '2x', symbol: '2x', color: 'orange' },
   multi: { quantity: 5, letters: ALPHABET, effect: 'appendMany', minLetters: 2, maxLetters: 16, label: '2+*', symbol: '2+*', color: 'purple' },
-  life: { quantity: 5, letters: 'AEIOU', effect: 'append', protectsFromLoss: true, label: 'Vida', description: 'Só vogais', symbol: '❤️', color: 'pink' },
+  life: { quantity: 5, letters: 'AEIOU', effect: 'append', protectsFromChallenge: true, label: 'Vida', description: 'Só vogais', symbol: '❤️', color: 'pink' },
   pass: { quantity: 12, letters: '', effect: 'pass', debtIncrement: 1, label: 'Passar letra', symbol: '→', color: 'black' },
 }).map(([type, rule]) => [type, Object.freeze(rule)])));
 export const DECK_SIZE = Object.values(CARD_TYPES).reduce((total, card) => total + card.quantity, 0);
@@ -45,4 +46,5 @@ export const PUBLIC_CONFIG = Object.freeze({
   minHand: RULES.minHand, reservedDrawCards: RULES.reservedDrawCards,
   maxDrawsPerTurn: RULES.maxDrawsPerTurn, lossPenalty: RULES.lossPenalty,
   challenge: CHALLENGE_RULES,
+  victoryWindowMs: RULES.victoryWindowMs,
 });

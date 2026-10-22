@@ -1,5 +1,6 @@
 import { CHALLENGE_RULES, RULES } from './config.js';
-import { GameError, takeCards } from './game.js';
+import { GameError, takeCards, advanceTurn } from './game.js';
+import { finishVictory } from './victory.js';
 
 const requireRule = (condition, message) => { if (!condition) throw new GameError(message); };
 const player = (room, id) => room.players.find((p) => p.id === id);
@@ -27,8 +28,8 @@ function normalizeLetters(letters) {
   return letters.toUpperCase();
 }
 
-// Toda penalidade do desafio preserva turno, compras opcionais e retornos de 2x.
-// O reset é único para os três caminhos: aceitação, recusa e desistência/prazo.
+// Desafios comuns mantêm a vez. Ao recusar uma última carta, a jogada termina;
+// ao aceitá-la, preservamos a palavra completa para a tela de vitória.
 function finish(room, penalizedId, reason, automatic, now, random) {
   const game = room.game, challenge = game.challenge;
   const penalized = player(room, penalizedId);
@@ -39,15 +40,23 @@ function finish(room, penalizedId, reason, automatic, now, random) {
     word: fullWord(challenge), votes: { ...challenge.votes }, tally: challenge.tally ? { ...challenge.tally } : null,
     penalizedId, drawnCount: cards.length, reason, automatic, finishedAt: now,
   };
+  const pending = game.pendingVictory;
+  if (pending && reason === 'aceita') {
+    game.word = fullWord(challenge);
+    game.challenge = null;
+    room.notice = `${voteNotice(challenge.tally)} ${penalized.name} comprou ${cards.length} carta${cards.length === 1 ? '' : 's'}.`;
+    return finishVictory(room, pending.playerId);
+  }
   game.word = '';
   game.blockedLetter = null;
   game.letterDebt = { count: 0, playerId: null };
   game.protectedPlayerId = null;
   game.lastLetterPlayerId = null;
-  game.canLose = false;
   game.challenge = null;
+  game.pendingVictory = null;
   game.version++;
-  room.notice = `${challenge.tally ? `${voteNotice(challenge.tally)} ` : ''}${penalized.name} ${penalizedId === challenge.challengedId ? `disse PERDI${automatic ? ' automaticamente' : ''} e ` : ''}comprou ${cards.length} carta${cards.length === 1 ? '' : 's'}. Mesa reiniciada: palavra, débito, bloqueio e proteção zerados. A vez continua a mesma.`;
+  if (pending) advanceTurn(room);
+  room.notice = `${challenge.tally ? `${voteNotice(challenge.tally)} ` : ''}${penalized.name} ${penalizedId === challenge.challengedId ? `disse PERDI${automatic ? ' automaticamente' : ''} e ` : ''}comprou ${cards.length} carta${cards.length === 1 ? '' : 's'}. Mesa reiniciada: palavra, débito, bloqueio e proteção zerados. ${pending ? 'Vitória cancelada; a vez passou.' : 'A vez continua a mesma.'}`;
   return room;
 }
 
@@ -65,6 +74,7 @@ export function startChallenge(original, id, now) {
   const room = structuredClone(original);
   const challenger = requireParticipant(room, id);
   requireRule(!room.game.challenge, 'Já existe um desafio em andamento.');
+  requireRule(!room.game.pendingVictory || now < room.game.pendingVictory.deadline, 'O prazo da vitória pendente terminou.');
   const debt = room.game.letterDebt;
   requireRule(debt.count === 0,
     `Não dá para duvidar: ${player(room, debt.playerId)?.name || 'um jogador'} ainda deve ${debt.count} letra${debt.count === 1 ? '' : 's'}.`);

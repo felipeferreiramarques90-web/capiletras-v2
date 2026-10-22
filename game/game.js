@@ -1,6 +1,8 @@
 import { ALPHABET, CARD_TYPES, DECK_SIZE, PUBLIC_CONFIG, RULES, maxInitialCards } from './config.js';
+import { GameError } from './errors.js';
+import { beginPendingVictory, finishVictory } from './victory.js';
 
-export class GameError extends Error {}
+export { GameError } from './errors.js';
 const requireRule = (condition, message) => { if (!condition) throw new GameError(message); };
 const clone = (room) => structuredClone(room);
 const connected = (room) => room.players.filter((p) => p.connected && !p.left);
@@ -65,12 +67,11 @@ export function hasPlayableCard(player, game) {
   return player.hand.some((card) => isCardPlayable(card, game, player.id));
 }
 
-export function canLoseRound(room, id) {
+export function canSkipTurn(room, id) {
   const player = room.players.find((p) => p.id === id && p.connected && !p.left);
-  return Boolean(room.phase === 'playing' && !room.game.challenge && player && room.game.protectedPlayerId !== id && (
-    (room.game.canLose && room.game.lastPlayerId === id)
-    || (room.game.turnPlayerId === id && !hasPlayableCard(player, room.game))
-  ));
+  return Boolean(room.phase === 'playing' && !room.game.challenge && !room.game.pendingVictory && player
+    && connected(room).length >= RULES.minPlayers && player.hand.length > 0
+    && room.game.turnPlayerId === id && !hasPlayableCard(player, room.game));
 }
 
 export function createRoom({ code, playerId, sessionId, name, now }) {
@@ -129,7 +130,7 @@ export function startGame(original, id, random) {
   room.phase = 'playing';
   room.game = {
     deck, discard: [], word: '', turnPlayerId: room.players[0].id, drawsThisTurn: 0,
-    lastPlayerId: null, canLose: false, winnerId: null, turnNumber: 1,
+    lastPlayerId: null, winnerId: null, pendingVictory: null, turnNumber: 1,
     blockedLetter: null, protectedPlayerId: null, extraTurns: [], version: 0,
     letterDebt: { count: 0, playerId: null },
     lastLetterPlayerId: null, challenge: null, challengeResult: null,
@@ -141,6 +142,7 @@ export function startGame(original, id, random) {
 function requireTurn(room, id) {
   requireRule(room.phase === 'playing', 'Não há partida em andamento.');
   requireRule(!room.game.challenge, 'Aguarde o fim do desafio para continuar a partida.');
+  requireRule(!room.game.pendingVictory, 'Aguarde a resolução da vitória pendente.');
   const player = playerById(room, id);
   requireRule(player.connected, 'Reconecte para continuar.');
   requireRule(connected(room).length >= RULES.minPlayers, 'Partida pausada. Aguardando outro jogador reconectar.');
@@ -157,7 +159,7 @@ function setTurn(room, id) {
   room.game.turnNumber++;
 }
 
-function advanceTurn(room) {
+export function advanceTurn(room) {
   const game = room.game;
   let anchor = game.turnPlayerId;
   // Pilha de retornos: cada 2x só termina depois do turno de quem o jogou.
@@ -181,7 +183,7 @@ function advanceTurn(room) {
 }
 
 function resumeTurn(room) {
-  if (room.phase !== 'playing' || room.game.challenge) return;
+  if (room.phase !== 'playing' || room.game.challenge || room.game.pendingVictory) return;
   const current = room.players.find((p) => p.id === room.game.turnPlayerId);
   if (!current?.connected || current.left) advanceTurn(room);
 }
@@ -213,7 +215,7 @@ export function drawCard(original, id, random) {
   return room;
 }
 
-export function playCard(original, id, cardId, choice, blockedChoice, accumulatedLetters, expectedVersion = original.game?.version) {
+export function playCard(original, id, cardId, choice, blockedChoice, accumulatedLetters, expectedVersion = original.game?.version, now = 0) {
   const room = clone(original);
   const player = requireTurn(room, id);
   requireRule(Number.isInteger(expectedVersion) && expectedVersion === room.game.version, 'A mesa mudou. Escolha sua carta novamente.');
@@ -253,44 +255,42 @@ export function playCard(original, id, cardId, choice, blockedChoice, accumulate
   if (effect === 'block') requireRule(blockedLetter.length === 1 && ALPHABET.includes(blockedLetter), 'Escolha uma letra de A a Z para bloquear.');
   const previousPlayerId = room.game.lastPlayerId;
   player.hand.splice(index, 1);
+  const lastCard = player.hand.length === 0;
   room.game.discard.push(card);
   // Só uma jogada com letra consome a restrição já validada acima.
   // 2x e Passar letra preservam o bloqueio; um novo Bloqueio substitui o anterior.
   if (usesLetters) room.game.blockedLetter = effect === 'block' ? blockedLetter : null;
-  // Só a Vida recém-jogada protege seu autor. Qualquer próxima carta encerra a marca anterior.
-  room.game.protectedPlayerId = CARD_TYPES[card.type].protectsFromLoss ? id : null;
+  // A Vida protege contra desafios até a próxima carta ou o retorno da vez.
+  room.game.protectedPlayerId = CARD_TYPES[card.type].protectsFromChallenge ? id : null;
   if (effect === 'replace') {
     const previous = room.game.word.at(-1);
     room.game.word = room.game.word.slice(0, -1) + letter;
     room.notice = `${player.name} jogou Troca: ${previous} virou ${letter}.`;
   } else if (effect === 'replay') {
     const previous = room.players.find((p) => p.id === previousPlayerId);
-    room.notice = previous.connected && !previous.left
+    room.notice = lastCard ? `${player.name} jogou 2x.` : previous.connected && !previous.left
       ? `${player.name} jogou 2x: ${previous.name} joga de novo; depois a vez volta para ${player.name}.`
       : `${player.name} jogou 2x: ${previous.name} está desconectado; ${player.name} recebe um novo turno.`;
   } else if (effect === 'pass') {
-    room.game.letterDebt.count += CARD_TYPES[card.type].debtIncrement;
-    room.game.letterDebt.playerId = id;
+    if (!lastCard) {
+      room.game.letterDebt.count += CARD_TYPES[card.type].debtIncrement;
+      room.game.letterDebt.playerId = id;
+    }
     room.notice = `${player.name} jogou Passar letra →.`;
   } else {
     room.game.word += letter;
     room.notice = effect === 'block' ? `${player.name} jogou Bloqueio: adicionou ${letter} e bloqueou ${blockedLetter} até a próxima jogada com letra.`
       : effect === 'appendMany' ? `${player.name} jogou ${CARD_TYPES[card.type].label}: adicionou ${letter}.`
-        : CARD_TYPES[card.type].protectsFromLoss ? `${player.name} jogou Vida ${CARD_TYPES[card.type].symbol}: adicionou ${letter}.`
+        : CARD_TYPES[card.type].protectsFromChallenge ? `${player.name} jogou Vida ${CARD_TYPES[card.type].symbol}: adicionou ${letter}.`
         : `${player.name} jogou a letra ${letter}.`;
   }
   room.game.lastPlayerId = id;
   if (usesLetters) room.game.lastLetterPlayerId = id;
   if (paidLetters) room.notice = `${player.name} pagou ${owed} letra${owed === 1 ? '' : 's'} acumulada${owed === 1 ? '' : 's'} (${paidLetters}). ${room.notice}`;
-  room.game.canLose = true;
   room.game.version++;
-  if (!player.hand.length) {
-    room.phase = 'finished';
-    room.game.winnerId = id;
-    room.game.canLose = false;
-    room.game.extraTurns = [];
-    room.game.letterDebt = { count: 0, playerId: null };
-    room.notice += ` ${player.name} esvaziou a mão e venceu!`;
+  if (lastCard) {
+    if (card.type === 'life' || effect === 'pass' || effect === 'replay') return finishVictory(room, id);
+    return beginPendingVictory(room, id, now);
   } else if (effect === 'replay') {
     room.game.extraTurns.push(id);
     if (room.players.some((p) => p.id === previousPlayerId && p.connected && !p.left)) setTurn(room, previousPlayerId);
@@ -306,33 +306,31 @@ export function playCard(original, id, cardId, choice, blockedChoice, accumulate
   return room;
 }
 
-export function loseRound(original, id, random, expectedVersion = original.game?.version) {
+export function skipTurn(original, id, random, expectedVersion = original.game?.version) {
   const room = clone(original);
   requireRule(room.phase === 'playing', 'Não há partida em andamento.');
   requireRule(!room.game.challenge, 'Use os botões do desafio enquanto ele estiver em andamento.');
+  requireRule(!room.game.pendingVictory, 'Aguarde a resolução da vitória pendente.');
   const player = playerById(room, id);
   requireRule(Number.isInteger(expectedVersion) && expectedVersion === room.game.version, 'A mesa mudou. Confira o estado e tente novamente.');
-  requireRule(room.game.protectedPlayerId !== id, 'Protegido pela Vida. Aguarde uma nova jogada ou sua próxima vez.');
-  requireRule(canLoseRound(room, id), 'Só quem baixou a última carta ou está na vez sem carta jogável pode dizer PERDI.');
+  requireRule(canSkipTurn(room, id), 'Só o jogador da vez com cartas na mão e sem carta jogável pode dizer Não consigo jogar.');
   const previousBlock = room.game.blockedLetter;
   const previousDebt = room.game.letterDebt.count;
   const cards = takeCards(room.game, RULES.lossPenalty, random);
   player.hand.push(...cards);
-  room.game.word = '';
-  room.game.lastLetterPlayerId = null;
+  if (cards.length) {
+    room.game.word = '';
+    room.game.lastLetterPlayerId = null;
+  }
   room.game.blockedLetter = null;
   room.game.letterDebt = { count: 0, playerId: null };
-  room.game.canLose = false;
-  // Histórico real permanece: 2x continua válido após PERDI, mesmo com o visor vazio.
+  room.game.protectedPlayerId = null;
+  room.game.lastPlayerId = null;
   room.game.version++;
-  room.notice = `${player.name} disse PERDI e comprou ${cards.length} carta${cards.length === 1 ? '' : 's'}. A palavra recomeçou!`;
+  room.notice = `${player.name} não conseguiu jogar, comprou ${cards.length} carta${cards.length === 1 ? '' : 's'} e perdeu a vez.`;
   if (previousBlock) room.notice += ` O bloqueio da letra ${previousBlock} foi cancelado.`;
   if (previousDebt) room.notice += ` O débito de ${previousDebt} letras acumuladas foi zerado.`;
-  const current = room.players.find((p) => p.id === room.game.turnPlayerId);
-  if (!hasPlayableCard(current, room.game) && !room.game.deck.length && !room.game.discard.length) {
-    advanceTurn(room);
-    room.notice += ' Sem carta jogável nem cartas para comprar: a vez passou.';
-  }
+  advanceTurn(room);
   return room;
 }
 
@@ -355,6 +353,7 @@ export function returnToLobby(original, id) {
   const room = clone(original);
   requireHost(room, id);
   requireRule(!room.game?.challenge, 'Aguarde o fim do desafio para voltar à sala.');
+  requireRule(!room.game?.pendingVictory, 'Aguarde a resolução da vitória pendente.');
   const currentOnline = room.players.some((p) => p.id === room.game?.turnPlayerId && p.connected && !p.left);
   requireRule(room.phase === 'finished' || (room.phase === 'playing' && (connected(room).length < RULES.minPlayers || !currentOnline)),
     'A partida ainda não terminou. Só é possível encerrar antecipadamente uma partida pausada.');
@@ -387,7 +386,7 @@ export function roomView(room, viewerId) {
   const viewer = playerById(room, viewerId);
   const game = room.game;
   const available = game ? game.deck.length + game.discard.length : 0;
-  const myTurn = room.phase === 'playing' && !game.challenge && game.turnPlayerId === viewerId && connected(room).length >= RULES.minPlayers;
+  const myTurn = room.phase === 'playing' && !game.challenge && !game.pendingVictory && game.turnPlayerId === viewerId && connected(room).length >= RULES.minPlayers;
   const challenge = game?.challenge;
   return {
     code: room.code, phase: room.phase, hostId: room.hostId, meId: viewerId,
@@ -402,6 +401,11 @@ export function roomView(room, viewerId) {
       winnerId: game.winnerId, turnNumber: game.turnNumber, drawsThisTurn: game.drawsThisTurn,
       version: game.version, blockedLetter: game.blockedLetter, extraTurns: [...game.extraTurns],
       protectedPlayerId: game.protectedPlayerId,
+      pendingVictory: game.pendingVictory ? {
+        playerId: game.pendingVictory.playerId, id: game.pendingVictory.id, deadline: game.pendingVictory.deadline,
+        acceptedCount: game.pendingVictory.acceptedIds.length, voterCount: game.pendingVictory.voterIds.length,
+        canAccept: !game.challenge && game.pendingVictory.voterIds.includes(viewerId) && !game.pendingVictory.acceptedIds.includes(viewerId),
+      } : null,
       lastLetterPlayerId: game.lastLetterPlayerId,
       challenge: challenge ? {
         id: challenge.id, phase: challenge.phase, challengerId: challenge.challengerId,
@@ -422,7 +426,7 @@ export function roomView(room, viewerId) {
       paused: connected(room).length < RULES.minPlayers || !room.players.some((p) => p.id === game.turnPlayerId && p.connected && !p.left),
       canDraw: myTurn && game.drawsThisTurn < RULES.maxDrawsPerTurn && available > 0,
       canPlay: myTurn,
-      canLose: canLoseRound(room, viewerId),
+      canSkipTurn: canSkipTurn(room, viewerId),
       noPlayableCards: !hasPlayableCard(viewer, game),
     } : null,
   };
