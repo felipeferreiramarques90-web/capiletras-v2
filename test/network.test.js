@@ -15,7 +15,7 @@ const waitFor = async (predicate) => {
   }
   throw new Error('A atualização esperada não chegou.');
 };
-const emit = (socket, event, data = {}) => socket.timeout(3000).emitWithAck(event, ['game:lose', 'game:play'].includes(event) ? { version: socket.view?.game?.version, ...data } : data);
+const emit = (socket, event, data = {}) => socket.timeout(3000).emitWithAck(event, ['game:skip', 'game:play'].includes(event) ? { version: socket.view?.game?.version, ...data } : data);
 
 async function setup(t, options = {}) {
   const storage = new MemoryStorage();
@@ -83,6 +83,71 @@ async function seedHands({ a, b, code, storage }, hands, game = {}) {
   return room;
 }
 
+for (const outcome of ['prazo', 'aceite', 'palavra aceita', 'palavra recusada', 'PERDI']) {
+  test(`rede: última carta e ${outcome} resolvem a vitória pendente com persistência e mãos privadas`, async (t) => {
+    let clock = Date.now();
+    const fixture = await setup(t, { nowSource: () => clock, challengeIntervalMs: 5 });
+    const { a, b, storage, code } = fixture;
+    await seedHands(fixture, [['letra-A'], ['letra-B', 'letra-C']], { word: 'CA' });
+    assert.equal((await emit(a, 'game:play', { cardId: 'letra-A' })).ok, true);
+    await waitFor(() => Boolean(b.view.game.pendingVictory));
+    assert.equal(a.view.phase, 'playing');
+    assert.equal(a.view.hand.length, 0);
+    assert.equal(b.view.game.canPlay, false);
+    const before = await storage.getRoom(code), pendingId = a.view.game.pendingVictory.id;
+    for (const [event, data] of [['game:play', { cardId: 'letra-B' }], ['game:draw', {}], ['game:skip', {}]]) {
+      assert.equal((await emit(b, event, data)).ok, false);
+      assert.deepEqual(await storage.getRoom(code), before);
+    }
+    assert.equal((await emit(a, 'victory:accept', { pendingId })).ok, false);
+    if (outcome === 'prazo') {
+      clock += 10_000;
+      await waitFor(() => b.view.phase === 'finished');
+    } else if (outcome === 'aceite') {
+      assert.equal((await emit(b, 'victory:accept', { pendingId })).ok, true);
+    } else {
+      assert.equal((await emit(b, 'challenge:start')).ok, true);
+      const challengeId = a.view.game.challenge.id;
+      if (outcome !== 'PERDI') {
+        assert.equal((await emit(a, 'challenge:confirm', { challengeId, letters: 'TO' })).ok, true);
+        assert.equal((await emit(b, 'challenge:vote', { challengeId, vote: outcome === 'palavra aceita' ? 'sim' : 'nao' })).ok, true);
+      }
+      if (outcome !== 'palavra aceita') assert.equal((await emit(a, 'challenge:lose', { challengeId })).ok, true);
+    }
+    const saved = await storage.getRoom(code);
+    assert.equal(saved.game.pendingVictory, null);
+    assert.ok(b.view.players.every((p) => !p.hand && !p.sessionId));
+    if (outcome === 'palavra recusada' || outcome === 'PERDI') {
+      assert.equal(saved.phase, 'playing');
+      assert.equal(saved.game.word, '');
+      assert.equal(saved.players[0].hand.length, 4);
+      assert.equal(saved.game.turnPlayerId, b.view.meId);
+    } else {
+      assert.equal(saved.phase, 'finished');
+      assert.equal(saved.game.winnerId, a.view.meId);
+      assert.equal(saved.game.word, outcome === 'palavra aceita' ? 'CAATO' : 'CAA');
+      assert.equal((await emit(b, 'challenge:start')).ok, false);
+    }
+  });
+}
+
+test('rede: restaura vitória pendente vencida sem precisar de clientes conectados', async (t) => {
+  const fixture = await setup(t);
+  const { a, b, storage, code } = fixture;
+  await seedHands(fixture, [['letra-A'], ['letra-B', 'letra-C']]);
+  assert.equal((await emit(a, 'game:play', { cardId: 'letra-A' })).ok, true);
+  const saved = await storage.getRoom(code);
+  saved.game.pendingVictory.deadline = Date.now() - 1;
+  const restored = new MemoryStorage();
+  await restored.saveRoom(JSON.parse(JSON.stringify(saved)));
+  const app = createApp({ roomStorage: restored, challengeIntervalMs: 5 });
+  app.server.listen(0, '127.0.0.1');
+  await once(app.server, 'listening');
+  t.after(() => new Promise((resolve) => app.io.close(resolve)));
+  await waitFor(async () => (await restored.getRoom(code)).phase === 'finished');
+  assert.equal((await restored.getRoom(code)).game.winnerId, a.view.meId);
+});
+
 test('rede: débito impede desafio com aviso privado e sem gravações, até ser pago', async (t) => {
   const fixture = await setup(t);
   const { a, b, storage, code } = fixture;
@@ -115,7 +180,7 @@ test('rede: primeiro desafio vence, cancela jogadas, oculta votos e revela o res
   const c = await connect();
   assert.equal((await emit(c, 'room:join', { sessionId: c.sessionId, name: 'Caio', code })).ok, true);
   await seedHands(fixture, [['letra-A', 'letra-B'], ['wild-0', 'letra-C'], ['letra-D', 'letra-E']], {
-    word: 'CA', lastLetterPlayerId: a.view.meId, lastPlayerId: a.view.meId, turnPlayerId: b.view.meId, canLose: true,
+    word: 'CA', lastLetterPlayerId: a.view.meId, lastPlayerId: a.view.meId, turnPlayerId: b.view.meId,
   });
   const before = await storage.getRoom(code);
   const clicks = await Promise.all([emit(b, 'challenge:start'), emit(c, 'challenge:start')]);
@@ -125,7 +190,7 @@ test('rede: primeiro desafio vence, cancela jogadas, oculta votos e revela o res
   assert.equal(a.view.game.challenge.challengedId, a.view.meId);
   assert.deepEqual((await storage.getRoom(code)).players, before.players);
   const active = await storage.getRoom(code);
-  for (const [event, data] of [['game:draw', {}], ['game:play', { cardId: 'wild-0', letter: 'Z' }], ['game:lose', {}], ['challenge:confirm', { challengeId, letters: '' }]]) {
+  for (const [event, data] of [['game:draw', {}], ['game:play', { cardId: 'wild-0', letter: 'Z' }], ['game:skip', {}], ['challenge:confirm', { challengeId, letters: '' }]]) {
     assert.equal((await emit(b, event, data)).ok, false);
     assert.deepEqual(await storage.getRoom(code), active);
   }
@@ -150,7 +215,7 @@ test('rede: primeiro desafio vence, cancela jogadas, oculta votos e revela o res
   assert.equal(final.game.lastLetterPlayerId, null);
   assert.equal(final.game.turnPlayerId, before.game.turnPlayerId);
   assert.equal(final.players[0].hand.length, before.players[0].hand.length + 4);
-  assert.equal(final.game.canLose, false);
+
   const reset = structuredClone(final);
   assert.equal((await emit(b, 'game:play', { cardId: 'wild-0', letter: 'Z', version: before.game.version })).ok, false);
   assert.equal((await emit(b, 'challenge:start')).ok, false);
@@ -231,7 +296,7 @@ test('rede: cascata de Passar letra e pagamento atômico validado, persistido e 
   assert.ok(!b.view.hand.some((card) => card.id === 'letra-E'));
 });
 
-test('rede: Vida respeita Bloqueio, persiste proteção e rejeita PERDI até a próxima carta', async (t) => {
+test('rede: Vida respeita Bloqueio, protege contra desafio e encerra a proteção na próxima carta', async (t) => {
   const fixture = await setup(t);
   const { a, b, storage, code } = fixture;
   await seedHands(fixture, [['life-0', 'letra-B', 'letra-E'], ['double-0', 'letra-C', 'letra-D']], { word: 'C', blockedLetter: 'A' });
@@ -248,22 +313,23 @@ test('rede: Vida respeita Bloqueio, persiste proteção e rejeita PERDI até a p
   await waitFor(() => b.view.game.protectedPlayerId === a.view.meId);
   assert.equal(a.view.game.word, 'CE');
   assert.equal(a.view.game.blockedLetter, null);
-  assert.equal(a.view.game.canLose, false);
-  assert.equal(b.view.game.canLose, false);
+  assert.equal(a.view.game.canSkipTurn, false);
+  assert.equal(b.view.game.canSkipTurn, false);
   assert.match(b.view.notice, /Vida ❤️/);
   assert.equal((await emit(b, 'game:draw')).ok, true);
   await waitFor(() => a.view.game.version === b.view.game.version);
   const protectedState = await storage.getRoom(code);
-  const denied = await emit(a, 'game:lose');
+  const denied = await emit(a, 'game:skip');
   assert.equal(denied.ok, false);
-  assert.match(denied.error, /Protegido pela Vida/);
+  assert.match(denied.error, /jogador da vez/);
+  assert.match((await emit(b, 'challenge:start')).error, /protegido pela Vida/);
   assert.deepEqual(await storage.getRoom(code), protectedState);
   assert.equal((await emit(b, 'game:play', { cardId: 'double-0' })).ok, true);
   await waitFor(() => a.view.game.turnPlayerId === a.view.meId);
   assert.equal(a.view.game.protectedPlayerId, null);
   assert.equal((await emit(a, 'game:play', { cardId: 'letra-B' })).ok, true);
-  assert.equal(a.view.game.canLose, true);
-  assert.equal((await emit(a, 'game:lose')).ok, true);
+  assert.equal(a.view.game.canSkipTurn, false);
+  assert.equal((await emit(a, 'game:skip')).ok, false);
   assert.ok(b.view.players.every((p) => !p.hand && !p.sessionId));
 });
 
@@ -293,7 +359,7 @@ test('rede: valida Troca, publica Bloqueio e aplica 2x sem vazar mãos', async (
   const fixture = await setup(t);
   const { a, b, storage, code } = fixture;
   await seedHands(fixture, [['swap-0', 'letra-B', 'letra-C'], ['block-0', 'double-0', 'letra-D']],
-    { word: 'CASA', lastPlayerId: b.view.meId, canLose: true });
+    { word: 'CASA', lastPlayerId: b.view.meId, });
   assert.equal((await emit(a, 'game:play', { cardId: 'swap-0', letter: 'A' })).ok, false);
   assert.equal((await emit(a, 'game:play', { cardId: 'swap-0', letter: 'O' })).ok, true);
   await waitFor(() => b.view.game.word === 'CASO');
@@ -337,38 +403,36 @@ test('rede: Bloqueio permanece visível na cadeia de 2x e restringe seu próprio
   assert.ok(a.view.game.playableCardIds.includes('letra-A'));
 });
 
-for (const firstActor of ['último jogador', 'jogador sem carta']) {
-  test(`rede: PERDI simultâneo aceita só um, recebendo primeiro o ${firstActor}`, async (t) => {
-    const fixture = await setup(t);
-    const { a, b, storage, code } = fixture;
-    await seedHands(fixture, [['letra-B'], ['letra-A']], {
-      word: 'X', blockedLetter: 'A', lastPlayerId: a.view.meId, canLose: true, turnPlayerId: b.view.meId,
-    });
-    assert.equal(a.view.game.canLose, true);
-    assert.equal(b.view.game.canLose, true);
-    const version = a.view.game.version;
-    const order = firstActor === 'último jogador' ? [a, b] : [b, a];
-    const replies = await Promise.all(order.map((socket) => emit(socket, 'game:lose', { version })));
-    assert.equal(replies.filter((result) => result.ok).length, 1);
-    assert.match(replies.find((result) => !result.ok).error, /mesa mudou/);
-    const room = await storage.getRoom(code);
-    assert.equal(room.players.reduce((sum, p) => sum + p.hand.length, 0), 6);
-    assert.equal(room.game.blockedLetter, null);
-    assert.equal(room.game.word, '');
-  });
-}
+test('rede: só o jogador da vez sem carta jogável pode passar; cliques duplicados não duplicam penalidade', async (t) => {
+  const fixture = await setup(t);
+  const { a, b, storage, code } = fixture;
+  await seedHands(fixture, [['letra-B'], ['letra-A']], { word: 'X', blockedLetter: 'A', turnPlayerId: b.view.meId });
+  assert.equal(a.view.game.canSkipTurn, false);
+  assert.equal(b.view.game.canSkipTurn, true);
+  const before = await storage.getRoom(code);
+  assert.equal((await emit(a, 'game:skip')).ok, false);
+  assert.deepEqual(await storage.getRoom(code), before);
+  const version = b.view.game.version;
+  const replies = await Promise.all([emit(b, 'game:skip', { version }), emit(b, 'game:skip', { version })]);
+  assert.equal(replies.filter((reply) => reply.ok).length, 1);
+  assert.match(replies.find((reply) => !reply.ok).error, /mesa mudou/);
+  const room = await storage.getRoom(code);
+  assert.equal(room.players[1].hand.length, 5);
+  assert.equal(room.game.turnPlayerId, a.view.meId);
+  assert.equal(room.game.lastPlayerId, null);
+});
 
-test('rede: PERDI sem carta jogável exige versão e não autoriza passagem automática', async (t) => {
+test('rede: Não consigo jogar exige versão e passa a vez somente ao clicar', async (t) => {
   const fixture = await setup(t);
   const { a } = fixture;
   await seedHands(fixture, [['swap-0', 'double-0'], ['letra-A', 'letra-B']]);
-  assert.equal(a.view.game.canLose, true);
+  assert.equal(a.view.game.canSkipTurn, true);
   assert.equal(a.view.game.canDraw, true);
   assert.equal(a.view.game.turnPlayerId, a.view.meId);
-  assert.equal((await a.timeout(3000).emitWithAck('game:lose', {})).ok, false);
-  assert.equal((await emit(a, 'game:lose')).ok, true);
+  assert.equal((await a.timeout(3000).emitWithAck('game:skip', {})).ok, false);
+  assert.equal((await emit(a, 'game:skip')).ok, true);
   assert.equal(a.view.hand.length, 6);
-  assert.equal(a.view.game.turnPlayerId, a.view.meId);
+  assert.notEqual(a.view.game.turnPlayerId, a.view.meId);
 });
 
 test('rede: mãos privadas, autoridade do servidor, compra concorrente e PERDI em tempo real', async (t) => {
@@ -386,21 +450,21 @@ test('rede: mãos privadas, autoridade do servidor, compra concorrente e PERDI e
   assert.equal(a.view.hand.length, 6);
   const stolen = b.view.hand[0];
   assert.equal((await emit(a, 'game:play', { cardId: stolen.id, letter: allowedLetters(stolen)[0] })).ok, false);
-  const card = a.view.hand.find((c) => !['double', 'pass'].includes(c.type) && !a.view.config.cardTypes[c.type].protectsFromLoss && a.view.game.playableCardIds.includes(c.id));
+  const card = a.view.hand.find((c) => !['double', 'pass'].includes(c.type) && !a.view.config.cardTypes[c.type].protectsFromChallenge && a.view.game.playableCardIds.includes(c.id));
   const letter = a.view.game.allowedLettersByCard[card.id][0].repeat(a.view.config.cardTypes[card.type].minLetters || 1);
   assert.equal((await emit(a, 'game:play', { cardId: card.id, letter, blockedLetter: 'Z' })).ok, true);
   await waitFor(() => b.view.game.turnPlayerId === b.view.meId);
   assert.equal(b.view.game.word, letter);
-  assert.equal((await emit(b, 'game:lose')).ok, false);
+  assert.equal((await emit(b, 'game:skip')).ok, false);
   assert.equal((await emit(b, 'game:draw')).ok, true);
-  assert.equal((await emit(a, 'game:lose')).ok, true);
-  await waitFor(() => b.view.game.word === '');
-  assert.equal(a.view.hand.length, 9);
+  assert.equal((await emit(a, 'game:skip')).ok, false);
+  assert.equal(b.view.game.word, letter);
+  assert.equal(a.view.hand.length, 5);
   assert.equal(b.view.game.turnPlayerId, b.view.meId);
   assert.equal(b.view.game.drawsThisTurn, 1);
   const saved = await storage.getRoom(code);
-  assert.equal(saved.game.word, '');
-  assert.equal(saved.players[0].hand.length, 9);
+  assert.equal(saved.game.word, letter);
+  assert.equal(saved.players[0].hand.length, 5);
 });
 
 test('rede: reconexão retoma cartas e identidade; a partida pausa e continua', async (t) => {
@@ -429,11 +493,16 @@ test('rede: uma partida completa mostra a mesma vitória e permite revanche e lo
   assert.equal((await emit(a, 'room:settings', { playerCount: 2, initialCards: 3 })).ok, true);
   assert.equal((await emit(a, 'game:start')).ok, true);
   for (let i = 0; i < 100 && a.view.phase === 'playing'; i++) {
+    if (a.view.game.pendingVictory) {
+      const voter = a.view.game.pendingVictory.playerId === a.view.meId ? b : a;
+      assert.equal((await emit(voter, 'victory:accept', { pendingId: a.view.game.pendingVictory.id })).ok, true);
+      break;
+    }
     const active = a.view.game.turnPlayerId === a.view.meId ? a : b;
     await waitFor(() => active.view.game.version === a.view.game.version);
     const card = active.view.hand.find((c) => active.view.game.playableCardIds.includes(c.id));
     if (!card) {
-      assert.equal((await emit(active, 'game:lose')).ok, true);
+      assert.equal((await emit(active, 'game:skip')).ok, true);
     } else {
       const usesLetters = !['double', 'pass'].includes(card.type);
       const debt = active.view.game.letterDebt.playerId === active.view.meId ? active.view.game.letterDebt.count : 0;

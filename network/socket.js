@@ -1,10 +1,11 @@
 import { randomInt, randomUUID } from 'node:crypto';
 import {
   GameError, createRoom, joinRoom, updateSettings, startGame, drawCard, playCard,
-  loseRound, disconnectPlayer, returnToLobby, removeFromLobby, roomView, shouldDeleteRoom,
+  skipTurn, disconnectPlayer, returnToLobby, removeFromLobby, roomView, shouldDeleteRoom,
 } from '../game/game.js';
 import { CHALLENGE_RULES } from '../game/config.js';
 import { startChallenge, previewChallenge, confirmChallenge, voteChallenge, loseChallenge, resolveChallenge } from '../game/challenge.js';
+import { acceptVictory, resolvePendingVictory } from '../game/victory.js';
 
 const random = () => randomInt(0, 2 ** 32) / 2 ** 32;
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -15,6 +16,7 @@ export function registerSockets(io, storage, { cleanupIntervalMs = 60_000, rando
   const owners = new Map();
   const queues = new Map();
   const ownerKey = (code, id) => `${code}:${id}`;
+  const settle = (room) => resolvePendingVictory(resolveChallenge(room, nowSource(), randomSource), nowSource());
 
   // Serializa leitura/regra/salvamento por sala, inclusive reconexões e limpeza.
   // Com vários processos, mova também este bloqueio para o banco/uma fila distribuída.
@@ -100,7 +102,7 @@ export function registerSockets(io, storage, { cleanupIntervalMs = 60_000, rando
       await locked(code, async () => {
         const previous = await storage.getRoom(code);
         if (!previous) throw new GameError('Sala não encontrada. Ela pode ter expirado ou o servidor reiniciado.');
-        const room = resolveChallenge(joinRoom(previous, credentials), nowSource(), randomSource);
+        const room = settle(joinRoom(previous, credentials));
         await storage.saveRoom({ ...room, updatedAt: nowSource() });
         bind(socket, room, credentials.sessionId);
         broadcast(room);
@@ -114,9 +116,9 @@ export function registerSockets(io, storage, { cleanupIntervalMs = 60_000, rando
         if (owners.get(ownerKey(code, playerId)) !== socket.id) throw new GameError('Sua vaga foi retomada em outra aba.');
         let room = await storage.getRoom(code);
         if (!room) throw new GameError('Esta sala expirou. Crie uma nova sala.');
-        const settled = resolveChallenge(room, nowSource(), randomSource);
+        const settled = settle(room);
         if (settled !== room) { await save(settled); room = settled; }
-        const next = resolveChallenge(reducer(room, playerId), nowSource(), randomSource);
+        const next = settle(reducer(room, playerId));
         if (next !== room) await save(next);
       });
     }
@@ -124,14 +126,15 @@ export function registerSockets(io, storage, { cleanupIntervalMs = 60_000, rando
     on('room:settings', (data) => action((room, id) => updateSettings(room, id, data)));
     on('game:start', () => action((room, id) => startGame(room, id, randomSource)));
     on('game:draw', () => action((room, id) => drawCard(room, id, randomSource)));
-    on('game:play', (data) => action((room, id) => playCard(room, id, data?.cardId, data?.letter, data?.blockedLetter, data?.accumulatedLetters, data?.version ?? null)));
+    on('game:play', (data) => action((room, id) => playCard(room, id, data?.cardId, data?.letter, data?.blockedLetter, data?.accumulatedLetters, data?.version ?? null, nowSource())));
+    on('victory:accept', (data) => action((room, id) => acceptVictory(room, id, data?.pendingId, nowSource())));
     on('challenge:start', () => action((room, id) => startChallenge(room, id, nowSource())));
     on('challenge:preview', (data) => action((room, id) => previewChallenge(room, id, data?.challengeId, data?.letters, nowSource())));
     on('challenge:confirm', (data) => action((room, id) => confirmChallenge(room, id, data?.challengeId, data?.letters, nowSource(), randomSource)));
     on('challenge:vote', (data) => action((room, id) => voteChallenge(room, id, data?.challengeId, data?.vote, nowSource(), randomSource)));
     on('challenge:lose', (data) => action((room, id) => loseChallenge(room, id, data?.challengeId, nowSource(), randomSource)));
     // Versão obrigatória na rede: dois cliques sobre a mesma mesa não cobram duas penalidades.
-    on('game:lose', (data) => action((room, id) => loseRound(room, id, randomSource, data?.version ?? null)));
+    on('game:skip', (data) => action((room, id) => skipTurn(room, id, randomSource, data?.version ?? null)));
     on('room:lobby', () => action((room, id) => returnToLobby(room, id)));
     on('room:remove', (data) => action((room, id) => removeFromLobby(room, id, data?.playerId)));
 
@@ -143,7 +146,7 @@ export function registerSockets(io, storage, { cleanupIntervalMs = 60_000, rando
         if (owners.get(key) !== socket.id) return;
         const previous = await storage.getRoom(code);
         if (previous) {
-          const room = resolveChallenge(disconnectPlayer(previous, playerId, nowSource(), leave), nowSource(), randomSource);
+          const room = settle(disconnectPlayer(previous, playerId, nowSource(), leave));
           await save(room);
           if (!room.players.length) await storage.deleteRoom(code);
         }
@@ -164,15 +167,15 @@ export function registerSockets(io, storage, { cleanupIntervalMs = 60_000, rando
     sweeping = true;
     try {
       for (const candidate of await storage.listRooms()) {
-        if (!candidate.game?.challenge) continue;
+        if (!candidate.game?.challenge && !candidate.game?.pendingVictory) continue;
         await locked(candidate.code, async () => {
           const room = await storage.getRoom(candidate.code);
           if (!room) return;
-          const next = resolveChallenge(room, nowSource(), randomSource);
+          const next = settle(room);
           if (next !== room) await save(next);
         });
       }
-    } catch (error) { console.error('Falha ao resolver prazos de desafios:', error); }
+    } catch (error) { console.error('Falha ao resolver prazos da partida:', error); }
     finally { sweeping = false; }
   }
   void sweepChallenges();
