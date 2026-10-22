@@ -30,6 +30,27 @@ Se já houver Chromium instalado, use `CHROMIUM_EXECUTABLE_PATH=/caminho/do/chro
 
 O front-end é estático: recarregue o navegador após editá-lo. Não há etapa de compilação. Para uma instalação exata a partir do lockfile, use `npm ci`. A porta usa `process.env.PORT`, com padrão `3000`; a mesma porta serve os arquivos e o Socket.IO. `GET /health` responde HTTP 200 com `{"status":"ok"}`.
 
+## Tema visual: campo de futebol
+
+A mesa usa faixas de gramado com linha do meio e círculo central discretos. Lobby, botões e modais mantêm a estrutura, com painéis claros e tipografia **Georgia**, seguida por Times New Roman e serifa do sistema como fallback. Não há download de fontes ou imagens externas. Os versos marrons mostram uma capivara em **SVG inline original**, também nas mãos dos adversários; a bomba da `2+*` é outro SVG original.
+
+A paleta e os tamanhos ficam nas variáveis de **`public/styles.css`**, no `:root` e nas substituições para celular em `@media (max-width: 650px)`:
+
+| Variáveis | Uso / padrão |
+| --- | --- |
+| `--campo-verde`, `--campo-faixa`, `--campo-linhas` | Gramado `#167647` / `#106339` e linhas brancas translúcidas. |
+| `--campo-listra`, `--campo-circulo` | Largura das faixas e raio do círculo do campo. |
+| `--pagina`, `--painel`, `--texto`, `--texto-secundario` | Fundo claro, superfícies e textos de apoio. |
+| `--fonte-interface`, `--fonte-base`, `--peso-titulo`, `--peso-destaque` | Família em serifa, escala tipográfica e pesos 800/700. |
+| `--carta-neon`, `--carta-verde-escuro` | Cartas de adicionar: verde neon `#b9ff62` com texto verde escuro `#173e23`. |
+| `--carta-azul-neon`, `--carta-azul-escuro` | Troca azul neon com símbolo 🔄. |
+| `--carta-branca`, `--carta-vermelho` | 2x branca com texto vermelho; a `2+*` usa o mesmo vermelho sobre verde neon, com bomba no centro. |
+| `--block-card-*`, `--life-card-*`, `--pass-card-*`, `--pass-arrow-gradient` | Mantêm as cores de Bloqueio, Vida e Passar letra; Passar letra tem também seta no canto superior direito. |
+| `--carta-verso`, `--carta-verso-borda`, `--capivara-*` | Marrom `#69412c`, borda bege e cores da ilustração do verso. |
+| `--carta-largura`, `--carta-altura`, `--carta-fonte-*`, `--verso-*` | Frentes de **92 × 127 px** no desktop e **70 × 100 px** no celular, como antes; tamanhos das letras, símbolos e versos. |
+
+As letras fixas, o coringa e as restritivas têm `+` no canto; as restritivas mostram “vogal”, “consoante”, “a-m” e “n-z”. O Bloqueio mostra 🚫 no centro e `+` no canto. Cartas desabilitadas ficam esmaecidas e sem brilho; hover e seleção mantêm o comportamento. A arte fica nos componentes de renderização em `public/app.js`, separada da configuração de regras do servidor. O tema não altera regras, avisos, quantidades ou estado da partida: o baralho continua com **84 cartas**.
+
 ## Como jogar
 
 - O baralho tem **84 cartas**: as 42 originais (26 letras fixas, 12 coringas verdes e as 4 cartas restritivas), mais **8 Trocas, 6 Bloqueios e 6 cartas 2x**, além de **5 cartas `2+*`, 5 cartas Vida e 12 cartas Passar letra**. As quantidades dos tipos anteriores permanecem iguais.
@@ -49,10 +70,10 @@ Acima do visor, **“É a vez de: Nome”** acompanha as trocas de turno em temp
 
 | Carta | Quantidade | Cor e símbolo | Efeito |
 | --- | ---: | --- | --- |
-| Troca | 8 | Azul clara, 🔄 | Escolha A–Z para **substituir a última letra** por outra. Sem débito, exige visor preenchido e respeita bloqueios. Com débito, primeiro entram as acumuladas e a última delas é substituída; vale mesmo com visor inicialmente vazio. |
+| Troca | 8 | Azul neon, 🔄 | Escolha A–Z para **substituir a última letra** por outra. Sem débito, exige visor preenchido e respeita bloqueios. Com débito, primeiro entram as acumuladas e a última delas é substituída; vale mesmo com visor inicialmente vazio. |
 | Bloqueio | 6 | Vermelha, ➕🚫 | Escolha uma letra para adicionar e outra para bloquear até a **próxima jogada que adiciona ou substitui letra**. Os seletores são independentes: pode bloquear a própria letra adicionada. |
-| 2x | 6 | Laranja, 2x | Não muda o visor. Quem baixou a carta imediatamente anterior joga novamente; depois, o autor do 2x recebe um novo turno com nova compra opcional. Só então a ordem normal continua. Não vale antes da primeira jogada. |
-| 2+* | 5 | Lilás, 2+* | Digite duas ou mais letras para acrescentar à palavra. Só a primeira respeita o Bloqueio ativo. |
+| 2x | 6 | Branca, 2x em vermelho | Não muda o visor. Quem baixou a carta imediatamente anterior joga novamente; depois, o autor do 2x recebe um novo turno com nova compra opcional. Só então a ordem normal continua. Não vale antes da primeira jogada. |
+| 2+* | 5 | Verde neon, bomba vermelha e 2+* no canto | Digite duas ou mais letras para acrescentar à palavra. Só a primeira respeita o Bloqueio ativo. |
 | Vida | 5 | Rosa, ❤️ | Só vogais: escolha A, E, I, O ou U e adicione ao visor. Depois, o autor fica protegido contra desafios. |
 | Passar letra | 12 | Preta, seta → em gradiente | Não usa letra: passa a vez e transfere ao próximo o débito anterior acrescido de uma letra. Sempre jogável, inclusive como primeira carta. |
 
