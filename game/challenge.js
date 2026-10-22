@@ -5,7 +5,7 @@ import { finishVictory } from './victory.js';
 const requireRule = (condition, message) => { if (!condition) throw new GameError(message); };
 const player = (room, id) => room.players.find((p) => p.id === id);
 const fullWord = (challenge) => challenge.baseWord + challenge.addedLetters;
-const voteNotice = (tally) => `Palavra ${tally.rejected ? 'recusada' : 'aceita'}: ${tally.yes} Sim e ${tally.no} Não.`;
+const voteNotice = (tally) => `Palavra ${tally.rejected ? 'recusada' : 'aceita'}: ${tally.yes} Sim e ${tally.no} Não.${tally.early ? ` Votação encerrada antecipadamente; ${tally.pending} votante(s) não precisaram responder.` : ''}`;
 
 function requireParticipant(room, id) {
   const participant = player(room, id);
@@ -32,6 +32,7 @@ function normalizeLetters(letters) {
 // ao aceitá-la, preservamos a palavra completa para a tela de vitória.
 function finish(room, penalizedId, reason, automatic, now, random) {
   const game = room.game, challenge = game.challenge;
+  if (automatic && (challenge.phase === 'completando' || reason === 'prazo')) challenge.addedLetters = '';
   const penalized = player(room, penalizedId);
   const cards = takeCards(game, RULES.lossPenalty, random);
   penalized.hand.push(...cards);
@@ -60,16 +61,6 @@ function finish(room, penalizedId, reason, automatic, now, random) {
   return room;
 }
 
-function awaitLoss(room, reason, from) {
-  room.game.challenge.phase = 'perdi';
-  room.game.challenge.reason = reason;
-  room.game.challenge.lossDeadline = from + CHALLENGE_RULES.lossMs;
-  room.game.version++;
-  room.notice = reason === 'prazo'
-    ? 'O prazo para completar terminou. Só resta PERDI; a penalidade será aplicada automaticamente.'
-    : `${voteNotice(room.game.challenge.tally)} O desafiado deve dizer PERDI.`;
-}
-
 export function startChallenge(original, id, now) {
   const room = structuredClone(original);
   const challenger = requireParticipant(room, id);
@@ -87,8 +78,8 @@ export function startChallenge(original, id, now) {
     id: room.game.version, phase: 'completando', challengerId: id, challengedId: challenged.id,
     baseWord: room.game.word, addedLetters: '', votes: {},
     voterIds: room.players.filter((p) => !p.left && p.id !== challenged.id).map((p) => p.id),
-    completionDeadline: now + CHALLENGE_RULES.completionMs, voteDeadline: null, lossDeadline: null,
-    tally: null, reason: null,
+    completionDeadline: now + CHALLENGE_RULES.completionMs, voteDeadline: null,
+    tally: null,
   };
   room.game.challengeResult = null;
   room.notice = `${challenger.name} desafia ${challenged.name} a completar a palavra.`;
@@ -99,7 +90,7 @@ export function previewChallenge(original, id, challengeId, letters, now) {
   const room = structuredClone(original);
   const challenge = requireChallenge(room, id, challengeId);
   requireRule(challenge.challengedId === id, 'Só o desafiado pode completar a palavra.');
-  requireRule(challenge.phase === 'completando' && now < challenge.completionDeadline, 'O prazo para completar terminou. Use PERDI.');
+  requireRule(challenge.phase === 'completando' && now < challenge.completionDeadline, 'O prazo para completar terminou. A penalidade é automática.');
   const normalized = normalizeLetters(letters);
   if (normalized === challenge.addedLetters) return original;
   challenge.addedLetters = normalized;
@@ -119,6 +110,15 @@ export function confirmChallenge(original, id, challengeId, letters, now, random
 }
 
 export function voteChallenge(original, id, challengeId, vote, now, random) {
+  // Respostas em trânsito de uma votação já encerrada não alteram o resultado.
+  const result = original.game?.challengeResult;
+  if (!original.game?.challenge && result?.id === challengeId) {
+    const voter = player(original, id);
+    requireRule(voter?.connected && !voter.left, 'Reconecte para participar do desafio.');
+    requireRule(id !== result.challengedId, 'O desafiado não vota.');
+    requireRule(vote === 'sim' || vote === 'nao', 'Escolha Sim ou Não.');
+    return original;
+  }
   const room = structuredClone(original);
   const challenge = requireChallenge(room, id, challengeId);
   requireRule(challenge.phase === 'votando' && now < challenge.voteDeadline, 'A votação já terminou.');
@@ -134,21 +134,23 @@ export function loseChallenge(original, id, challengeId, now, random) {
   const room = structuredClone(original);
   const challenge = requireChallenge(room, id, challengeId);
   requireRule(challenge.challengedId === id, 'Só o desafiado pode dizer PERDI neste desafio.');
-  requireRule(challenge.phase === 'completando' || challenge.phase === 'perdi', 'Aguarde o resultado da votação.');
-  requireRule(challenge.phase !== 'completando' || now < challenge.completionDeadline + CHALLENGE_RULES.lossMs, 'O prazo terminou; aguarde a penalidade automática.');
-  requireRule(challenge.phase !== 'perdi' || now < challenge.lossDeadline, 'O prazo terminou; aguarde a penalidade automática.');
-  return finish(room, id, challenge.reason || 'desistencia', false, now, random);
+  requireRule(challenge.phase === 'completando', 'Aguarde o resultado da votação.');
+  requireRule(now < challenge.completionDeadline, 'O prazo terminou; a penalidade é automática.');
+  return finish(room, id, 'desistencia', false, now, random);
 }
 
 // Executável após restauração do storage, antes de ações e a cada varredura.
-// Prazos seguintes partem do prazo salvo, nunca do instante de restauração.
+// Resolve as fases vencidas diretamente, sem um prazo adicional de penalidade.
 // Sem mudança, devolve a mesma referência para evitar gravações e broadcasts.
 export function resolveChallenge(original, now, random) {
   if (original.phase !== 'playing' || !original.game.challenge) return original;
   const room = structuredClone(original), challenge = room.game.challenge;
   const challenged = player(room, challenge.challengedId);
   if (!challenged?.connected || challenged.left) return finish(room, challenge.challengedId, 'desconexao', true, now, random);
-  if (challenge.phase === 'completando' && now >= challenge.completionDeadline) awaitLoss(room, 'prazo', challenge.completionDeadline);
+  // Compatibilidade com salas antigas: a fase de espera já não existe.
+  if (challenge.phase === 'perdi') return finish(room, challenge.challengedId, challenge.reason || 'recusada', true, now, random);
+  if (Object.hasOwn(challenge, 'lossDeadline')) { delete challenge.lossDeadline; delete challenge.reason; room.game.version++; }
+  if (challenge.phase === 'completando' && now >= challenge.completionDeadline) return finish(room, challenge.challengedId, 'prazo', true, now, random);
   if (challenge.phase === 'votando') {
     for (const id of challenge.voterIds) {
       if (!Object.hasOwn(challenge.votes, id) && (now >= challenge.voteDeadline || !player(room, id)?.connected || player(room, id).left)) {
@@ -156,14 +158,16 @@ export function resolveChallenge(original, now, random) {
         room.game.version++;
       }
     }
-    if (challenge.voterIds.every((id) => Object.hasOwn(challenge.votes, id))) {
-      const no = Object.values(challenge.votes).filter((vote) => vote === 'nao').length;
-      challenge.tally = { yes: challenge.voterIds.length - no, no, total: challenge.voterIds.length,
-        rejected: no / challenge.voterIds.length >= CHALLENGE_RULES.rejectionRatio };
-      if (!challenge.tally.rejected) return finish(room, challenge.challengerId, 'aceita', false, now, random);
-      awaitLoss(room, 'recusada', Math.min(now, challenge.voteDeadline));
+    const no = Object.values(challenge.votes).filter((vote) => vote === 'nao').length;
+    const yes = Object.values(challenge.votes).filter((vote) => vote === 'sim').length;
+    const total = challenge.voterIds.length, pending = total - no - yes;
+    const rejected = no / total >= CHALLENGE_RULES.rejectionRatio;
+    const accepted = (no + pending) / total < CHALLENGE_RULES.rejectionRatio;
+    if (rejected || accepted) {
+      challenge.tally = { yes, no, total, pending, early: pending > 0, rejected };
+      return finish(room, rejected ? challenge.challengedId : challenge.challengerId,
+        rejected ? 'recusada' : 'aceita', rejected, now, random);
     }
   }
-  if (challenge.phase === 'perdi' && now >= challenge.lossDeadline) return finish(room, challenge.challengedId, challenge.reason, true, now, random);
   return room.game.version === original.game.version ? original : room;
 }

@@ -56,7 +56,7 @@ test('desafio não altera o baralho de 84 cartas e tem tempos/limites em constan
   assert.equal(createDeck().length, 84);
   assert.equal(CHALLENGE_RULES.completionMs, 30_000);
   assert.equal(CHALLENGE_RULES.voteMs, 15_000);
-  assert.equal(CHALLENGE_RULES.lossMs, 10_000);
+  assert.equal(Object.hasOwn(CHALLENGE_RULES, 'lossMs'), false);
   assert.equal(CHALLENGE_RULES.maxLetters, 16);
 });
 
@@ -187,23 +187,21 @@ test('PERDI no modal compra 4 e faz reset total sem mudar vez nem contador de co
   assert.equal(next.game.challengeResult.reason, 'desistencia');
 });
 
-test('após 30s OK e edição são rejeitados; só PERDI até a penalidade automática em 40s', () => {
-  const room = begin(), id = room.game.challenge.id;
+test('aos 30s aplica PERDI imediato, descarta letras digitadas e não cria prazo extra', () => {
+  const initial = begin(), id = initial.game.challenge.id;
+  const room = previewChallenge(initial, 'p1', id, 'TO', now + 100);
   assertUnchanged(room, () => confirm(room, 'TO', now + 30_000), /prazo/);
   assertUnchanged(room, () => previewChallenge(room, 'p1', id, 'TO', now + 30_000), /prazo/);
-  const expired = resolveChallenge(room, now + 30_000, random);
-  assert.equal(expired.game.challenge.phase, 'perdi');
-  assert.equal(expired.game.challenge.lossDeadline, now + 40_000);
-  assert.equal(resolveChallenge(expired, now + 39_999, random), expired);
-  const next = resolveChallenge(expired, now + 40_000, random);
-  assertReset(next, expired, 'p1');
+  assert.equal(resolveChallenge(room, now + 29_999, random), room);
+  const next = resolveChallenge(room, now + 30_000, random);
+  assertReset(next, room, 'p1');
+  assert.equal(next.game.challengeResult.word, 'CA');
   assert.equal(next.game.challengeResult.automatic, true);
-  const manual = concede(expired, now + 30_001);
-  assertReset(manual, expired, 'p1');
+  assert.equal(Object.hasOwn(initial.game.challenge, 'lossDeadline'), false);
 });
 
 test('Y não vota; voto único, opções, id do desafio e prazos são validados', () => {
-  const room = confirm(begin());
+  const room = confirm(begin(fixture(4)));
   assertUnchanged(room, () => vote(room, 'p1', 'sim'), /não vota/);
   assertUnchanged(room, () => vote(room, 'p2', true), /Escolha/);
   assertUnchanged(room, () => voteChallenge(room, 'p2', -1, 'sim', now, random), /terminou/);
@@ -214,7 +212,7 @@ test('Y não vota; voto único, opções, id do desafio e prazos são validados'
   for (const p of voted.players) {
     const view = roomView(voted, p.id);
     assert.equal(view.game.challenge.respondedCount, 1);
-    assert.equal(view.game.challenge.voterCount, 2);
+    assert.equal(view.game.challenge.voterCount, 3);
     assert.equal(Object.hasOwn(view.game.challenge, 'votes'), false);
     assert.equal(Object.hasOwn(view.game.challenge, 'tally'), false);
     assert.ok(view.players.every((other) => !other.hand && !other.sessionId));
@@ -222,71 +220,75 @@ test('Y não vota; voto único, opções, id do desafio e prazos são validados'
 });
 
 for (const [count, no, rejected] of [[7, 3, true], [8, 4, true], [8, 3, false], [3, 1, true], [4, 1, false], [2, 1, true], [2, 0, false]]) {
-  test(`votação com ${count - 1} votante(s) e ${no} Não: ${rejected ? 'recusa' : 'aceita'}`, () => {
+  test(`votação com ${count - 1} votante(s) e ${no} Não: ${rejected ? 'recusa automática' : 'aceita'}`, () => {
     let room = confirm(begin(fixture(count)), 'TO');
     const before = structuredClone(room);
-    for (let i = 2; i <= count; i++) room = vote(room, `p${i}`, i - 2 < no ? 'nao' : 'sim');
-    if (rejected) {
-      assert.equal(room.game.challenge.phase, 'perdi');
-      assert.equal(room.game.challenge.tally.rejected, true);
-      assert.equal(roomView(room, 'p2').game.challenge.votes.p2, 'nao');
-      const declined = concede(room);
-      assertReset(declined, before, 'p1');
-      assert.equal(declined.game.challengeResult.tally.no, no);
-    } else {
-      assertReset(room, before, 'p2');
-      assert.equal(room.game.challengeResult.tally.yes, count - 1 - no);
-      assert.match(room.notice, /aceita.*Sim.*Não.*Bia.*comprou 4/);
-    }
+    for (let i = 2; i <= count && room.game.challenge; i++) room = vote(room, `p${i}`, i - 2 < no ? 'nao' : 'sim');
+    assertReset(room, before, rejected ? 'p1' : 'p2');
+    assert.equal(room.game.challengeResult.tally.rejected, rejected);
+    assert.equal(room.game.challengeResult.tally.no, no);
+    assert.equal(room.game.challengeResult.automatic, rejected);
   });
 }
 
-test('maioria Sim faz reset total inclusive proteção com letras antigas e novas', () => {
-  let room = confirm(begin(fixture(4)), 'TO');
-  room.game.protectedPlayerId = 'p4';
-  const before = structuredClone(room);
-  room = vote(vote(vote(room, 'p2', 'sim'), 'p3', 'sim'), 'p4', 'nao');
-  assertReset(room, before, 'p2');
-  assert.equal(room.game.challengeResult.word, 'CATO');
-  assert.equal(room.game.challengeResult.votes.p4, 'nao');
+test('3 Não de 6 recusam imediatamente, dispensam os pendentes e ignoram votos tardios', () => {
+  let room = confirm(begin(fixture(7)), 'TO');
+  const before = structuredClone(room), id = room.game.challenge.id;
+  room = vote(vote(vote(room, 'p2', 'nao'), 'p3', 'nao'), 'p4', 'nao');
+  assertReset(room, before, 'p1');
+  assert.deepEqual(room.game.challengeResult.tally, { yes: 0, no: 3, total: 6, pending: 3, early: true, rejected: true });
+  assert.match(room.notice, /encerrada antecipadamente/);
+  assert.equal(voteChallenge(room, 'p5', id, 'sim', now + 3000, random), room);
+  assert.equal(voteChallenge(room, 'p2', id, 'sim', now + 3000, random), room);
+  assertUnchanged(room, () => voteChallenge(room, 'p1', id, 'sim', now + 3000, random), /não vota/);
 });
 
-test('ausência de resposta conta como Sim em 15s, desconectado conta imediatamente', () => {
+test('3 Sim e 3 pendentes ainda são incertos; o quarto Sim aceita antecipadamente', () => {
+  let room = confirm(begin(fixture(7)), 'TO');
+  const before = structuredClone(room), id = room.game.challenge.id;
+  room = vote(vote(vote(room, 'p2', 'sim'), 'p3', 'sim'), 'p4', 'sim');
+  assert.equal(room.game.challenge.phase, 'votando');
+  assert.equal(Object.keys(room.game.challenge.votes).length, 3);
+  assert.equal(room.game.challenge.tally, null);
+  room.game.protectedPlayerId = 'p7';
+  room = vote(room, 'p5', 'sim');
+  assertReset(room, before, 'p2');
+  assert.deepEqual(room.game.challengeResult.tally, { yes: 4, no: 0, total: 6, pending: 2, early: true, rejected: false });
+  assert.equal(room.game.challengeResult.word, 'CATO');
+  assert.equal(voteChallenge(room, 'p6', id, 'nao', now + 3000, random), room);
+});
+
+test('desconectados sem voto contam Sim na hora e podem definir o resultado', () => {
+  let room = confirm(begin(fixture(7)));
+  room = vote(vote(vote(room, 'p2', 'sim'), 'p3', 'sim'), 'p4', 'sim');
+  room = resolveChallenge(disconnectPlayer(room, 'p5', now + 2000), now + 2000, random);
+  assert.equal(room.game.challenge, null);
+  assert.equal(room.game.challengeResult.votes.p5, 'sim');
+  assert.equal(room.game.challengeResult.tally.yes, 4);
+  assert.equal(room.game.challengeResult.tally.pending, 2);
+});
+
+test('15 segundos continuam como limite: não respondidos viram Sim', () => {
   let room = confirm(begin(fixture(4)), 'TO');
   const deadline = room.game.challenge.voteDeadline, before = structuredClone(room);
   room = vote(room, 'p2', 'nao');
+  assert.equal(resolveChallenge(room, deadline - 1, random), room);
   room = resolveChallenge(room, deadline, random);
   assertReset(room, before, 'p2');
   assert.deepEqual(room.game.challengeResult.votes, { p2: 'nao', p3: 'sim', p4: 'sim' });
-  room = confirm(begin());
-  room = resolveChallenge(disconnectPlayer(room, 'p3', now + 2000), now + 2000, random);
-  assert.equal(room.game.challenge.votes.p3, 'sim');
-  assert.equal(room.game.challenge.phase, 'votando');
-  room = vote(room, 'p2', 'sim');
-  assert.equal(room.game.challengeResult.tally.yes, 2);
+  assert.equal(room.game.challengeResult.tally.early, false);
 });
 
-test('recusa exige PERDI manual ou automático após 10s e revela votos antes da penalidade', () => {
-  let room = confirm(begin(), 'TO');
-  room = vote(vote(room, 'p2', 'nao'), 'p3', 'sim');
-  const before = structuredClone(room), deadline = room.game.challenge.lossDeadline;
-  assert.equal(deadline, now + 12_000);
-  assert.equal(roomView(room, 'p3').game.challenge.votes.p2, 'nao');
-  assertUnchanged(room, () => confirm(room), /prazo/);
-  assert.equal(resolveChallenge(room, deadline - 1, random), room);
-  room = resolveChallenge(room, deadline, random);
-  assertReset(room, before, 'p1');
-  assert.equal(room.game.challengeResult.reason, 'recusada');
-  assert.equal(room.game.challengeResult.automatic, true);
+test('N=2: um Sim espera; um Não recusa; dois Sim aceitam', () => {
+  const room = confirm(begin());
+  assert.equal(vote(room, 'p2', 'sim').game.challenge.phase, 'votando');
+  assert.equal(vote(room, 'p2', 'nao').game.challengeResult.reason, 'recusada');
+  assert.equal(vote(vote(room, 'p2', 'sim'), 'p3', 'sim').game.challengeResult.reason, 'aceita');
 });
 
-test('desconexão de Y aplica PERDI em qualquer fase, preservando exatamente a vez', () => {
-  const completing = begin();
-  const voting = confirm(begin());
-  const declined = vote(vote(voting, 'p2', 'nao'), 'p3', 'sim');
-  for (const initial of [completing, voting, declined]) {
+test('desconexão de Y aplica PERDI imediatamente ao completar ou votar, mantendo a vez', () => {
+  for (const initial of [begin(), confirm(begin())]) {
     initial.game.turnPlayerId = 'p1';
-    initial.game.letterDebt.playerId = 'p1';
     const offline = disconnectPlayer(initial, 'p1', now + 2500);
     const next = resolveChallenge(offline, now + 2500, random);
     assertReset(next, initial, 'p1');
@@ -313,22 +315,25 @@ test('aceitação reembaralha descarte e compra só as cartas que existirem', ()
     room = vote(room, 'p2', 'sim');
     assert.equal(room.players[1].hand.length, before + available);
     assert.equal(room.game.challengeResult.drawnCount, available);
-    assert.equal(room.game.challenge, null);
   }
 });
 
-test('restauração JSON respeita prazos absolutos sem conceder tempo extra', () => {
+test('restauração JSON resolve prazos vencidos sem mais dez segundos e migra a antiga fase de PERDI', () => {
   const saved = JSON.parse(JSON.stringify(begin()));
-  const expired = resolveChallenge(saved, now + 35_000, random);
-  assert.equal(expired.game.challenge.lossDeadline, now + 40_000);
-  assertReset(resolveChallenge(saved, now + 100_000, random), saved, 'p1');
-  let voting = confirm(begin(), 'TO');
-  voting = vote(voting, 'p2', 'nao');
-  const restored = JSON.parse(JSON.stringify(voting));
-  const declined = resolveChallenge(restored, now + 20_000, random);
-  assert.equal(declined.game.challenge.phase, 'perdi');
-  assert.equal(declined.game.challenge.lossDeadline, now + 26_000);
-  assertReset(resolveChallenge(restored, now + 100_000, random), restored, 'p1');
-  const unvoted = JSON.parse(JSON.stringify(confirm(begin(), 'TO')));
-  assertReset(resolveChallenge(unvoted, now + 100_000, random), unvoted, 'p2');
+  assertReset(resolveChallenge(saved, now + 30_000, random), saved, 'p1');
+  const voting = JSON.parse(JSON.stringify(confirm(begin(), 'TO')));
+  assertReset(resolveChallenge(voting, now + 16_000, random), voting, 'p2');
+  const legacy = begin();
+  Object.assign(legacy.game.challenge, { phase: 'perdi', reason: 'recusada', lossDeadline: now + 99_000 });
+  const resolved = resolveChallenge(legacy, now + 1, random);
+  assertReset(resolved, legacy, 'p1');
+  assert.equal(resolved.game.challengeResult.reason, 'recusada');
+  const completing = begin();
+  const legacyTimeout = previewChallenge(completing, 'p1', completing.game.challenge.id, 'TO', now + 100);
+  Object.assign(legacyTimeout.game.challenge, { phase: 'perdi', reason: 'prazo', lossDeadline: now + 99_000 });
+  assert.equal(resolveChallenge(legacyTimeout, now + 30_000, random).game.challengeResult.word, 'CA');
+  const oldCompleting = begin();
+  oldCompleting.game.challenge.lossDeadline = null;
+  const migrated = resolveChallenge(oldCompleting, now + 1, random);
+  assert.equal(Object.hasOwn(migrated.game.challenge, 'lossDeadline'), false);
 });

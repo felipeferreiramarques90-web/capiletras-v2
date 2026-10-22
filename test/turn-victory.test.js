@@ -233,18 +233,14 @@ test('desafio substitui a janela: palavra aceita penaliza X e confirma vitória 
   assert.equal(room.game.pendingVictory, null);
 });
 
-for (const mode of ['recusa manual', 'recusa automática', 'PERDI de Y', 'prazo de completar']) test(`${mode} cancela vitória, compra 4, reseta e passa a vez sem devolver carta`, () => {
+for (const mode of ['recusa automática', 'PERDI de Y', 'prazo de completar']) test(`${mode} cancela vitória, compra 4, reseta e passa a vez sem devolver carta`, () => {
   let room = mode === 'prazo de completar' || mode === 'PERDI de Y' ? startChallenge(pending(), 'p2', now + 100) : voting();
   const playedCardId = room.game.discard.at(-1).id;
   if (mode.startsWith('recusa')) {
     room = voteChallenge(room, 'p2', room.game.challenge.id, 'nao', now + 300, random);
-    room = voteChallenge(room, 'p3', room.game.challenge.id, 'sim', now + 400, random);
   }
-  // Estado legado/defensivo: o reset continua completo mesmo se esses campos estiverem presentes.
-  room.game.letterDebt = { count: 2, playerId: 'p1' };
-  room.game.protectedPlayerId = 'p1';
-  room = mode.includes('automática') || mode === 'prazo de completar' ? resolveChallenge(room, now + 60_000, random)
-    : loseChallenge(room, 'p1', room.game.challenge.id, now + 500, random);
+  if (mode === 'PERDI de Y') room = loseChallenge(room, 'p1', room.game.challenge.id, now + 500, random);
+  else if (mode === 'prazo de completar') room = resolveChallenge(room, now + 30_100, random);
   assert.equal(room.phase, 'playing');
   assert.equal(room.game.pendingVictory, null);
   assert.equal(room.players[0].hand.length, 4);

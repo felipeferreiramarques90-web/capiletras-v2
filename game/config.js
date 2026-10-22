@@ -17,7 +17,6 @@ export const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 export const CHALLENGE_RULES = Object.freeze({
   completionMs: 30_000,
   voteMs: 15_000,
-  lossMs: 10_000,
   minLetters: 0,
   maxLetters: 16,
   rejectionRatio: 0.5,

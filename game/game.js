@@ -414,12 +414,9 @@ export function roomView(room, viewerId) {
         id: challenge.id, phase: challenge.phase, challengerId: challenge.challengerId,
         challengedId: challenge.challengedId, baseWord: challenge.baseWord, addedLetters: challenge.addedLetters,
         completionDeadline: challenge.completionDeadline, voteDeadline: challenge.voteDeadline,
-        lossDeadline: challenge.lossDeadline, reason: challenge.reason,
         voterCount: challenge.voterIds.length, respondedCount: Object.keys(challenge.votes).length,
         hasVoted: Object.hasOwn(challenge.votes, viewerId),
         canVote: challenge.phase === 'votando' && challenge.voterIds.includes(viewerId) && !Object.hasOwn(challenge.votes, viewerId),
-        // As cédulas só saem do servidor depois do encerramento da votação.
-        ...(challenge.phase === 'perdi' && challenge.tally ? { votes: { ...challenge.votes }, tally: { ...challenge.tally } } : {}),
       } : null,
       challengeResult: game.challengeResult ? structuredClone(game.challengeResult) : null,
       letterDebt: structuredClone(game.letterDebt),

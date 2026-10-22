@@ -83,6 +83,42 @@ async function seedHands({ a, b, code, storage }, hands, game = {}) {
   return room;
 }
 
+for (const outcome of ['recusa', 'aceitação', 'desconexão']) {
+  test(`rede: votação encerra por ${outcome} antes de todos responderem e ignora votos tardios`, async (t) => {
+    const fixture = await setup(t);
+    const { a, b, code, connect, storage } = fixture;
+    assert.equal((await emit(a, 'room:settings', { playerCount: 7, initialCards: 3 })).ok, true);
+    const voters = [b];
+    for (const name of ['Caio', 'Dora', 'Eva', 'Fábio', 'Gabi']) {
+      const socket = await connect();
+      assert.equal((await emit(socket, 'room:join', { sessionId: socket.sessionId, name, code })).ok, true);
+      voters.push(socket);
+    }
+    const hands = Array.from({ length: 7 }, (_, i) => [`letra-${'ABCDEFGHIJKLMN'[2 * i]}`, `letra-${'ABCDEFGHIJKLMN'[2 * i + 1]}`]);
+    await seedHands(fixture, hands, { word: 'CA', lastLetterPlayerId: a.view.meId });
+    assert.equal((await emit(b, 'challenge:start')).ok, true);
+    const challengeId = a.view.game.challenge.id;
+    assert.equal((await emit(a, 'challenge:confirm', { challengeId, letters: 'TO' })).ok, true);
+    const vote = outcome === 'recusa' ? 'nao' : 'sim';
+    for (const socket of voters.slice(0, 3)) assert.equal((await emit(socket, 'challenge:vote', { challengeId, vote })).ok, true);
+    if (outcome !== 'recusa') {
+      assert.equal(a.view.game.challenge.respondedCount, 3);
+      if (outcome === 'desconexão') {
+        voters[3].disconnect();
+        await waitFor(() => !a.view.game.challenge);
+      } else assert.equal((await emit(voters[3], 'challenge:vote', { challengeId, vote: 'sim' })).ok, true);
+    }
+    await waitFor(() => !voters[5].view.game.challenge);
+    const saved = await storage.getRoom(code);
+    assert.equal(saved.game.challenge, null);
+    assert.equal(saved.game.challengeResult.tally.early, true);
+    assert.equal(saved.game.challengeResult.tally.rejected, outcome === 'recusa');
+    assert.match(a.view.notice, /encerrada antecipadamente/);
+    assert.equal((await emit(voters[5], 'challenge:vote', { challengeId, vote: 'nao' })).ok, true);
+    assert.deepEqual(await storage.getRoom(code), saved);
+  });
+}
+
 for (const outcome of ['prazo', 'aceite', 'palavra aceita', 'palavra recusada', 'PERDI']) {
   test(`rede: última carta e ${outcome} resolvem a vitória pendente com persistência e mãos privadas`, async (t) => {
     let clock = Date.now();
@@ -112,7 +148,7 @@ for (const outcome of ['prazo', 'aceite', 'palavra aceita', 'palavra recusada', 
         assert.equal((await emit(a, 'challenge:confirm', { challengeId, letters: 'TO' })).ok, true);
         assert.equal((await emit(b, 'challenge:vote', { challengeId, vote: outcome === 'palavra aceita' ? 'sim' : 'nao' })).ok, true);
       }
-      if (outcome !== 'palavra aceita') assert.equal((await emit(a, 'challenge:lose', { challengeId })).ok, true);
+      if (outcome === 'PERDI') assert.equal((await emit(a, 'challenge:lose', { challengeId })).ok, true);
     }
     const saved = await storage.getRoom(code);
     assert.equal(saved.game.pendingVictory, null);
@@ -198,17 +234,13 @@ test('rede: primeiro desafio vence, cancela jogadas, oculta votos e revela o res
   await waitFor(() => b.view.game.challenge.addedLetters === 'TO');
   assert.equal((await emit(a, 'challenge:confirm', { challengeId, letters: 'to' })).ok, true);
   assert.equal((await emit(a, 'challenge:vote', { challengeId, vote: 'sim' })).ok, false);
-  assert.equal((await emit(b, 'challenge:vote', { challengeId, vote: 'nao' })).ok, true);
+  assert.equal((await emit(b, 'challenge:vote', { challengeId, vote: 'sim' })).ok, true);
   await waitFor(() => c.view.game.challenge.respondedCount === 1);
   for (const socket of [a, b, c]) {
     assert.equal(Object.hasOwn(socket.view.game.challenge, 'votes'), false);
     assert.equal(Object.hasOwn(socket.view.game.challenge, 'tally'), false);
   }
-  assert.equal((await emit(c, 'challenge:vote', { challengeId, vote: 'sim' })).ok, true);
-  assert.equal(a.view.game.challenge.phase, 'perdi');
-  assert.deepEqual(a.view.game.challenge.tally, { yes: 1, no: 1, total: 2, rejected: true });
-  assert.equal(a.view.game.challenge.votes[b.view.meId], 'nao');
-  assert.equal((await emit(a, 'challenge:lose', { challengeId })).ok, true);
+  assert.equal((await emit(c, 'challenge:vote', { challengeId, vote: 'nao' })).ok, true);
   await waitFor(() => !b.view.game.challenge);
   const final = await storage.getRoom(code);
   assert.equal(final.game.word, '');
@@ -230,9 +262,8 @@ test('rede: prazos automáticos usam timestamps e desconexão de Y aplica PERDI'
   assert.equal((await emit(b, 'challenge:start')).ok, true);
   const initial = await storage.getRoom(code);
   clock += 30_000;
-  await waitFor(() => a.view.game.challenge?.phase === 'perdi');
+  await waitFor(() => !a.view.game.challenge);
   assert.equal((await emit(a, 'challenge:confirm', { challengeId: initial.game.challenge.id, letters: 'TO' })).ok, false);
-  clock += 10_000;
   await waitFor(() => !b.view.game.challenge);
   let room = await storage.getRoom(code);
   assert.equal(room.game.challengeResult.automatic, true);
