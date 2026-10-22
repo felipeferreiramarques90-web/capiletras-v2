@@ -2,14 +2,53 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { setup, waitFor } from './helpers.js';
 
+test('débito desabilita Duvidar para todos; pagamento libera o botão e o desafio', async (t) => {
+  const { a, b, seed, current, pay } = await setup(t);
+  await seed([['letra-A', 'letra-B'], ['letra-C', 'letra-D']], { word: 'CA', debt: 2 });
+  for (const page of [a, b]) {
+    assert.equal(await page.locator('[data-action="challenge"]').isDisabled(), true);
+    assert.equal(await page.locator('#challenge-help-debt').innerText(), 'Há letras acumuladas pendentes.');
+  }
+  await pay('letra-A', 'AB');
+  for (const page of [a, b]) {
+    await waitFor(() => page.locator('[data-action="challenge"]').isEnabled());
+    assert.equal(await page.locator('#challenge-help-debt').isHidden(), true);
+  }
+  assert.equal((await current()).game.letterDebt.count, 0);
+  await b.locator('[data-action="challenge"]').click();
+  await a.locator('#challenge-dialog').waitFor();
+  assert.equal((await current()).game.challenge.challengedId, (await current()).players[0].id);
+});
+
+test('2x mantém Duvidar desabilitado; PERDI zera o débito e as regras normais voltam', async (t) => {
+  const { a, b, seed, current } = await setup(t);
+  await seed([['double-0', 'letra-A'], ['letra-C', 'letra-D']], { word: 'CA', debt: 2, last: true });
+  await a.locator('[data-card="double-0"]').click();
+  for (const page of [a, b]) {
+    await page.locator('.debt-badge').filter({ hasText: 'Bia deve 2 letras' }).waitFor();
+    assert.equal(await page.locator('[data-action="challenge"]').isDisabled(), true);
+    assert.equal(await page.locator('#challenge-help-debt').isVisible(), true);
+  }
+  await a.locator('[data-action="lose"]').click();
+  for (const page of [a, b]) await waitFor(() => page.locator('[data-action="challenge"]').isEnabled());
+  assert.equal((await current()).game.letterDebt.count, 0);
+  await b.locator('[data-action="challenge"]').click();
+  await b.locator('#toast').filter({ hasText: 'palavra está vazia' }).waitFor();
+  await b.locator('[data-card="letra-C"]').click();
+  await a.locator('.word-display').filter({ hasText: 'C' }).waitFor();
+  await a.locator('[data-action="challenge"]').click();
+  await b.locator('#challenge-dialog').waitFor();
+  assert.equal((await current()).game.challenge.challengedId, (await current()).players[1].id);
+});
+
 test('desafio cancela a escolha de carta, transmite a prévia e revela os votos só no resultado', async (t) => {
   const { a, b, c, seed, current } = await setup(t, { players: 3 });
-  const before = await seed([['letra-A', 'letra-B'], ['wild-0', 'letra-C'], ['letra-D', 'letra-E']], { word: 'CA', last: true });
+  const before = await seed([['wild-1', 'letra-B'], ['wild-0', 'letra-C'], ['letra-D', 'letra-E']], { word: 'CA', last: true, debt: 0 });
   // Abrimos a escolha de Ana antes do desafio de Caio.
-  await a.locator('[data-card="letra-A"]').click();
-  await a.locator('#debt-dialog').waitFor();
+  await a.locator('[data-card="wild-1"]').click();
+  await a.locator('#letter-dialog').waitFor();
   await c.locator('[data-action="challenge"]').click();
-  await a.locator('#debt-dialog').waitFor({ state: 'hidden' });
+  await a.locator('#letter-dialog').waitFor({ state: 'hidden' });
   for (const page of [a, b, c]) await page.locator('#challenge-dialog').waitFor();
   assert.deepEqual((await current()).players.map((p) => p.hand), before.players.map((p) => p.hand));
   assert.equal(await b.locator('#challenge-input').evaluate((input) => input.readOnly), true);
@@ -19,8 +58,13 @@ test('desafio cancela a escolha de carta, transmite a prévia e revela os votos 
   assert.equal(await a.locator('#challenge-input').inputValue(), 'TO');
   await b.locator('#challenge-word').filter({ hasText: 'CATO' }).waitFor();
   assert.equal((await current()).game.blockedLetter, 'K');
-  assert.equal((await current()).game.letterDebt.count, 2);
+  assert.equal((await current()).game.letterDebt.count, 0);
   await a.setViewportSize({ width: 375, height: 400 });
+  // A alteração do visualViewport e o reposicionamento do modal ocorrem em eventos assíncronos.
+  await waitFor(async () => {
+    const button = await a.locator('#challenge-ok').boundingBox();
+    return button && button.y >= 0 && button.y + button.height <= 400;
+  });
   const ok = await a.locator('#challenge-ok').boundingBox();
   assert.ok(ok.y >= 0 && ok.y + ok.height <= 400, 'OK deve ficar acima do teclado');
   await a.locator('#challenge-ok').click();
@@ -51,7 +95,7 @@ test('desafio cancela a escolha de carta, transmite a prévia e revela os votos 
 
 test('OK sem letras e fechar a votação conta como Sim, penalizando o desafiante', async (t) => {
   const { a, b, seed, current } = await setup(t);
-  const before = await seed([['letra-A', 'letra-B'], ['letra-C', 'letra-D']], { word: 'CA' });
+  const before = await seed([['letra-A', 'letra-B'], ['letra-C', 'letra-D']], { word: 'CA', debt: 0 });
   await b.locator('[data-action="challenge"]').click();
   await a.locator('#challenge-ok').click();
   await b.locator('#challenge-title').filter({ hasText: 'Aceitar palavra?' }).waitFor();
@@ -70,7 +114,7 @@ test('OK sem letras e fechar a votação conta como Sim, penalizando o desafiant
 test('prazos no navegador: OK expira, PERDI automático e ausência de voto conta como Sim', async (t) => {
   let clock = Date.now();
   const { a, b, seed, current } = await setup(t, { nowSource: () => clock, challengeIntervalMs: 5 });
-  const before = await seed([['letra-A', 'letra-B'], ['letra-C', 'letra-D']], { word: 'CA' });
+  const before = await seed([['letra-A', 'letra-B'], ['letra-C', 'letra-D']], { word: 'CA', debt: 0 });
   await b.locator('[data-action="challenge"]').click();
   await a.locator('#challenge-input').fill('TO');
   clock += 30_000;
@@ -81,7 +125,7 @@ test('prazos no navegador: OK expira, PERDI automático e ausência de voto cont
   await a.locator('#challenge-dialog').waitFor({ state: 'hidden' });
   assert.equal((await current()).players[0].hand.length, before.players[0].hand.length + 4);
   assert.equal((await current()).game.challengeResult.automatic, true);
-  const next = await seed([['letra-A', 'letra-B'], ['letra-C', 'letra-D']], { word: 'CA' });
+  const next = await seed([['letra-A', 'letra-B'], ['letra-C', 'letra-D']], { word: 'CA', debt: 0 });
   await b.locator('[data-action="challenge"]').click();
   await a.locator('#challenge-ok').click();
   await b.locator('#challenge-title').filter({ hasText: 'Aceitar palavra?' }).waitFor();
