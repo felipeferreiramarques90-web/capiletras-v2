@@ -41,7 +41,7 @@ O front-end é estático: recarregue o navegador após editá-lo. Não há etapa
 - Se a pilha acabar, as cartas já jogadas são embaralhadas e voltam para compra, sem apagar a palavra. Se nem o descarte tiver cartas, a compra é desabilitada. Se restarem menos de 4 cartas disponíveis para uma penalidade, compram-se todas as disponíveis, sem criar cartas extras.
 - Ao baixar a última carta, a vitória é imediata e não há mais PERDI. Todos veem o resultado; o anfitrião pode começar uma revanche ou voltar à sala. Os demais podem aguardar ou sair para o início.
 
-A mesa **não valida palavras em dicionário**. O grupo combina quando uma sequência não tem continuação e usa o botão PERDI.
+A mesa **não valida palavras em dicionário**. O grupo combina quando uma sequência não tem continuação e usa PERDI ou **Duvidar da palavra**, com votação entre os participantes.
 
 ### Cartas novas
 
@@ -97,6 +97,28 @@ Cada seta inicia um novo turno com o contador de compra zerado. Os retornos fica
 
 As cartas injogáveis ficam esmaecidas e desabilitadas, e as opções dos seletores são recalculadas quando a mão, o visor ou o bloqueio mudam. O servidor recalcula e valida as mesmas condições independentemente do cliente. Quando os dois casos de PERDI estão disponíveis, o primeiro clique aceito altera `game.version`; cliques com a versão anterior são rejeitados, evitando duas penalidades simultâneas. Se o botão continuar habilitado, um novo clique usa a nova versão.
 
+## Duvidar da palavra
+
+O botão fica no centro da mesa e qualquer participante conectado pode usá-lo, inclusive fora da vez, durante a partida. O baralho continua com **84 cartas**. O servidor aceita apenas o primeiro desafio e rejeita os demais sem alterar a sala; o aviso de rejeição chega só a quem clicou. Também rejeita visor vazio, desafio à própria palavra e desafio a alguém protegido pela Vida, com o aviso **“Fulano está protegido pela Vida”**. Depois de uma vitória, não é possível desafiar.
+
+O desafiado é **quem adicionou ou substituiu a última letra do visor**, incluindo pagamento de letras acumuladas. **2x e Passar letra não mudam esse autor**. Esse histórico fica em `game.lastLetterPlayerId`, separado do último jogador que baixou uma carta, usado pelo PERDI e pelo 2x.
+
+Ao iniciar, as escolhas de cartas em andamento são canceladas, sem retirar cartas das mãos. Todos veem o desafio; jogadas, compras e o PERDI normal ficam suspensos. O servidor também rejeita jogadas enviadas com uma versão antiga da mesa, inclusive se chegarem depois do reset.
+
+1. **Completar — 30 segundos.** Todos veem quem desafiou quem e a palavra. Só o desafiado edita: pode acrescentar **de 0 a 16 letras de A a Z**, convertidas para maiúsculas, sempre ao final. As letras são livres, não respeitam nem consomem o Bloqueio e não pagam o débito de Passar letra. A prévia chega aos demais em tempo real. Ele escolhe **OK**, inclusive sem acrescentar nada, ou **PERDI**. Depois dos 30 segundos, não pode mais editar nem usar OK; só resta PERDI, com mais **10 segundos** antes da aplicação automática.
+2. **Votar — 15 segundos.** Após OK, todos os participantes da rodada, **exceto o desafiado**, votam em “Aceitar palavra?”. O desafiante também vota. Cada um responde uma única vez. Fechar o modal, não responder no prazo ou estar desconectado sem ter votado conta como **Sim**. Votos já registrados permanecem. O jogo espera todos responderem ou o prazo terminar. Durante a votação só aparece a contagem de respostas; nenhum cliente recebe os votos dos outros. O desafiado vê que não vota e acompanha o progresso.
+3. **Resultado.** Com **50% ou mais de Não** entre os votantes, a palavra é recusada; caso contrário, é aceita. Três Não entre seis votantes recusam; entre sete, são necessários quatro. Em uma partida com duas pessoas, há um único votante e seu Não recusa. Os votos individuais e os totais de Sim/Não são revelados no resultado.
+
+Se a palavra for **aceita**, o desafiante compra até **4 cartas**. Se for **recusada**, o desafiado deve apertar **PERDI** em até **10 segundos**; depois, o servidor aplica automaticamente. Se o desafiado desconectar ou sair durante qualquer etapa, o PERDI é automático imediatamente. Em qualquer penalidade, o descarte pode ser reembaralhado e compram-se apenas as cartas disponíveis, como nas regras existentes. O PERDI do modal pertence exclusivamente ao desafiado e não depende da janela do PERDI normal.
+
+**Todo fim de desafio faz um reset total da mesa:** zera a palavra inteira (o trecho anterior e as novas letras), o débito, o Bloqueio, a proteção da Vida e o histórico de quem adicionou letra. Fecha também a janela de PERDI do último jogador. A vez, o contador de compra opcional e os retornos pendentes de 2x continuam como estavam. Não há passagem automática por falta de carta jogável nesse reset; o PERDI de jogador da vez sem carta jogável continua seguindo sua regra normal depois dele. Não é possível duvidar de novo até outra carta colocar uma letra no visor. O resultado fica visível na mesa com os votos, a penalidade e o aviso de reset.
+
+Os modais se ajustam ao espaço visível no celular e mantêm os botões fora da área de rolagem. Fechar o acompanhamento de um desafio não libera jogadas; use **Acompanhar desafio** para abri-lo novamente. Se o jogador da vez desconectar durante o desafio, a resolução preserva sua vez; a mesa pode aguardar a reconexão ou o anfitrião pode encerrar a partida pausada.
+
+As regras e os tempos estão em **`CHALLENGE_RULES`, em `game/config.js`**; a compra da penalidade usa `RULES.lossPenalty`. A lógica pura fica em **`game/challenge.js`**, recebendo horário e aleatoriedade como argumentos. `game.challenge` guarda fase (`completando`, `votando` ou `perdi`), ids, palavra inicial, letras acrescentadas, votantes, votos e **prazos absolutos em milissegundos**. `game.challengeResult` guarda o resultado público mais recente. Ambos são JSON serializáveis e salvos pela mesma interface de armazenamento.
+
+A rede verifica os prazos antes das ações e em uma varredura periódica, inclusive ao iniciar com salas restauradas, sem depender de um timer antigo em memória ou de haver clientes conectados. Uma sala restaurada já vencida segue os prazos originalmente salvos: não recebe outros 30, 15 ou 10 segundos. Testes usam um relógio injetado para verificar os limites exatos e a restauração sem esperas longas.
+
 ## Desconexão e duração das salas
 
 A identidade aleatória do jogador e o código da sala são guardados no `localStorage`. O Socket.IO reconecta automaticamente; ao recarregar pelo mesmo navegador, a vaga e as cartas são recuperadas. Não compartilhe seu armazenamento local: a identidade funciona como chave de retomada, não como uma conta autenticada.
@@ -128,12 +150,13 @@ O repositório e o Blueprint preparam o deploy; conectar e criar o serviço no R
 ```text
 game/config.js       Regras ajustáveis, tipos de carta e limites
 game/game.js         Lógica pura, validações e visão privada de cada jogador
+game/challenge.js    Desafios, votação, penalidades e resolução pura de prazos
 storage/memory.js    Interface assíncrona de armazenamento, implementada em memória
 network/socket.js    Eventos Socket.IO, identificação, filas por sala e limpeza
 server.js            Express, arquivos estáticos e rota /health
 public/              Interface em HTML, CSS e JavaScript, sem compilação
 test/                Testes automatizados com o runner nativo do Node.js
-browser-test/        Testes reais de interface, modais e celular com Playwright
+browser-test/        Testes reais de cartas, desafios, modais e celular com Playwright
 render.yaml          Blueprint do Render
 ```
 
