@@ -83,6 +83,31 @@ async function seedHands({ a, b, code, storage }, hands, game = {}) {
   return room;
 }
 
+test('rede: débito impede desafio com aviso privado e sem gravações, até ser pago', async (t) => {
+  const fixture = await setup(t);
+  const { a, b, storage, code } = fixture;
+  await seedHands(fixture, [['pass-0', 'letra-A', 'letra-B'], ['pass-1', 'letra-C', 'letra-D']], {
+    word: 'CA', lastLetterPlayerId: a.view.meId,
+  });
+  const updates = [];
+  a.on('room:state', () => updates.push('a'));
+  b.on('room:state', () => updates.push('b'));
+  for (const [socket, cardId, count, name] of [[a, 'pass-0', 1, 'Bia'], [b, 'pass-1', 2, 'Ana']]) {
+    assert.equal((await emit(socket, 'game:play', { cardId })).ok, true);
+    await waitFor(() => a.view.game.letterDebt.count === count && b.view.game.letterDebt.count === count);
+    const before = await storage.getRoom(code), received = updates.length;
+    const reply = await emit(socket === a ? b : a, 'challenge:start');
+    assert.equal(reply.ok, false);
+    assert.match(reply.error, new RegExp(`${name} ainda deve ${count} letra`));
+    assert.deepEqual(await storage.getRoom(code), before);
+    assert.equal(updates.length, received, 'Rejeição não deve publicar avisos nem novo estado aos outros jogadores');
+  }
+  assert.equal((await emit(a, 'game:play', { cardId: 'letra-A', accumulatedLetters: 'BC' })).ok, true);
+  await waitFor(() => b.view.game.letterDebt.count === 0);
+  assert.equal((await emit(b, 'challenge:start')).ok, true);
+  assert.equal(b.view.game.challenge.challengedId, a.view.meId);
+});
+
 test('rede: primeiro desafio vence, cancela jogadas, oculta votos e revela o resultado', async (t) => {
   const fixture = await setup(t);
   const { a, b, code, storage, connect } = fixture;

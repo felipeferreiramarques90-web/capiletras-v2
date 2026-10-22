@@ -15,7 +15,7 @@ function fixture(count = 3) {
   const cards = createDeck();
   room.players.forEach((p, i) => { p.hand = cards.splice(0, 3); });
   Object.assign(room.game, { deck: cards, discard: [], word: 'CA', lastLetterPlayerId: 'p1', lastPlayerId: 'p1',
-    turnPlayerId: 'p2', canLose: true, blockedLetter: 'K', letterDebt: { count: 2, playerId: 'p2' },
+    turnPlayerId: 'p2', canLose: true, blockedLetter: 'K', letterDebt: { count: 0, playerId: null },
     drawsThisTurn: 1, extraTurns: ['p3'] });
   return room;
 }
@@ -60,6 +60,45 @@ test('desafio não altera o baralho de 84 cartas e tem tempos/limites em constan
   assert.equal(CHALLENGE_RULES.maxLetters, 16);
 });
 
+for (const count of [1, 2, 5]) {
+  test(`débito de ${count} letra(s) impede qualquer participante de desafiar sem alterar estado`, () => {
+    const room = fixture();
+    room.game.letterDebt = { count, playerId: 'p2' };
+    for (const p of room.players) assertUnchanged(room, () => startChallenge(room, p.id, now),
+      new RegExp(`Não dá para duvidar: Bia ainda deve ${count} letra`));
+  });
+}
+
+test('pagamento do débito libera um desafio normal contra quem adicionou as novas letras', () => {
+  const room = fixture();
+  room.game.letterDebt = { count: 2, playerId: 'p2' };
+  hand(room, 'p2', ['letra-D', 'letra-E']);
+  const paid = playCard(room, 'p2', 'letra-D', undefined, undefined, 'AB');
+  assert.equal(paid.game.letterDebt.count, 0);
+  assert.equal(paid.game.word, 'CAABD');
+  assert.equal(startChallenge(paid, 'p1', now).game.challenge.challengedId, 'p2');
+});
+
+test('PERDI zera o débito; volta a valer a restrição de visor vazio até a próxima letra', () => {
+  const room = fixture();
+  room.game.letterDebt = { count: 2, playerId: 'p2' };
+  hand(room, 'p2', ['letra-D', 'letra-E']);
+  const lost = loseRound(room, 'p1', random);
+  assert.equal(lost.game.letterDebt.count, 0);
+  assertUnchanged(lost, () => startChallenge(lost, 'p3', now), /palavra está vazia/);
+  const played = playCard(lost, 'p2', 'letra-D');
+  assert.equal(startChallenge(played, 'p1', now).game.challenge.challengedId, 'p2');
+});
+
+test('2x transfere o débito ao jogador forçado e continua impedindo o desafio para todos', () => {
+  const room = fixture();
+  room.game.letterDebt = { count: 3, playerId: 'p2' };
+  hand(room, 'p2', ['double-0', 'letra-E']);
+  const forced = playCard(room, 'p2', 'double-0');
+  assert.deepEqual(forced.game.letterDebt, { count: 3, playerId: 'p1' });
+  for (const p of forced.players) assertUnchanged(forced, () => startChallenge(forced, p.id, now), /Ana ainda deve 3 letras/);
+});
+
 for (const [cardId, letter] of [['letra-B'], ['wild-0', 'Z'], ['vowel-0', 'E'], ['consonant-0', 'Z'], ['first-0', 'M'], ['last-0', 'Z'], ['swap-0', 'C'], ['block-0', 'E'], ['life-0', 'E'], ['multi-0', 'BA']]) {
   test(`último autor do visor é atualizado por ${cardId}, inclusive com pagamento`, () => {
     for (const debt of [0, 2]) {
@@ -74,20 +113,18 @@ for (const [cardId, letter] of [['letra-B'], ['wild-0', 'Z'], ['vowel-0', 'E'], 
   });
 }
 
-test('Passar letra e 2x não mudam o desafiado; Vida seguida de Passar perde a proteção', () => {
+test('Passar letra mantém o autor, mas impede desafio; 2x sem débito preserva o desafiado', () => {
   let room = fixture();
-  hand(room, 'p2', ['pass-0', 'letra-Z']);
-  room = playCard(room, 'p2', 'pass-0');
-  assert.equal(startChallenge(room, 'p2', now).game.challenge.challengedId, 'p1');
-  hand(room, 'p3', ['double-0', 'letra-Y']);
-  room = playCard(room, 'p3', 'double-0');
-  assert.equal(room.game.lastLetterPlayerId, 'p1');
-  assert.equal(startChallenge(room, 'p3', now).game.challenge.challengedId, 'p1');
-  room = fixture();
   room.game.protectedPlayerId = 'p1';
   hand(room, 'p2', ['pass-0', 'letra-Z']);
   room = playCard(room, 'p2', 'pass-0');
+  assert.equal(room.game.lastLetterPlayerId, 'p1');
   assert.equal(room.game.protectedPlayerId, null);
+  assertUnchanged(room, () => startChallenge(room, 'p2', now), /ainda deve 1 letra/);
+  room = fixture();
+  hand(room, 'p2', ['double-0', 'letra-Y']);
+  room = playCard(room, 'p2', 'double-0');
+  assert.equal(room.game.lastLetterPlayerId, 'p1');
   assert.equal(startChallenge(room, 'p2', now).game.challenge.challengedId, 'p1');
 });
 
@@ -121,13 +158,13 @@ test('desafio congela compras, jogadas, PERDI e versões anteriores, sem retirar
   assertUnchanged(reset, () => playCard(reset, 'p2', reset.players[1].hand[0].id, undefined, undefined, '', original.game.version), /mesa mudou/);
 });
 
-test('prévia livre, maiúscula e em tempo real não consome Bloqueio nem débito', () => {
+test('prévia livre, maiúscula e em tempo real não consome Bloqueio e mantém débito zerado', () => {
   const room = begin();
   const preview = previewChallenge(room, 'p1', room.game.challenge.id, 'kz', now + 100);
   assert.equal(preview.game.challenge.addedLetters, 'KZ');
   assert.equal(preview.game.word, 'CA');
   assert.equal(preview.game.blockedLetter, 'K');
-  assert.equal(preview.game.letterDebt.count, 2);
+  assert.equal(preview.game.letterDebt.count, 0);
   assert.equal(roomView(preview, 'p3').game.challenge.addedLetters, 'KZ');
   assertUnchanged(room, () => previewChallenge(room, 'p3', room.game.challenge.id, 'Z', now), /Só o desafiado/);
 });
@@ -151,6 +188,8 @@ test('OK aceita zero a 16 letras, normaliza e só Y confirma; entradas inválida
 test('PERDI no modal compra 4 e faz reset total sem mudar vez nem contador de compra', () => {
   const room = begin();
   room.game.protectedPlayerId = 'p3';
+  // Simula desafio salvo antes da restrição de início, para preservar o reset legado.
+  room.game.letterDebt = { count: 2, playerId: 'p2' };
   const preview = previewChallenge(room, 'p1', room.game.challenge.id, 'TO', now + 100);
   assertUnchanged(preview, () => loseChallenge(preview, 'p2', preview.game.challenge.id, now + 200, random), /Só o desafiado/);
   const next = concede(preview);

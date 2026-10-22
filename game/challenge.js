@@ -65,6 +65,9 @@ export function startChallenge(original, id, now) {
   const room = structuredClone(original);
   const challenger = requireParticipant(room, id);
   requireRule(!room.game.challenge, 'Já existe um desafio em andamento.');
+  const debt = room.game.letterDebt;
+  requireRule(debt.count === 0,
+    `Não dá para duvidar: ${player(room, debt.playerId)?.name || 'um jogador'} ainda deve ${debt.count} letra${debt.count === 1 ? '' : 's'}.`);
   requireRule(room.game.word && room.game.lastLetterPlayerId, 'A palavra está vazia. Aguarde alguém adicionar uma letra.');
   const challenged = player(room, room.game.lastLetterPlayerId);
   requireRule(challenged && challenged.id !== id, 'Você não pode duvidar da própria palavra.');
