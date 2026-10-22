@@ -46,7 +46,7 @@ test('modais no celular: cancelar qualquer etapa preserva a jogada; pagamento + 
   assert.equal(await a.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 });
 
-test('Troca vazia, letra fixa bloqueada e PERDI durante escolha do débito', async (t) => {
+test('Troca vazia e letra fixa bloqueada tornam-se jogáveis com débito', async (t) => {
   const { a, b, seed, current, pay } = await setup(t);
   await seed([['swap-0', 'letra-B'], ['letra-C', 'letra-D']], { word: '', debt: 2 });
   await pay('swap-0');
@@ -58,13 +58,7 @@ test('Troca vazia, letra fixa bloqueada e PERDI durante escolha do débito', asy
   await pay('letra-K');
   await waitFor(async () => (await current()).game.word === 'XAKK');
 
-  const before = await seed([['wild-0', 'letra-B'], ['pass-0', 'letra-C']], { last: true });
-  await a.locator('[data-card="wild-0"]').click();
-  await b.locator('[data-action="lose"]').click();
-  await a.locator('#debt-dialog').waitFor({ state: 'hidden' });
-  assert.equal((await current()).game.letterDebt.count, 0);
-  assert.equal((await current()).players[0].hand.length, before.players[0].hand.length);
-  assert.match(await a.locator('.table-notice').innerText(), /débito.*zerado/);
+
 });
 
 test('Passar letra: seta em gradiente, cascata e débito visível para todos', async (t) => {

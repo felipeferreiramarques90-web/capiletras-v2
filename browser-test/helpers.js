@@ -58,8 +58,8 @@ export async function setup(t, { players = 2, ...options } = {}) {
     room.players.forEach((p, i) => { p.hand = hands[i].map((id) => deck.find((card) => card.id === id)); });
     Object.assign(room.game, { deck: deck.filter((card) => !used.has(card.id)), discard: [], word, blockedLetter,
       turnPlayerId: room.players[0].id, letterDebt: { count: debt, playerId: debt ? room.players[0].id : null },
-      lastPlayerId: last ? room.players[1].id : null, canLose: last, protectedPlayerId: null, extraTurns: [], drawsThisTurn: 0,
-      version: room.game.version + 1, lastLetterPlayerId: room.players[lastLetter]?.id ?? null, challenge: null, challengeResult: null, ...game });
+      lastPlayerId: last ? room.players[1].id : null, protectedPlayerId: null, extraTurns: [], drawsThisTurn: 0,
+      version: room.game.version + 1, lastLetterPlayerId: room.players[lastLetter]?.id ?? null, challenge: null, challengeResult: null, pendingVictory: null, ...game });
     await storage.saveRoom(room);
     for (const socket of io.sockets.sockets.values()) socket.emit('room:state', roomView(room, socket.data.playerId));
     await a.locator(`[data-card="${hands[0][0]}"]`).waitFor();
@@ -80,4 +80,3 @@ export async function setup(t, { players = 2, ...options } = {}) {
   t.after(() => assert.deepEqual(errors, [], 'A interface não deve gerar erros JavaScript.'));
   return { a, b, c: pages[2], seed, current, pay, storage, io, code, url };
 }
-

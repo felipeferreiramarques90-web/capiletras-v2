@@ -354,6 +354,11 @@ dialog .muted { font-size: 12px; }
 .challenge-button { background: #efdab5; color: #45351f; border-color: #b99c67; min-height: 48px; }
 .challenge-button > span { font-family: Georgia, serif; font-size: 22px; }
 .challenge-debt-reason { width: 100%; text-align: center; color: #f4e2bd; font-size: 12px; line-height: 1.6; }
+.skip-button { white-space: normal; line-height: 1.5; min-height: 52px; }
+.pending-victory { background: #fff3cf; color: #45351f; padding: 16px; border-radius: 10px; margin: 18px auto; max-width: 600px; display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; line-height: 1.6; }
+.pending-victory p { font-size: 14px; }
+.pending-victory small { font-size: 12px; }
+.victory-challenge-result { max-width: 600px; margin: 20px auto; padding: 16px; border: 1px solid var(--line); border-radius: 10px; color: var(--ink); font-size: 12px; line-height: 1.7; }
 .challenge-timer { padding: 10px 12px; margin: 14px 0; border-radius: 8px; background: #e7eedf; font-size: 14px; font-variant-numeric: tabular-nums; font-weight: 700; }
 #challenge-edit { margin-top: 20px; }
 #challenge-input { font-size: 20px; letter-spacing: 2px; }

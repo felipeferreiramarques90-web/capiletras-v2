@@ -20,7 +20,7 @@ test('débito desabilita Duvidar para todos; pagamento libera o botão e o desaf
   assert.equal((await current()).game.challenge.challengedId, (await current()).players[0].id);
 });
 
-test('2x mantém Duvidar desabilitado; PERDI zera o débito e as regras normais voltam', async (t) => {
+test('2x mantém Duvidar desabilitado até o jogador forçado pagar o débito', async (t) => {
   const { a, b, seed, current } = await setup(t);
   await seed([['double-0', 'letra-A'], ['letra-C', 'letra-D']], { word: 'CA', debt: 2, last: true });
   await a.locator('[data-card="double-0"]').click();
@@ -29,13 +29,13 @@ test('2x mantém Duvidar desabilitado; PERDI zera o débito e as regras normais 
     assert.equal(await page.locator('[data-action="challenge"]').isDisabled(), true);
     assert.equal(await page.locator('#challenge-help-debt').isVisible(), true);
   }
-  await a.locator('[data-action="lose"]').click();
+  assert.equal(await a.locator('[data-action="skip"]').isDisabled(), true);
+  assert.equal(await b.locator('[data-action="skip"]').isDisabled(), true);
+  await b.locator('[data-card="letra-C"]').click();
+  await b.locator('#debt-input').fill('AB');
+  await b.locator('#confirm-debt').click();
   for (const page of [a, b]) await waitFor(() => page.locator('[data-action="challenge"]').isEnabled());
   assert.equal((await current()).game.letterDebt.count, 0);
-  await b.locator('[data-action="challenge"]').click();
-  await b.locator('#toast').filter({ hasText: 'palavra está vazia' }).waitFor();
-  await b.locator('[data-card="letra-C"]').click();
-  await a.locator('.word-display').filter({ hasText: 'C' }).waitFor();
   await a.locator('[data-action="challenge"]').click();
   await b.locator('#challenge-dialog').waitFor();
   assert.equal((await current()).game.challenge.challengedId, (await current()).players[1].id);
@@ -53,7 +53,7 @@ test('desafio cancela a escolha de carta, transmite a prévia e revela os votos 
   assert.deepEqual((await current()).players.map((p) => p.hand), before.players.map((p) => p.hand));
   assert.equal(await b.locator('#challenge-input').evaluate((input) => input.readOnly), true);
   assert.equal(await a.locator('[data-action="draw"]').isDisabled(), true);
-  assert.equal(await a.locator('[data-action="lose"]').isDisabled(), true);
+  assert.equal(await a.locator('[data-action="skip"]').isDisabled(), true);
   await a.locator('#challenge-input').fill('t1óo');
   assert.equal(await a.locator('#challenge-input').inputValue(), 'TO');
   await b.locator('#challenge-word').filter({ hasText: 'CATO' }).waitFor();
@@ -86,7 +86,7 @@ test('desafio cancela a escolha de carta, transmite a prévia e revela os votos 
   assert.equal(after.game.letterDebt.count, 0);
   assert.equal(after.game.turnPlayerId, before.game.turnPlayerId);
   assert.equal(after.players[0].hand.length, before.players[0].hand.length + 4);
-  assert.equal(after.game.canLose, false);
+
   await c.locator('[data-action="challenge"]').click();
   await c.locator('#toast').filter({ hasText: 'palavra está vazia' }).waitFor();
   assert.deepEqual(await current(), after);
