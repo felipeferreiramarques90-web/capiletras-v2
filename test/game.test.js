@@ -1,8 +1,9 @@
 import test from 'node:test';
+import { resolvePendingVictory } from '../game/victory.js';
 import assert from 'node:assert/strict';
 import {
   createDeck, createRoom, joinRoom, updateSettings, startGame, drawCard, playCard,
-  loseRound, disconnectPlayer, returnToLobby, removeFromLobby, roomView, allowedLetters, playableLetters, isCardPlayable, shouldDeleteRoom,
+  skipTurn, disconnectPlayer, returnToLobby, removeFromLobby, roomView, allowedLetters, playableLetters, isCardPlayable, shouldDeleteRoom,
 } from '../game/game.js';
 import { CARD_TYPES, DECK_SIZE, RULES, maxInitialCards } from '../game/config.js';
 import { MemoryStorage } from '../storage/memory.js';
@@ -17,8 +18,8 @@ function lobby(count = 2, hand = 5) {
 const playing = (count = 2, hand = 5) => startGame(lobby(count, hand), 'p1', random);
 const firstPlay = (room, id = room.game.turnPlayerId) => {
   const hand = room.players.find((p) => p.id === id).hand;
-  const card = hand.find((c) => !['double', 'pass'].includes(c.type) && !CARD_TYPES[c.type].protectsFromLoss && isCardPlayable(c, room.game)) || hand.find((c) => isCardPlayable(c, room.game));
-  if (!card) return loseRound(room, id, random);
+  const card = hand.find((c) => !['double', 'pass'].includes(c.type) && !CARD_TYPES[c.type].protectsFromChallenge && isCardPlayable(c, room.game)) || hand.find((c) => isCardPlayable(c, room.game));
+  if (!card) return skipTurn(room, id, random);
   const usesLetters = !['double', 'pass'].includes(card.type);
   const debt = room.game.letterDebt.playerId === id ? room.game.letterDebt.count : 0;
   const payment = usesLetters ? (room.game.blockedLetter === 'A' ? 'B' : 'A').repeat(debt) : '';
@@ -120,63 +121,6 @@ test('letra fixa vem da carta, sem permitir que o cliente altere seu valor', () 
   assert.equal(playCard(room, 'p1', 'letra-A', 'Z').game.word, 'A');
 });
 
-test('PERDI só pertence ao último jogador, antes de o próximo jogar', () => {
-  let room = playing();
-  assert.throws(() => loseRound(room, 'p1', random), /última carta/);
-  room = firstPlay(room, 'p1');
-  assert.equal(roomView(room, 'p1').game.canLose, true);
-  assert.equal(roomView(room, 'p2').game.canLose, false);
-  assert.throws(() => loseRound(room, 'p2', random), /última carta/);
-  const penalty = loseRound(room, 'p1', random);
-  assert.equal(penalty.players[0].hand.length, room.players[0].hand.length + 4);
-  assert.equal(penalty.game.word, '');
-  assert.equal(penalty.game.turnPlayerId, 'p2');
-  assert.throws(() => loseRound(penalty, 'p1', random), /última carta/);
-  room = firstPlay(room, 'p2');
-  assert.throws(() => loseRound(room, 'p1', random), /última carta/);
-  assert.doesNotThrow(() => loseRound(room, 'p2', random));
-});
-
-test('PERDI após a compra do próximo jogador mantém a vez e seu contador de compras', () => {
-  let room = firstPlay(playing());
-  room = drawCard(room, 'p2', random);
-  room = loseRound(room, 'p1', random);
-  assert.equal(room.game.drawsThisTurn, 1);
-  assert.equal(room.game.turnPlayerId, 'p2');
-  assert.throws(() => drawCard(room, 'p2', random), /já comprou/);
-});
-
-test('as 4 cartas do PERDI independem da compra opcional anterior do jogador', () => {
-  let room = drawCard(playing(), 'p1', random);
-  room = firstPlay(room);
-  room = loseRound(room, 'p1', random);
-  assert.equal(room.players[0].hand.length, 9);
-  assert.equal(room.game.drawsThisTurn, 0);
-  assert.equal(drawCard(room, 'p2', random).game.drawsThisTurn, 1);
-});
-
-test('reembaralha o descarte quando a pilha acaba, inclusive durante a penalidade', () => {
-  let room = playing(8, 5);
-  // Redistribui o excedente para manter 2 na pilha sem perder cartas.
-  room.players[0].hand.push(...room.game.deck.splice(0, room.game.deck.length - 2));
-  room = firstPlay(room);
-  const beforePenalty = room.players[0].hand.length;
-  room = drawCard(room, 'p2', random);
-  room = loseRound(room, 'p1', random); // Só há 2 cartas disponíveis.
-  assert.equal(room.players[0].hand.length, beforePenalty + 2);
-  assert.equal(room.game.deck.length, 0);
-  assert.equal(room.game.discard.length, 0);
-  assert.equal(roomView(room, 'p2').game.canDraw, false);
-  assert.equal(allCards(room).length, DECK_SIZE);
-  assert.equal(new Set(allCards(room).map((c) => c.id)).size, DECK_SIZE);
-  room = firstPlay(room, 'p2');
-  assert.equal(roomView(room, 'p3').game.canDraw, true);
-  const expected = room.game.discard[0].id;
-  room = drawCard(room, 'p3', random);
-  assert.equal(room.players[2].hand.at(-1).id, expected);
-  assert.equal(room.game.discard.length, 0);
-});
-
 test('compra falha quando não há pilha nem descarte', () => {
   const room = playing();
   room.game.deck = [];
@@ -184,15 +128,15 @@ test('compra falha quando não há pilha nem descarte', () => {
   assert.throws(() => drawCard(room, 'p1', random), /Não há cartas/);
 });
 
-test('esvaziar a mão encerra imediatamente e impede ações posteriores', () => {
+test('esvaziar a mão confirma vitória após a janela e impede ações posteriores', () => {
   const original = playing();
   original.players[0].hand = [original.players[0].hand[0]];
-  const room = firstPlay(original);
+  const room = resolvePendingVictory(firstPlay(original), 10_000);
   assert.equal(room.phase, 'finished');
   assert.equal(room.game.winnerId, 'p1');
-  assert.equal(roomView(room, 'p1').game.canLose, false);
+  assert.equal(roomView(room, 'p1').game.canSkipTurn, false);
   assert.throws(() => drawCard(room, 'p2', random), /andamento/);
-  assert.throws(() => loseRound(room, 'p1', random), /andamento/);
+  assert.throws(() => skipTurn(room, 'p1', random), /andamento/);
   assert.equal(startGame(room, 'p1', random).game.word, '');
   assert.equal(returnToLobby(room, 'p1').phase, 'lobby');
 });
@@ -269,7 +213,7 @@ test('partida completa preserva todas as 84 cartas e produz vencedor', () => {
   let room = playing(8, 3);
   let turns = 0;
   while (room.phase === 'playing' && turns++ < 150) {
-    room = firstPlay(room);
+    room = resolvePendingVictory(firstPlay(room), 10_000);
     assert.equal(allCards(room).length, DECK_SIZE);
     assert.equal(new Set(allCards(room).map((c) => c.id)).size, DECK_SIZE);
   }

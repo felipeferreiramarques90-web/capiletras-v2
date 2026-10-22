@@ -1,9 +1,10 @@
 import test from 'node:test';
+import { resolvePendingVictory } from '../game/victory.js';
 import assert from 'node:assert/strict';
 import { CARD_TYPES, DECK_SIZE, maxInitialCards } from '../game/config.js';
 import {
   createDeck, createRoom, joinRoom, updateSettings, startGame, playCard, drawCard,
-  loseRound, roomView, isCardPlayable, canLoseRound,
+  skipTurn, roomView, isCardPlayable, canSkipTurn,
 } from '../game/game.js';
 
 const random = () => 0.25;
@@ -100,19 +101,19 @@ test('2+* é jogável com visor vazio, sem jogada anterior e sob qualquer letra 
     const view = roomView(room, 'p1');
     assert.equal(isCardPlayable(room.players[0].hand[0], room.game), true);
     assert.equal(view.game.noPlayableCards, false);
-    assert.equal(view.game.canLose, false);
+    assert.equal(view.game.canSkipTurn, false);
     assert.ok(view.game.playableCardIds.includes('multi-0'));
   }
 });
 
-test('2+* como última carta vence normalmente e impede PERDI posterior', () => {
-  const room = playMulti(fixture({ hand: ['multi-0'] }), 'AR');
+test('2+* como última carta vence normalmente e impede Não consigo jogar posterior', () => {
+  const room = resolvePendingVictory(playMulti(fixture({ hand: ['multi-0'] }), 'AR'), 10_000);
   assert.equal(room.phase, 'finished');
   assert.equal(room.game.winnerId, 'p1');
   assert.equal(room.players[0].hand.length, 0);
   assert.equal(room.game.word, 'CASAR');
-  assert.equal(canLoseRound(room, 'p1'), false);
-  assert.throws(() => loseRound(room, 'p1', random), /andamento/);
+  assert.equal(canSkipTurn(room, 'p1'), false);
+  assert.throws(() => skipTurn(room, 'p1', random), /andamento/);
 });
 
 test('2x após 2+* força seu autor a jogar de novo e preserva todas as letras adicionadas', () => {
@@ -123,20 +124,4 @@ test('2x após 2+* força seu autor a jogar de novo e preserva todas as letras a
   assert.deepEqual(room.game.extraTurns, ['p2']);
   room = playCard(room, 'p1', 'letra-B');
   assert.equal(room.game.turnPlayerId, 'p2');
-});
-
-test('PERDI após 2+* mantém a regra de último jogador e o contador de compra atual', () => {
-  let room = playMulti(fixture(), 'AR');
-  assert.equal(canLoseRound(room, 'p1'), true);
-  assert.equal(canLoseRound(room, 'p2'), false);
-  room = drawCard(room, 'p2', random);
-  const beforeHand = room.players[0].hand.length;
-  room = loseRound(room, 'p1', random);
-  assert.equal(room.players[0].hand.length, beforeHand + 4);
-  assert.equal(room.game.word, '');
-  assert.equal(room.game.turnPlayerId, 'p2');
-  assert.equal(room.game.drawsThisTurn, 1);
-  assert.equal(canLoseRound(room, 'p1'), false);
-  const afterPlay = playCard(playMulti(fixture(), 'AR'), 'p2', 'letra-C');
-  assert.equal(canLoseRound(afterPlay, 'p1'), false);
 });

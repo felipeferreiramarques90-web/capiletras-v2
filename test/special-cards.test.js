@@ -1,8 +1,9 @@
 import test from 'node:test';
+import { resolvePendingVictory } from '../game/victory.js';
 import assert from 'node:assert/strict';
 import {
   createDeck, createRoom, joinRoom, updateSettings, startGame, playCard, drawCard,
-  loseRound, canLoseRound, isCardPlayable, playableLetters, roomView, disconnectPlayer,
+  skipTurn, canSkipTurn, isCardPlayable, playableLetters, roomView, disconnectPlayer,
 } from '../game/game.js';
 
 const random = () => 0.3;
@@ -21,7 +22,7 @@ function scenario({ hands = [['A', 'B', 'C'], ['D', 'E', 'F'], ['G', 'H', 'I']],
   room = startGame(room, 'p1', random);
   room.players.forEach((p, i) => { p.hand = hands[i].map(card); });
   Object.assign(room.game, { word, lastPlayerId: last, turnPlayerId: `p${turn + 1}`, blockedLetter: blocked,
-    canLose: last !== null, deck: supply.map(card), discard: discard.map(card) });
+    deck: supply.map(card), discard: discard.map(card) });
   return room;
 }
 const play = (room, key, letter, blocked) => playCard(room, room.game.turnPlayerId, card(key).id, letter, blocked);
@@ -143,30 +144,6 @@ test('letras fixas, coringas, restritivas e Troca consomem normalmente o bloquei
   }
 });
 
-test('PERDI continua cancelando o bloqueio durante uma cadeia de 2x', () => {
-  let room = scenario({ hands: [['block', 'double:1', 'A'], ['double', 'B', 'C']] });
-  room = play(play(play(room, 'block', 'X', 'A'), 'double'), 'double:1');
-  const pending = [...room.game.extraTurns];
-  room = loseRound(room, 'p1', random);
-  assert.equal(room.game.blockedLetter, null);
-  assert.equal(room.game.word, '');
-  assert.equal(room.game.turnPlayerId, 'p2');
-  assert.deepEqual(room.game.extraTurns, pending);
-});
-
-test('PERDI de qualquer caso elegível cancela o bloqueio e avisa todos', () => {
-  let room = scenario({ hands: [['B'], ['A']], last: 'p1', turn: 1, word: 'CAS', blocked: 'A' });
-  assert.equal(canLoseRound(room, 'p1'), true);
-  assert.equal(canLoseRound(room, 'p2'), true);
-  for (const id of ['p1', 'p2']) {
-    const next = loseRound(room, id, random);
-    assert.equal(next.game.word, '');
-    assert.equal(next.game.blockedLetter, null);
-    assert.equal(next.game.turnPlayerId, 'p2');
-    assert.match(next.notice, /bloqueio.*cancelado/);
-  }
-});
-
 test('2x não pode ser a primeira jogada, mesmo com uma letra forjada no payload', () => {
   const room = scenario({ hands: [['double', 'A'], ['B']] });
   assert.equal(isCardPlayable(card('double'), room.game), false);
@@ -183,7 +160,7 @@ test('2x: jogador anterior repete, autor recebe novo turno, depois segue a ordem
   assert.deepEqual(room.game.extraTurns, ['p2']);
   assert.equal(room.game.drawsThisTurn, 0);
   assert.match(room.notice, /2x/);
-  assert.equal(canLoseRound(room, 'p2'), true);
+  assert.equal(canSkipTurn(room, 'p2'), false);
   room = play(room, 'A');
   assert.equal(room.game.turnPlayerId, 'p2');
   assert.equal(room.game.drawsThisTurn, 0);
@@ -212,24 +189,7 @@ test('2x como última carta vence sem iniciar turnos extras', () => {
   assert.equal(room.game.winnerId, 'p2');
   assert.deepEqual(room.game.extraTurns, []);
   assert.equal(room.game.word, 'A');
-  assert.equal(canLoseRound(room, 'p2'), false);
-});
-
-test('2x ainda é válido após PERDI zerar a palavra: histórico não é apagado', () => {
-  let room = scenario({ hands: [['A', 'B'], ['double', 'C']], word: 'A', last: 'p1', turn: 1 });
-  room = loseRound(room, 'p1', random);
-  assert.equal(room.game.word, '');
-  assert.equal(isCardPlayable(card('double'), room.game), true);
-  assert.equal(play(room, 'double').game.turnPlayerId, 'p1');
-});
-
-test('PERDI durante 2x mantém a pilha de retornos e o turno atual', () => {
-  let room = play(scenario({ hands: [['A', 'B'], ['double', 'C']], word: 'A', last: 'p1', turn: 1 }), 'double');
-  const pending = [...room.game.extraTurns];
-  room = loseRound(room, 'p2', random);
-  assert.deepEqual(room.game.extraTurns, pending);
-  assert.equal(room.game.turnPlayerId, 'p1');
-  assert.equal(play(room, 'A').game.turnPlayerId, 'p2');
+  assert.equal(canSkipTurn(room, 'p2'), false);
 });
 
 test('desconexão durante 2x pula o forçado ou o retorno sem perder a ordem normal', () => {
@@ -246,7 +206,7 @@ test('desconexão durante 2x pula o forçado ou o retorno sem perder a ordem nor
 
 test('vencer no turno forçado do 2x encerra e limpa os retornos pendentes', () => {
   let room = play(scenario({ hands: [['A'], ['double', 'B']], last: 'p1', turn: 1 }), 'double');
-  room = play(room, 'A');
+  room = resolvePendingVictory(play(room, 'A'), 10_000);
   assert.equal(room.phase, 'finished');
   assert.equal(room.game.winnerId, 'p1');
   assert.deepEqual(room.game.extraTurns, []);
@@ -258,89 +218,45 @@ for (const [name, hands, blocked] of [
   ['2x sem jogada anterior', [['double'], ['A']], null],
   ['letra fixa bloqueada', [['A'], ['B']], 'A'],
 ]) {
-  test(`PERDI fica habilitado imediatamente sem compra: ${name}`, () => {
+  test(`Não consigo jogar fica habilitado imediatamente sem compra: ${name}`, () => {
     const room = scenario({ hands, blocked });
     const view = roomView(room, 'p1');
-    assert.equal(view.game.canLose, true);
+    assert.equal(view.game.canSkipTurn, true);
     assert.equal(view.game.canDraw, true);
     assert.equal(view.game.noPlayableCards, true);
     assert.equal(room.game.drawsThisTurn, 0);
-    const next = loseRound(room, 'p1', random);
+    const next = skipTurn(room, 'p1', random);
     assert.equal(next.players[0].hand.length, 5);
-    assert.equal(next.game.turnPlayerId, 'p1');
+    assert.equal(next.game.turnPlayerId, 'p2');
     assert.equal(next.game.drawsThisTurn, 0);
     assert.equal(next.game.word, '');
     assert.equal(next.game.blockedLetter, null);
   });
 }
 
-test('compra opcional pode trazer uma carta jogável e desabilitar o PERDI sem passar a vez', () => {
+test('compra opcional pode trazer uma carta jogável e desabilitar o Não consigo jogar sem passar a vez', () => {
   const original = scenario({ hands: [['swap'], ['B']], supply: ['A'] });
   const room = drawCard(original, 'p1', random);
-  assert.equal(canLoseRound(room, 'p1'), false);
+  assert.equal(canSkipTurn(room, 'p1'), false);
   assert.equal(roomView(room, 'p1').game.canDraw, false);
   assert.equal(room.game.turnPlayerId, 'p1');
   assert.equal(play(room, 'A').game.word, 'A');
-  assert.throws(() => loseRound(room, 'p1', random), /sem carta jogável/);
+  assert.throws(() => skipTurn(room, 'p1', random), /sem carta jogável/);
 });
 
-test('comprar uma carta injogável mantém PERDI, sem compras extras ou passagem automática', () => {
+test('comprar uma carta injogável mantém Não consigo jogar, sem compras extras ou passagem automática', () => {
   const room = drawCard(scenario({ hands: [['swap'], ['B']], supply: ['swap:1'] }), 'p1', random);
   assert.equal(room.game.turnPlayerId, 'p1');
   assert.equal(room.game.drawsThisTurn, 1);
-  assert.equal(canLoseRound(room, 'p1'), true);
+  assert.equal(canSkipTurn(room, 'p1'), true);
   assert.throws(() => drawCard(room, 'p1', random), /já comprou/);
 });
 
-test('PERDI continua habilitado após penalidade se a mão continuar injogável e ainda houver compra', () => {
-  const original = scenario({ hands: [['swap'], ['B']], supply: ['A', 'swap:1', 'swap:2', 'swap:3', 'swap:4'] });
-  const room = loseRound(original, 'p1', random);
-  assert.equal(room.players[0].hand.length, 5);
-  assert.equal(room.game.turnPlayerId, 'p1');
-  assert.equal(canLoseRound(room, 'p1'), true);
-  assert.equal(roomView(room, 'p1').game.canDraw, true);
-  assert.equal(loseRound(room, 'p1', random).game.turnPlayerId, 'p1');
-});
-
-test('PERDI sem pilha nem descarte zera a palavra, cancela bloqueio e passa se ainda injogável', () => {
-  // A letra continua bloqueada inicialmente; cancelar o bloqueio a libera e mantém o turno.
-  let room = scenario({ hands: [['A'], ['B']], word: 'CAS', blocked: 'A', supply: [] });
-  room = loseRound(room, 'p1', random);
-  assert.equal(room.game.word, '');
-  assert.equal(room.game.blockedLetter, null);
-  assert.equal(room.game.turnPlayerId, 'p1');
-  // Sem histórico, só 2x: nada pode ser jogado mesmo após zerar o visor.
-  room = loseRound(scenario({ hands: [['double'], ['A']], word: 'CAS', supply: [] }), 'p1', random);
-  assert.equal(room.game.word, '');
-  assert.equal(room.game.turnPlayerId, 'p2');
-  assert.match(room.notice, /vez passou/);
-  assert.equal(room.players[0].hand.length, 1);
-});
-
-test('PERDI passa após esgotar as cartas se a penalidade não trouxe carta jogável', () => {
-  const room = loseRound(scenario({ hands: [['swap'], ['A']], supply: ['swap:1', 'swap:2'] }), 'p1', random);
+test('Não consigo jogar passa após esgotar as cartas se a penalidade não trouxe carta jogável', () => {
+  const room = skipTurn(scenario({ hands: [['swap'], ['A']], supply: ['swap:1', 'swap:2'] }), 'p1', random);
   assert.equal(room.players[0].hand.length, 3);
   assert.equal(room.game.turnPlayerId, 'p2');
   assert.equal(room.game.drawsThisTurn, 0);
-});
-
-test('disputa dos dois PERDI: só o primeiro da mesma versão é aceito, nas duas ordens', () => {
-  const original = scenario({ hands: [['B'], ['A']], last: 'p1', turn: 1, blocked: 'A', word: 'X' });
-  for (const [first, second] of [['p1', 'p2'], ['p2', 'p1']]) {
-    const version = original.game.version;
-    assert.equal(canLoseRound(original, first), true);
-    assert.equal(canLoseRound(original, second), true);
-    const room = loseRound(original, first, random, version);
-    assert.throws(() => loseRound(room, second, random, version), /mesa mudou/);
-  }
-});
-
-test('versão rejeita clique simultâneo antigo mesmo quando o PERDI continua habilitado', () => {
-  const original = scenario({ hands: [['B'], ['swap']], last: 'p1', turn: 1, supply: ['A', 'swap:1', 'swap:2', 'swap:3', 'swap:4'] });
-  const room = loseRound(original, 'p1', random, original.game.version);
-  assert.equal(canLoseRound(room, 'p2'), true);
-  assert.throws(() => loseRound(room, 'p2', random, original.game.version), /mesa mudou/);
-  assert.doesNotThrow(() => loseRound(room, 'p2', random, room.game.version));
 });
 
 test('a visão de possibilidades continua privada e o estado inteiro é JSON serializável', () => {

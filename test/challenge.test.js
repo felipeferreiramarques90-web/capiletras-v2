@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CHALLENGE_RULES, DECK_SIZE } from '../game/config.js';
-import { createDeck, createRoom, updateSettings, joinRoom, startGame, playCard, drawCard, loseRound,
+import { createDeck, createRoom, updateSettings, joinRoom, startGame, playCard, drawCard, skipTurn,
   roomView, disconnectPlayer, returnToLobby } from '../game/game.js';
 import { startChallenge, previewChallenge, confirmChallenge, voteChallenge, loseChallenge, resolveChallenge } from '../game/challenge.js';
 
@@ -15,7 +15,7 @@ function fixture(count = 3) {
   const cards = createDeck();
   room.players.forEach((p, i) => { p.hand = cards.splice(0, 3); });
   Object.assign(room.game, { deck: cards, discard: [], word: 'CA', lastLetterPlayerId: 'p1', lastPlayerId: 'p1',
-    turnPlayerId: 'p2', canLose: true, blockedLetter: 'K', letterDebt: { count: 0, playerId: null },
+    turnPlayerId: 'p2', blockedLetter: 'K', letterDebt: { count: 0, playerId: null },
     drawsThisTurn: 1, extraTurns: ['p3'] });
   return room;
 }
@@ -39,7 +39,7 @@ function assertReset(room, before, penalizedId) {
   assert.equal(room.game.blockedLetter, null);
   assert.equal(room.game.protectedPlayerId, null);
   assert.deepEqual(room.game.letterDebt, { count: 0, playerId: null });
-  assert.equal(room.game.canLose, false);
+
   assert.equal(room.game.turnPlayerId, before.game.turnPlayerId);
   assert.equal(room.game.turnNumber, before.game.turnNumber);
   assert.equal(room.game.drawsThisTurn, before.game.drawsThisTurn);
@@ -47,7 +47,7 @@ function assertReset(room, before, penalizedId) {
   const p = room.players.find((p) => p.id === penalizedId);
   assert.equal(p.hand.length, before.players.find((p) => p.id === penalizedId).hand.length + 4);
   assertUnchanged(room, () => startChallenge(room, 'p2', now + 60_000), /vazia/);
-  assert.equal(roomView(room, 'p1').game.canLose, false, 'Janela do último jogador fechada');
+  assert.equal(roomView(room, 'p1').game.canSkipTurn, false, 'Último jogador não ganha direito ao botão da mesa');
   assert.deepEqual(JSON.parse(JSON.stringify(room)), room);
 }
 
@@ -77,17 +77,6 @@ test('pagamento do débito libera um desafio normal contra quem adicionou as nov
   assert.equal(paid.game.letterDebt.count, 0);
   assert.equal(paid.game.word, 'CAABD');
   assert.equal(startChallenge(paid, 'p1', now).game.challenge.challengedId, 'p2');
-});
-
-test('PERDI zera o débito; volta a valer a restrição de visor vazio até a próxima letra', () => {
-  const room = fixture();
-  room.game.letterDebt = { count: 2, playerId: 'p2' };
-  hand(room, 'p2', ['letra-D', 'letra-E']);
-  const lost = loseRound(room, 'p1', random);
-  assert.equal(lost.game.letterDebt.count, 0);
-  assertUnchanged(lost, () => startChallenge(lost, 'p3', now), /palavra está vazia/);
-  const played = playCard(lost, 'p2', 'letra-D');
-  assert.equal(startChallenge(played, 'p1', now).game.challenge.challengedId, 'p2');
 });
 
 test('2x transfere o débito ao jogador forçado e continua impedindo o desafio para todos', () => {
@@ -147,12 +136,12 @@ test('desafio congela compras, jogadas, PERDI e versões anteriores, sem retirar
   assert.equal(room.game.challenge.completionDeadline, now + 30_000);
   assertUnchanged(room, () => drawCard(room, 'p2', random), /desafio/);
   assertUnchanged(room, () => playCard(room, 'p2', room.players[1].hand[0].id), /desafio/);
-  assertUnchanged(room, () => loseRound(room, 'p1', random), /desafio/);
+  assertUnchanged(room, () => skipTurn(room, 'p1', random), /desafio/);
   for (const p of room.players) {
     const view = roomView(room, p.id);
     assert.equal(view.game.canDraw, false);
     assert.equal(view.game.canPlay, false);
-    assert.equal(view.game.canLose, false);
+    assert.equal(view.game.canSkipTurn, false);
   }
   const reset = concede(room);
   assertUnchanged(reset, () => playCard(reset, 'p2', reset.players[1].hand[0].id, undefined, undefined, '', original.game.version), /mesa mudou/);

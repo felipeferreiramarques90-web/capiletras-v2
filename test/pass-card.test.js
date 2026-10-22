@@ -1,9 +1,10 @@
 import test from 'node:test';
+import { resolvePendingVictory } from '../game/victory.js';
 import assert from 'node:assert/strict';
 import { CARD_TYPES, DECK_SIZE, maxInitialCards } from '../game/config.js';
 import {
   createDeck, createRoom, joinRoom, updateSettings, startGame, playCard, drawCard,
-  loseRound, roomView, isCardPlayable, debtForPlayer, disconnectPlayer,
+  skipTurn, roomView, isCardPlayable, debtForPlayer, disconnectPlayer,
 } from '../game/game.js';
 
 const random = () => 0.25;
@@ -16,7 +17,7 @@ function fixture({ hands = [['pass-0', 'letra-B', 'letra-E'], ['pass-1', 'letra-
   const cards = createDeck(), used = new Set(hands.flat());
   room.players.forEach((p, i) => { p.hand = hands[i].map((id) => cards.find((card) => card.id === id)); });
   Object.assign(room.game, { deck: cards.filter((card) => !used.has(card.id)), word, blockedLetter,
-    turnPlayerId: turn, lastPlayerId: last, canLose: last !== null,
+    turnPlayerId: turn, lastPlayerId: last,
     letterDebt: { count: debt, playerId: debt ? turn : null } });
   return room;
 }
@@ -39,7 +40,7 @@ test('Passar letra é válida como primeira jogada, passa a vez e não consome B
   assert.equal(room.game.blockedLetter, 'K');
   assert.equal(room.game.turnPlayerId, 'p2');
   assert.deepEqual(room.game.letterDebt, { count: 1, playerId: 'p2' });
-  assert.equal(roomView(room, 'p1').game.canLose, true);
+  assert.equal(roomView(room, 'p1').game.canSkipTurn, false);
   assert.match(room.notice, /Passar letra.*Bia deve 1 letra/);
   assert.equal(original.players[0].hand.length, 3);
 });
@@ -173,21 +174,11 @@ test('jogador forçado usa Passar letra e retorna débito acrescido ao autor do 
   assert.equal(room.game.turnPlayerId, 'p3');
 });
 
-test('PERDI do último a jogar Passar letra zera débito, palavra e Bloqueio sem mudar a vez', () => {
-  const passed = play(fixture({ word: 'CAS', blockedLetter: 'K' }), 'pass-0');
-  const room = loseRound(passed, 'p1', random);
-  assert.deepEqual(room.game.letterDebt, { count: 0, playerId: null });
-  assert.equal(room.game.word, '');
-  assert.equal(room.game.blockedLetter, null);
-  assert.equal(room.game.turnPlayerId, 'p2');
-  assert.match(room.notice, /débito.*zerado/);
-});
-
 test('vitória com Passar letra e com pagamento da última carta', () => {
   const passWin = play(fixture({ hands: [['pass-0'], ['letra-C']] }), 'pass-0');
   assert.equal(passWin.phase, 'finished');
   assert.equal(passWin.game.winnerId, 'p1');
-  const payWin = play(fixture({ hands: [['letra-K'], ['letra-C']], debt: 2 }), 'letra-K', undefined, undefined, 'XY');
+  const payWin = resolvePendingVictory(play(fixture({ hands: [['letra-K'], ['letra-C']], debt: 2 }), 'letra-K', undefined, undefined, 'XY'), 10_000);
   assert.equal(payWin.phase, 'finished');
   assert.equal(payWin.game.word, 'XYK');
   assert.equal(payWin.game.letterDebt.count, 0);

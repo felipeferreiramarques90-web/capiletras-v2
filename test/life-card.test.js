@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { CARD_TYPES, DECK_SIZE, maxInitialCards } from '../game/config.js';
 import {
   createDeck, createRoom, joinRoom, startGame, updateSettings, playCard, drawCard,
-  loseRound, canLoseRound, roomView, isCardPlayable, disconnectPlayer,
+  skipTurn, canSkipTurn, roomView, isCardPlayable, disconnectPlayer,
 } from '../game/game.js';
 
 const random = () => 0.25;
@@ -102,29 +102,6 @@ test('consoante bloqueada não afeta as cinco vogais e a Vida ainda consome o bl
   }
 });
 
-test('PERDI é negado ao protegido sem modificar estado, mesmo após a compra do próximo', () => {
-  let room = playLife(fixture());
-  room = drawCard(room, 'p2', random);
-  assert.equal(room.game.canLose, true, 'a janela normal de último jogador continua aberta');
-  assert.equal(room.game.protectedPlayerId, 'p1');
-  assert.equal(canLoseRound(room, 'p1'), false);
-  assert.equal(roomView(room, 'p1').game.canLose, false);
-  assert.equal(roomView(room, 'p2').game.canLose, false, 'próximo jogador tem cartas jogáveis');
-  const before = structuredClone(room);
-  assert.throws(() => loseRound(room, 'p1', random), /Protegido pela Vida/);
-  assert.deepEqual(room, before);
-});
-
-test('próxima carta encerra a proteção e o PERDI volta a funcionar para a jogada seguinte', () => {
-  let room = playLife(fixture());
-  room = playCard(room, 'p2', 'letra-C');
-  assert.equal(room.game.protectedPlayerId, null);
-  assert.equal(room.game.turnPlayerId, 'p1');
-  room = playCard(room, 'p1', 'letra-B');
-  assert.equal(canLoseRound(room, 'p1'), true);
-  assert.doesNotThrow(() => loseRound(room, 'p1', random));
-});
-
 test('jogada inválida do próximo não encerra a proteção', () => {
   const room = playLife(fixture({ hands: [['life-0', 'letra-B'], ['life-1', 'letra-C']] }));
   const before = structuredClone(room);
@@ -137,7 +114,7 @@ test('outra Vida encerra a marca anterior e protege apenas seu novo autor', () =
   let room = playLife(fixture({ hands: [['life-0', 'letra-B'], ['life-1', 'letra-C']] }));
   room = playCard(room, 'p2', 'life-1', 'O');
   assert.equal(room.game.protectedPlayerId, 'p2');
-  assert.equal(roomView(room, 'p2').game.canLose, false);
+  assert.equal(roomView(room, 'p2').game.canSkipTurn, false);
   room = playCard(room, 'p1', 'letra-B');
   assert.equal(room.game.protectedPlayerId, null);
 });
@@ -148,43 +125,43 @@ test('Vida seguida de 2x encerra a proteção antes do turno forçado', () => {
   assert.equal(room.game.protectedPlayerId, null);
   assert.equal(room.game.turnPlayerId, 'p1');
   assert.deepEqual(room.game.extraTurns, ['p2']);
-  assert.equal(canLoseRound(room, 'p2'), true);
+  assert.equal(canSkipTurn(room, 'p2'), false);
   room = playCard(room, 'p1', 'letra-B');
-  assert.equal(canLoseRound(room, 'p1'), true);
+  assert.equal(canSkipTurn(room, 'p1'), false);
 });
 
-test('proteção não impede o PERDI do próximo jogador sem carta jogável', () => {
+test('Vida não interfere em Não consigo jogar do jogador da vez', () => {
   // Estado explícito da condição de exceção: só o autor da Vida é protegido.
   const room = fixture({ hands: [['letra-B'], ['letra-A']], word: 'CAS', blockedLetter: 'A' });
-  Object.assign(room.game, { lastPlayerId: 'p1', protectedPlayerId: 'p1', turnPlayerId: 'p2', canLose: true });
-  assert.equal(canLoseRound(room, 'p1'), false);
-  assert.equal(canLoseRound(room, 'p2'), true);
-  const next = loseRound(room, 'p2', random);
+  Object.assign(room.game, { lastPlayerId: 'p1', protectedPlayerId: 'p1', turnPlayerId: 'p2', });
+  assert.equal(canSkipTurn(room, 'p1'), false);
+  assert.equal(canSkipTurn(room, 'p2'), true);
+  const next = skipTurn(room, 'p2', random);
   assert.equal(next.players[1].hand.length, 5);
   assert.equal(next.game.word, '');
   assert.equal(next.game.blockedLetter, null);
-  assert.equal(next.game.turnPlayerId, 'p2');
-  assert.equal(next.game.protectedPlayerId, 'p1', 'PERDI não é uma carta jogada');
+  assert.equal(next.game.turnPlayerId, 'p1');
+  assert.equal(next.game.protectedPlayerId, null);
 });
 
 test('ao voltar a vez do autor, proteção termina mesmo sem uma carta intermediária', () => {
   const room = fixture({ hands: [['swap-0'], ['swap-1']] });
-  Object.assign(room.game, { lastPlayerId: 'p1', protectedPlayerId: 'p1', turnPlayerId: 'p2', canLose: true, deck: [], discard: [] });
-  const next = loseRound(room, 'p2', random);
+  Object.assign(room.game, { lastPlayerId: 'p1', protectedPlayerId: 'p1', turnPlayerId: 'p2', deck: [], discard: [] });
+  const next = skipTurn(room, 'p2', random);
   assert.equal(next.game.turnPlayerId, 'p1');
   assert.equal(next.game.protectedPlayerId, null);
   assert.equal(roomView(next, 'p1').game.noPlayableCards, true);
-  assert.equal(canLoseRound(next, 'p1'), true);
-  assert.doesNotThrow(() => loseRound(next, 'p1', random));
+  assert.equal(canSkipTurn(next, 'p1'), true);
+  assert.doesNotThrow(() => skipTurn(next, 'p1', random));
 });
 
-test('quando a vez volta normalmente, PERDI de jogador sem carta jogável está disponível', () => {
+test('quando a vez volta normalmente, Não consigo jogar está disponível sem carta jogável', () => {
   let room = playLife(fixture({ hands: [['life-0', 'letra-A'], ['letra-B', 'letra-C'], ['block-0', 'letra-D']] }));
   room = playCard(room, 'p2', 'letra-B');
   room = playCard(room, 'p3', 'block-0', 'X', 'A');
   assert.equal(room.game.turnPlayerId, 'p1');
   assert.equal(room.game.protectedPlayerId, null);
-  assert.equal(canLoseRound(room, 'p1'), true);
+  assert.equal(canSkipTurn(room, 'p1'), true);
 });
 
 test('Vida como última carta vence normalmente', () => {
@@ -192,8 +169,8 @@ test('Vida como última carta vence normalmente', () => {
   assert.equal(room.phase, 'finished');
   assert.equal(room.game.winnerId, 'p1');
   assert.equal(room.players[0].hand.length, 0);
-  assert.equal(canLoseRound(room, 'p1'), false);
-  assert.throws(() => loseRound(room, 'p1', random), /andamento/);
+  assert.equal(canSkipTurn(room, 'p1'), false);
+  assert.throws(() => skipTurn(room, 'p1', random), /andamento/);
 });
 
 test('a proteção é JSON serializável, sobrevive à reconexão e não expõe mãos', () => {
@@ -203,7 +180,7 @@ test('a proteção é JSON serializável, sobrevive à reconexão e não expõe 
   assert.equal(room.game.protectedPlayerId, 'p1');
   const view = roomView(room, 'p1');
   assert.equal(view.game.protectedPlayerId, 'p1');
-  assert.equal(view.game.canLose, false);
+  assert.equal(view.game.canSkipTurn, false);
   assert.ok(view.players.every((p) => !p.hand && !p.sessionId));
   assert.deepEqual(JSON.parse(JSON.stringify(room)), room);
 });
