@@ -66,6 +66,30 @@
         <div class="multi-actions"><button type="submit" class="button primary full" id="confirm-debt" disabled>Continuar <span aria-hidden="true">→</span></button></div>
       </form>
     </dialog>
+    <dialog id="challenge-dialog" class="text-entry-dialog" aria-labelledby="challenge-title">
+      <form id="challenge-form" class="text-entry-form" novalidate>
+        <div class="multi-body">
+          <div class="dialog-heading"><span class="eyebrow">A PALAVRA ESTÁ EM JOGO</span><button type="button" class="icon-button" id="close-challenge" aria-label="Fechar desafio">×</button></div>
+          <h2 id="challenge-title">Completar a palavra</h2>
+          <p id="challenge-description" class="muted"></p>
+          <p id="challenge-timer" class="challenge-timer" role="timer" aria-label="Tempo restante"></p>
+          <div class="multi-preview-box"><span class="eyebrow">PALAVRA COMPLETA</span><div id="challenge-word" class="multi-preview" aria-live="polite"></div></div>
+          <div id="challenge-edit">
+            <label for="challenge-input">Letras a acrescentar <output id="challenge-count" for="challenge-input"></output></label>
+            <input id="challenge-input" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="done" aria-describedby="challenge-help">
+            <p id="challenge-help" class="field-hint">Você pode acrescentar nenhuma letra. As letras são livres e não consomem o Bloqueio.</p>
+          </div>
+          <p id="challenge-progress" class="challenge-progress" aria-live="polite"></p>
+          <div id="challenge-votes"></div>
+        </div>
+        <div class="multi-actions challenge-actions">
+          <button type="submit" class="button primary" id="challenge-ok">OK</button>
+          <button type="button" class="button lose-button" id="challenge-loss">PERDI</button>
+          <div id="challenge-vote-actions"><button type="button" class="button primary" data-vote="sim">Sim</button><button type="button" class="button secondary" data-vote="nao">Não</button></div>
+          <p id="challenge-action-help" class="field-hint"></p>
+        </div>
+      </form>
+    </dialog>
     <dialog id="rules-dialog" aria-labelledby="rules-title">
       <div class="dialog-heading"><span class="eyebrow">O COMBINADO DA MESA</span><button type="button" class="icon-button" id="close-rules" aria-label="Fechar regras">×</button></div>
       <h2 id="rules-title">Uma letra por vez.</h2>
@@ -80,6 +104,7 @@
         <li><strong>Várias letras com 2+*.</strong> Digite pelo menos duas letras para adicionar ao visor. Sob bloqueio, só a primeira não pode ser a letra bloqueada; as demais podem repeti-la. A jogada consome o bloqueio.</li>
         <li><strong>Vida ❤️ — só vogais.</strong> Escolha A, E, I, O ou U e adicione ao visor. Uma vogal bloqueada fica indisponível; uma consoante bloqueada não afeta a Vida. Depois, seu PERDI fica bloqueado até outra carta ser jogada ou sua vez voltar. A restrição só vale para você: quem está na vez sem carta jogável continua podendo usar PERDI.</li>
         <li><strong>Passar letra →.</strong> Passe a vez sem colocar letra: o próximo deve uma letra a mais. Antes de jogar uma carta com letra, digite todas as acumuladas e só depois escolha a letra da carta. O 2x transfere o débito; PERDI o zera. Só a primeira letra acumulada respeita o Bloqueio.</li>
+        <li><strong>Duvidar da palavra.</strong> Desafie quem colocou a última letra (2x e Passar letra não contam). A Vida protege seu autor. O desafiado tem 30 segundos para acrescentar até 16 letras livres e usar OK ou PERDI. Os demais votam em 15 segundos: fechar, desconectar ou não responder conta como Sim. Metade ou mais de Não recusa a palavra. Aceita: o desafiante compra 4 cartas; recusada ou prazo esgotado: o desafiado usa PERDI em até 10 segundos, ou ele é automático. Todo desafio zera palavra, débito, bloqueio e proteção, mantendo a vez.</li>
         <li><strong>Travou? PERDI.</strong> Quem jogou a última carta pode usar até a próxima jogada. Quem está na vez sem carta jogável também pode usar, sem precisar comprar antes. Compra até 4 cartas, zera a palavra e o débito, e cancela o bloqueio; a vez só passa se ainda não houver carta jogável nem cartas para comprar.</li>
         <li><strong>Mão vazia, vitória.</strong> Ganha quem baixar a última carta primeiro.</li>
       </ol>

@@ -19,6 +19,10 @@
   let selectedBlock = null;
   let pendingDebtLetters = '';
   let pendingDebtVersion = null;
+  let challengeDialogId = null;
+  let dismissedChallengePhase = null;
+  let challengePreviewTimer;
+  let serverClockOffset = 0;
   let deckInfo = null;
   let toastTimer;
   const socket = io({ reconnection: true, reconnectionDelay: 800, reconnectionDelayMax: 5000 });
@@ -81,11 +85,13 @@
   socket.on('disconnect', () => { closeLetters(); connection(); render(); });
   socket.on('room:state', (state) => {
     room = state;
+    if (Number.isFinite(state.serverNow)) serverClockOffset = state.serverNow - Date.now();
     deckInfo = state.config;
     updateDeckSummary();
     storage.set('room', state.code);
     if (selectedCard) {
-      if (pendingDebtVersion !== null && room.game?.version !== pendingDebtVersion) {
+      if (room.game?.challenge) { closeLetters(); }
+      else if (pendingDebtVersion !== null && room.game?.version !== pendingDebtVersion) {
         closeLetters();
         toast('A mesa mudou. Escolha sua carta novamente.');
       } else if (!room.game?.canPlay || !room.game.playableCardIds.includes(selectedCard.id)) closeLetters();
@@ -115,6 +121,7 @@
     else if (room.phase === 'lobby') app.innerHTML = lobby();
     else if (room.phase === 'finished') app.innerHTML = victory();
     else app.innerHTML = table();
+    renderChallenge();
   }
 
   function home() {
@@ -163,12 +170,13 @@
     const ordered = [...room.players.slice(meIndex + 1), ...room.players.slice(0, meIndex)];
     return `<section class="game-layout">${roomBar('PALAVRAS SE CONSTROEM EM BOA COMPANHIA')}
       <div class="opponents">${ordered.map((p) => { const i = room.players.findIndex((item) => item.id === p.id); return `<div class="opponent ${p.id === game.turnPlayerId ? 'active' : ''} ${!p.connected ? 'offline-player' : ''}">${avatar(p, i)}<div><strong>${escape(p.name)}</strong><span>${p.left ? 'Saiu da sala' : !p.connected ? 'Reconectando…' : `${p.cardCount} carta${p.cardCount === 1 ? '' : 's'}`}</span></div><span class="mini-cards" aria-hidden="true">▥</span></div>`; }).join('')}</div>
-      <div class="turn-bar ${myTurn ? 'your-turn' : ''}" role="status"><span class="status-dot connected"></span>${!socket.connected ? 'Reconectando… Suas cartas estão guardadas.' : game.paused ? 'Partida pausada · aguardando outro jogador reconectar' : game.turnPlayerId === room.meId ? (game.noPlayableCards ? 'Sem carta jogável. Você pode usar PERDI ou comprar uma carta.' : 'É a sua vez! Escolha uma carta para jogar.') : `Vez de ${escape(current?.name)}. Prepare sua próxima letra.`}<span class="turn-number">TURNO ${game.turnNumber}</span></div>${game.paused && isHost() ? `<div class="paused-actions"><button class="text-button" data-action="end" ${disabled(!canAct())}>Encerrar partida e voltar à sala →</button></div>` : ''}
+      <div class="turn-bar ${myTurn ? 'your-turn' : ''}" role="status"><span class="status-dot connected"></span>${!socket.connected ? 'Reconectando… Suas cartas estão guardadas.' : game.challenge ? 'Desafio em andamento · a partida aguarda o resultado.' : game.paused ? 'Partida pausada · aguardando outro jogador reconectar' : game.turnPlayerId === room.meId ? (game.noPlayableCards ? 'Sem carta jogável. Você pode usar PERDI ou comprar uma carta.' : 'É a sua vez! Escolha uma carta para jogar.') : `Vez de ${escape(current?.name)}. Prepare sua próxima letra.`}<span class="turn-number">TURNO ${game.turnNumber}</span></div>${game.paused && !game.challenge && isHost() ? `<div class="paused-actions"><button class="text-button" data-action="end" ${disabled(!canAct())}>Encerrar partida e voltar à sala →</button></div>` : ''}
       <section class="table-felt" aria-label="Centro da mesa"><div class="felt-caption">CAPILETRAS · A MESA É DE TODOS</div>
         <div class="table-center"><button class="draw-pile ${game.canDraw ? 'available' : ''}" data-action="draw" ${disabled(!game.canDraw || !canAct())} aria-label="Comprar uma carta. ${game.deckCount} cartas na pilha, ${game.discardCount} para reembaralhar."><span class="deck-back" aria-hidden="true"><span>c<span>*</span></span></span><strong>COMPRAR</strong><small>${game.deckCount} na pilha${game.discardCount ? ` · ${game.discardCount} jogadas` : ''}</small></button>
         <div class="word-area"><span class="eyebrow">NOSSA PALAVRA</span><div class="word-display ${game.word ? '' : 'word-empty'}" aria-label="Palavra atual: ${escape(game.word || 'vazia')}">${game.word ? escape(game.word) : 'A primeira letra é com você.'}</div><p>${game.word ? `${game.word.length} letra${game.word.length === 1 ? '' : 's'} e contando…` : 'Uma carta é tudo que precisa para começar.'}</p>${game.blockedLetter ? `<div class="block-badge" role="status">➕🚫 Letra bloqueada: <strong>${game.blockedLetter}</strong><span>até a próxima jogada com letra</span></div>` : ''}${game.letterDebt.count ? `<div class="debt-badge" role="status"><span aria-hidden="true">→</span> ${escape(room.players.find((p) => p.id === game.letterDebt.playerId)?.name)} deve ${game.letterDebt.count} letra${game.letterDebt.count === 1 ? '' : 's'}</div>` : ''}${game.extraTurns.length ? `<p class="extra-turn-notice">2x ativo · retorno para ${escape(room.players.find((p) => p.id === game.extraTurns.at(-1))?.name)}</p>` : ''}</div>
         <div class="lose-area"><button class="button lose-button" data-action="lose" aria-describedby="loss-help" title="${protectedByLife ? 'Protegido pela Vida' : 'PERDI'}" ${disabled(!game.canLose || !canAct())}>PERDI <span aria-hidden="true">↺</span></button><p id="loss-help">${protectedByLife ? '<span class="life-protection">Protegido pela Vida ❤️</span>' : `Compre até ${room.config.lossPenalty} cartas.<br>Zere palavra, bloqueio e débito.`}</p></div></div>
-        <p class="table-notice" role="status">${escape(room.notice)}</p>
+        <div class="challenge-table-actions"><button class="button challenge-button" data-action="challenge" ${disabled(!canAct() || Boolean(game.challenge))}>Duvidar da palavra <span aria-hidden="true">?</span></button>${game.challenge ? '<button class="text-button" data-action="challenge-view">Acompanhar desafio →</button>' : ''}</div>
+        <p class="table-notice" role="status">${escape(room.notice)}</p>${game.challengeResult ? `<section class="challenge-result" aria-label="Resultado do desafio"><strong>Resultado do desafio</strong><p>Palavra: ${escape(game.challengeResult.word)}</p>${challengeVotesMarkup(game.challengeResult)}</section>` : ''}
       </section>
       <section class="hand-section" aria-label="Sua mão"><div class="hand-heading"><div><span class="eyebrow">SUAS POSSIBILIDADES</span><h2>Sua mão <span>${room.hand.length} carta${room.hand.length === 1 ? '' : 's'}</span></h2></div><p>${game.drawsThisTurn && game.turnPlayerId === room.meId ? (game.noPlayableCards ? 'Você já comprou e segue sem carta jogável. Use PERDI.' : 'Você já comprou. Agora, baixe uma carta.') : !game.availableCount ? 'Sem cartas para comprar. Escolha uma da mão.' : `Compre até ${room.config.maxDrawsPerTurn} carta por turno, se quiser.`}</p></div>
       <div class="hand-cards">${room.hand.map((card) => cardButton(card, myTurn && game.playableCardIds.includes(card.id))).join('')}</div><p class="hand-note">${myTurn ? (game.noPlayableCards ? 'Sem carta jogável: use PERDI ou compre, se quiser.' : 'Clique em uma carta para jogar.') : 'Sua mão é visível só para você.'} PERDI: última carta jogada ou sua vez sem carta jogável.</p></section>
@@ -261,7 +269,7 @@
   function fitTextDialogs() {
     const viewport = window.visualViewport;
     const height = viewport?.height || innerHeight;
-    for (const id of ['multi-dialog', 'debt-dialog']) {
+    for (const id of ['multi-dialog', 'debt-dialog', 'challenge-dialog']) {
       const dialog = $(`#${id}`);
       if (!dialog.open) continue;
       dialog.style.setProperty('--modal-top', `${(viewport?.offsetTop || 0) + height / 2}px`);
@@ -270,7 +278,7 @@
   }
   window.visualViewport?.addEventListener('resize', () => {
     fitTextDialogs();
-    for (const id of ['multi-input', 'debt-input']) {
+    for (const id of ['multi-input', 'debt-input', 'challenge-input']) {
       if (document.activeElement === $(`#${id}`)) requestAnimationFrame(() => $(`#${id}`).scrollIntoView({ block: 'nearest' }));
     }
   });
@@ -295,7 +303,7 @@
     $('#confirm-debt').disabled = !canAct() || !room.game.canPlay || !valid;
   }
   async function submitSelectedCard(letter, blockedLetter) {
-    const data = { cardId: selectedCard.id, letter, blockedLetter, accumulatedLetters: pendingDebtLetters };
+    const data = { version: room.game.version, cardId: selectedCard.id, letter, blockedLetter, accumulatedLetters: pendingDebtLetters };
     closeLetters();
     await send('game:play', data);
   }
@@ -392,6 +400,8 @@
         if (!name.trim()) { toast('Primeiro, conte como podemos te chamar.'); $('#player-name').focus(); return; }
         await send('room:create', { sessionId, name }); break;
       case 'start': await send('game:start'); break;
+      case 'challenge': await send('challenge:start'); break;
+      case 'challenge-view': dismissedChallengePhase = null; renderChallenge(); break;
       case 'draw': await send('game:draw'); break;
       case 'lose': await send('game:lose', { version: room.game.version }); break;
       case 'lobby': await send('room:lobby'); break;
@@ -408,6 +418,122 @@
         break;
     }
   });
+
+  function challengeVotesMarkup(result) {
+    const tally = result.tally;
+    if (!tally) return '<p>Desafio encerrado sem votação.</p>';
+    return `<p>${tally.rejected ? 'Palavra recusada' : 'Palavra aceita'} · ${tally.yes} Sim / ${tally.no} Não</p><ul class="challenge-vote-list">${Object.entries(result.votes).map(([id, vote]) => `<li><span>${escape(room.players.find((p) => p.id === id)?.name || 'Jogador')}</span><strong>${vote === 'sim' ? 'Sim' : 'Não'}</strong></li>`).join('')}</ul>`;
+  }
+
+  const challengeNow = () => Date.now() + serverClockOffset;
+  function updateChallengeClock() {
+    const challenge = room?.game?.challenge;
+    if (!challenge) return;
+    const completing = challenge.phase === 'completando', voting = challenge.phase === 'votando';
+    const deadline = completing ? challenge.completionDeadline : voting ? challenge.voteDeadline : challenge.lossDeadline;
+    const remaining = Math.max(0, Math.ceil((deadline - challengeNow()) / 1000));
+    $('#challenge-timer').textContent = `${remaining}s · ${completing ? 'para completar' : voting ? 'para votar' : 'para usar PERDI'}`;
+    const mine = challenge.challengedId === room.meId;
+    $('#challenge-input').readOnly = !mine || !completing || remaining === 0 || !canAct();
+    $('#challenge-ok').disabled = !canAct() || !completing || remaining === 0;
+    $('#challenge-loss').disabled = !canAct() || voting;
+    for (const button of document.querySelectorAll('[data-vote]')) button.disabled = !canAct() || !challenge.canVote || remaining === 0;
+  }
+
+  function refreshChallengePreview() {
+    const challenge = room?.game?.challenge;
+    if (!challenge) return;
+    const text = challenge.challengedId === room.meId && challenge.phase === 'completando' ? $('#challenge-input').value : challenge.addedLetters;
+    $('#challenge-count').textContent = `${text.length}/${room.config.challenge.maxLetters}`;
+    $('#challenge-word').textContent = challenge.baseWord + text;
+  }
+
+  function renderChallenge() {
+    const challenge = room?.game?.challenge, dialog = $('#challenge-dialog');
+    if (!challenge) {
+      dialog.close();
+      challengeDialogId = null;
+      dismissedChallengePhase = null;
+      clearTimeout(challengePreviewTimer);
+      return;
+    }
+    closeLetters();
+    const mine = challenge.challengedId === room.meId;
+    const completing = challenge.phase === 'completando', voting = challenge.phase === 'votando';
+    if (challengeDialogId !== challenge.id) {
+      challengeDialogId = challenge.id;
+      dismissedChallengePhase = null;
+      $('#challenge-input').value = challenge.addedLetters;
+    } else if (!mine) $('#challenge-input').value = challenge.addedLetters;
+    const nameOf = (id) => room.players.find((p) => p.id === id)?.name || 'Jogador';
+    $('#challenge-title').textContent = completing ? 'Completar a palavra' : voting ? 'Aceitar palavra?' : challenge.reason === 'prazo' ? 'O tempo acabou' : 'Palavra recusada';
+    $('#challenge-description').textContent = `${nameOf(challenge.challengerId)} desafia ${nameOf(challenge.challengedId)} a completar a palavra. ${mine ? 'Você é o desafiado e não vota.' : 'Acompanhe a palavra em tempo real.'}`;
+    $('#challenge-input').maxLength = room.config.challenge.maxLetters;
+    $('#challenge-edit').hidden = !completing;
+    $('#challenge-ok').hidden = !mine || !completing;
+    $('#challenge-loss').hidden = !mine || voting;
+    $('#challenge-vote-actions').hidden = !voting || !challenge.canVote;
+    $('#close-challenge').hidden = mine && !voting;
+    $('#close-challenge').setAttribute('aria-label', voting && challenge.canVote ? 'Fechar votação e votar Sim' : 'Fechar acompanhamento do desafio');
+    $('#challenge-progress').textContent = voting ? `${challenge.respondedCount}/${challenge.voterCount} responderam. ${challenge.hasVoted ? 'Seu voto foi registrado.' : ''} Os votos ficam ocultos até o resultado.` : completing ? (mine ? 'Complete a palavra ou use PERDI.' : 'Só o desafiado pode completar ou usar PERDI.') : 'O desafiado deve usar PERDI. Ao fim do prazo, será automático.';
+    $('#challenge-votes').innerHTML = challenge.tally ? challengeVotesMarkup(challenge) : '';
+    $('#challenge-action-help').textContent = voting ? (mine ? 'Você não vota. Aguarde o resultado.' : challenge.hasVoted ? 'Aguarde os demais votantes.' : 'Fechar ou não responder conta como Sim.') : completing ? 'As ações da partida ficam suspensas durante o desafio.' : 'A mesa será zerada e a vez será mantida.';
+    refreshChallengePreview();
+    updateChallengeClock();
+    if (dismissedChallengePhase !== `${challenge.id}:${challenge.phase}` && !dialog.open) {
+      dialog.showModal();
+      fitTextDialogs();
+      if (mine && completing) $('#challenge-input').focus();
+    }
+  }
+
+  $('#challenge-input').addEventListener('input', () => {
+    const challenge = room?.game?.challenge;
+    if (!challenge || challenge.challengedId !== room.meId || challenge.phase !== 'completando') return;
+    const input = $('#challenge-input');
+    input.value = input.value.replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, room.config.challenge.maxLetters);
+    refreshChallengePreview();
+    clearTimeout(challengePreviewTimer);
+    const challengeId = challenge.id, letters = input.value;
+    challengePreviewTimer = setTimeout(async () => {
+      if (!socket.connected || room?.game?.challenge?.id !== challengeId || room.game.challenge.phase !== 'completando') return;
+      try {
+        const response = await socket.timeout(10_000).emitWithAck('challenge:preview', { challengeId, letters });
+        if (!response.ok && room?.game?.challenge?.id === challengeId && room.game.challenge.phase === 'completando') toast(response.error);
+      } catch { /* O OK envia o texto completo; uma prévia perdida não confirma a jogada. */ }
+    }, room.config.challenge.previewIntervalMs);
+  });
+  $('#challenge-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if ($('#challenge-ok').disabled || $('#challenge-ok').hidden) return;
+    clearTimeout(challengePreviewTimer);
+    await send('challenge:confirm', { challengeId: room.game.challenge.id, letters: $('#challenge-input').value });
+  });
+  $('#challenge-loss').addEventListener('click', async () => {
+    clearTimeout(challengePreviewTimer);
+    await send('challenge:lose', { challengeId: room.game.challenge.id });
+  });
+  for (const button of document.querySelectorAll('[data-vote]')) button.addEventListener('click', async () => {
+    await send('challenge:vote', { challengeId: room.game.challenge.id, vote: button.dataset.vote });
+  });
+  async function dismissChallenge() {
+    const challenge = room?.game?.challenge;
+    if (!challenge || (challenge.challengedId === room.meId && challenge.phase !== 'votando')) return;
+    dismissedChallengePhase = `${challenge.id}:${challenge.phase}`;
+    $('#challenge-dialog').close();
+    if (challenge.canVote) await send('challenge:vote', { challengeId: challenge.id, vote: 'sim' });
+  }
+  $('#close-challenge').addEventListener('click', dismissChallenge);
+  $('#challenge-dialog').addEventListener('cancel', (event) => { event.preventDefault(); void dismissChallenge(); });
+  $('#challenge-dialog').addEventListener('click', (event) => {
+    if (event.target !== event.currentTarget) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) void dismissChallenge();
+  });
+  setTimeout(function tickChallengeClock() {
+    updateChallengeClock();
+    setTimeout(tickChallengeClock, deckInfo?.challenge.tickMs || 1000);
+  }, 1000);
 
   $('#letter-grid').addEventListener('click', async (event) => {
     const button = event.target.closest('[data-letter]');
@@ -429,6 +555,6 @@
   $('#letter-dialog').addEventListener('cancel', closeLetters);
   $('#open-rules').addEventListener('click', () => $('#rules-dialog').showModal());
   $('#close-rules').addEventListener('click', () => $('#rules-dialog').close());
-  for (const dialog of document.querySelectorAll('dialog')) dialog.addEventListener('click', (event) => { if (event.target === dialog) { const rect = dialog.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) { if (dialog.id === 'rules-dialog') dialog.close(); else closeLetters(); } } });
+  for (const dialog of document.querySelectorAll('dialog:not(#challenge-dialog)')) dialog.addEventListener('click', (event) => { if (event.target === dialog) { const rect = dialog.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) { if (dialog.id === 'rules-dialog') dialog.close(); else closeLetters(); } } });
   render();
 })();

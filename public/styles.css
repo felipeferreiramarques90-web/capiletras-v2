@@ -349,3 +349,21 @@ dialog .muted { font-size: 12px; }
 .playing-card.card-black > strong { font-size: 45px; font-weight: 700; }
 .debt-badge { display: inline-flex; align-items: center; gap: 8px; background: var(--pass-card-background); color: #faf7f1; padding: 10px 14px; margin-top: 14px; border: 1px solid #6a737f; border-radius: 8px; font-size: 12px; overflow-wrap: anywhere; }
 .debt-badge > span { color: #6ae8f4; font-size: 24px; }
+
+.challenge-table-actions { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+.challenge-button { background: #efdab5; color: #45351f; border-color: #b99c67; min-height: 48px; }
+.challenge-button > span { font-family: Georgia, serif; font-size: 22px; }
+.challenge-timer { padding: 10px 12px; margin: 14px 0; border-radius: 8px; background: #e7eedf; font-size: 14px; font-variant-numeric: tabular-nums; font-weight: 700; }
+#challenge-edit { margin-top: 20px; }
+#challenge-input { font-size: 20px; letter-spacing: 2px; }
+#challenge-count { color: var(--muted); font-size: 12px; font-weight: 400; }
+.challenge-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.challenge-actions > .button { flex: 1; }
+#challenge-vote-actions { display: flex; gap: 12px; width: 100%; }
+#challenge-vote-actions > button { flex: 1; justify-content: center; font-size: 16px; }
+#challenge-action-help { width: 100%; }
+.challenge-progress { font-size: 12px; line-height: 1.6; margin: 18px 0 10px; }
+.challenge-result { max-width: 560px; margin: 18px auto 0; padding: 16px; color: #f4f1e5; border: 1px solid #879c7059; border-radius: 10px; font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.challenge-vote-list { list-style: none; padding: 0; margin: 12px 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 6px 18px; }
+.challenge-vote-list li { display: flex; justify-content: space-between; gap: 10px; overflow-wrap: anywhere; }
+#challenge-votes { font-size: 12px; line-height: 1.6; }

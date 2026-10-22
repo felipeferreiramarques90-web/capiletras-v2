@@ -3,12 +3,15 @@ import {
   GameError, createRoom, joinRoom, updateSettings, startGame, drawCard, playCard,
   loseRound, disconnectPlayer, returnToLobby, removeFromLobby, roomView, shouldDeleteRoom,
 } from '../game/game.js';
+import { CHALLENGE_RULES } from '../game/config.js';
+import { startChallenge, previewChallenge, confirmChallenge, voteChallenge, loseChallenge, resolveChallenge } from '../game/challenge.js';
 
 const random = () => randomInt(0, 2 ** 32) / 2 ** 32;
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const newCode = () => Array.from({ length: 6 }, () => CODE_CHARS[randomInt(CODE_CHARS.length)]).join('');
 
-export function registerSockets(io, storage, { cleanupIntervalMs = 60_000, randomSource = random } = {}) {
+export function registerSockets(io, storage, { cleanupIntervalMs = 60_000, randomSource = random,
+  nowSource = () => Date.now(), challengeIntervalMs = CHALLENGE_RULES.tickMs } = {}) {
   const owners = new Map();
   const queues = new Map();
   const ownerKey = (code, id) => `${code}:${id}`;
@@ -26,12 +29,12 @@ export function registerSockets(io, storage, { cleanupIntervalMs = 60_000, rando
   function broadcast(room) {
     for (const player of room.players.filter((p) => p.connected && !p.left)) {
       const target = io.sockets.sockets.get(owners.get(ownerKey(room.code, player.id)));
-      target?.emit('room:state', roomView(room, player.id));
+      target?.emit('room:state', { ...roomView(room, player.id), serverNow: nowSource() });
     }
   }
 
   async function save(room) {
-    room.updatedAt = Date.now();
+    room.updatedAt = nowSource();
     await storage.saveRoom(room);
     broadcast(room);
   }
@@ -82,7 +85,7 @@ export function registerSockets(io, storage, { cleanupIntervalMs = 60_000, rando
       await locked('__create__', async () => {
         let code;
         do { code = newCode(); } while (await storage.getRoom(code));
-        const room = createRoom({ ...credentials, code, now: Date.now() });
+        const room = createRoom({ ...credentials, code, now: nowSource() });
         await storage.saveRoom(room);
         bind(socket, room, credentials.sessionId);
         broadcast(room);
@@ -97,8 +100,8 @@ export function registerSockets(io, storage, { cleanupIntervalMs = 60_000, rando
       await locked(code, async () => {
         const previous = await storage.getRoom(code);
         if (!previous) throw new GameError('Sala não encontrada. Ela pode ter expirado ou o servidor reiniciado.');
-        const room = joinRoom(previous, credentials);
-        await storage.saveRoom({ ...room, updatedAt: Date.now() });
+        const room = resolveChallenge(joinRoom(previous, credentials), nowSource(), randomSource);
+        await storage.saveRoom({ ...room, updatedAt: nowSource() });
         bind(socket, room, credentials.sessionId);
         broadcast(room);
       });
@@ -109,16 +112,24 @@ export function registerSockets(io, storage, { cleanupIntervalMs = 60_000, rando
       if (!code) throw new GameError('Entre em uma sala primeiro.');
       await locked(code, async () => {
         if (owners.get(ownerKey(code, playerId)) !== socket.id) throw new GameError('Sua vaga foi retomada em outra aba.');
-        const room = await storage.getRoom(code);
+        let room = await storage.getRoom(code);
         if (!room) throw new GameError('Esta sala expirou. Crie uma nova sala.');
-        await save(reducer(room, playerId));
+        const settled = resolveChallenge(room, nowSource(), randomSource);
+        if (settled !== room) { await save(settled); room = settled; }
+        const next = resolveChallenge(reducer(room, playerId), nowSource(), randomSource);
+        if (next !== room) await save(next);
       });
     }
 
     on('room:settings', (data) => action((room, id) => updateSettings(room, id, data)));
     on('game:start', () => action((room, id) => startGame(room, id, randomSource)));
     on('game:draw', () => action((room, id) => drawCard(room, id, randomSource)));
-    on('game:play', (data) => action((room, id) => playCard(room, id, data?.cardId, data?.letter, data?.blockedLetter, data?.accumulatedLetters)));
+    on('game:play', (data) => action((room, id) => playCard(room, id, data?.cardId, data?.letter, data?.blockedLetter, data?.accumulatedLetters, data?.version ?? null)));
+    on('challenge:start', () => action((room, id) => startChallenge(room, id, nowSource())));
+    on('challenge:preview', (data) => action((room, id) => previewChallenge(room, id, data?.challengeId, data?.letters, nowSource())));
+    on('challenge:confirm', (data) => action((room, id) => confirmChallenge(room, id, data?.challengeId, data?.letters, nowSource(), randomSource)));
+    on('challenge:vote', (data) => action((room, id) => voteChallenge(room, id, data?.challengeId, data?.vote, nowSource(), randomSource)));
+    on('challenge:lose', (data) => action((room, id) => loseChallenge(room, id, data?.challengeId, nowSource(), randomSource)));
     // Versão obrigatória na rede: dois cliques sobre a mesma mesa não cobram duas penalidades.
     on('game:lose', (data) => action((room, id) => loseRound(room, id, randomSource, data?.version ?? null)));
     on('room:lobby', () => action((room, id) => returnToLobby(room, id)));
@@ -132,7 +143,7 @@ export function registerSockets(io, storage, { cleanupIntervalMs = 60_000, rando
         if (owners.get(key) !== socket.id) return;
         const previous = await storage.getRoom(code);
         if (previous) {
-          const room = disconnectPlayer(previous, playerId, Date.now(), leave);
+          const room = resolveChallenge(disconnectPlayer(previous, playerId, nowSource(), leave), nowSource(), randomSource);
           await save(room);
           if (!room.players.length) await storage.deleteRoom(code);
         }
@@ -145,12 +156,35 @@ export function registerSockets(io, storage, { cleanupIntervalMs = 60_000, rando
     socket.on('disconnect', () => { socketQueue.catch(() => {}).then(() => detach(false)).catch((error) => console.error('Falha ao registrar desconexão:', error)); });
   });
 
+  // Os timers apenas acordam o processamento. A fonte de verdade são os prazos
+  // JSON salvos; uma sala restaurada é resolvida mesmo sem sockets conectados.
+  let sweeping = false;
+  async function sweepChallenges() {
+    if (sweeping) return;
+    sweeping = true;
+    try {
+      for (const candidate of await storage.listRooms()) {
+        if (!candidate.game?.challenge) continue;
+        await locked(candidate.code, async () => {
+          const room = await storage.getRoom(candidate.code);
+          if (!room) return;
+          const next = resolveChallenge(room, nowSource(), randomSource);
+          if (next !== room) await save(next);
+        });
+      }
+    } catch (error) { console.error('Falha ao resolver prazos de desafios:', error); }
+    finally { sweeping = false; }
+  }
+  void sweepChallenges();
+  const challengeClock = setInterval(sweepChallenges, challengeIntervalMs);
+  challengeClock.unref();
+
   const cleanup = setInterval(async () => {
     try {
       for (const candidate of await storage.listRooms()) {
         await locked(candidate.code, async () => {
           const room = await storage.getRoom(candidate.code);
-          if (!room || !shouldDeleteRoom(room, Date.now())) return;
+          if (!room || !shouldDeleteRoom(room, nowSource())) return;
           await storage.deleteRoom(room.code);
           for (const player of room.players) {
             const key = ownerKey(room.code, player.id);
@@ -166,5 +200,5 @@ export function registerSockets(io, storage, { cleanupIntervalMs = 60_000, rando
     } catch (error) { console.error('Falha ao limpar salas:', error); }
   }, cleanupIntervalMs);
   cleanup.unref();
-  return () => clearInterval(cleanup);
+  return () => { clearInterval(cleanup); clearInterval(challengeClock); };
 }
