@@ -4,7 +4,7 @@ import { setup, waitFor } from './helpers.js';
 
 test('Não consigo jogar: nome, motivo, compra opcional e perda da vez no celular', async (t) => {
   const { a, b, seed, current } = await setup(t);
-  await seed([['letra-K'], ['letra-B', 'letra-C']], { debt: 0, word: 'CA' });
+  await seed([['letra-K'], ['letra-B', 'letra-C']], { debt: 0, word: 'CA', drawsThisTurn: 1 });
   assert.match(await a.locator('[data-action="skip"]').innerText(), /Não consigo jogar/);
   assert.equal(await a.locator('[data-action="skip"]').isEnabled(), true);
   assert.equal(await b.locator('[data-action="skip"]').isDisabled(), true);
@@ -12,7 +12,7 @@ test('Não consigo jogar: nome, motivo, compra opcional e perda da vez no celula
   await b.locator('.turn-bar').filter({ hasText: 'É a sua vez' }).waitFor();
   assert.equal((await current()).players[0].hand.length, 5);
   assert.equal((await current()).game.word, '');
-  assert.match(await b.locator('#loss-help').innerText(), /Você tem carta jogável/);
+  assert.match(await b.locator('#loss-help').innerText(), /Compre uma carta primeiro/);
   await a.locator('.table-notice').filter({ hasText: 'perdeu a vez' }).waitFor();
   assert.equal(await a.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await seed([['swap-0'], ['letra-C', 'letra-D']], { debt: 0, word: '' });
@@ -40,6 +40,7 @@ for (const outcome of ['prazo', 'aceite', 'aceita no desafio', 'recusada no desa
     await a.locator('[data-card="letra-A"]').click();
     for (const page of [a, b]) {
       await page.locator('#victory-countdown').filter({ hasText: 'Ana baixou a última carta' }).waitFor();
+      assert.equal(await page.locator('.word-turn-label').textContent(), 'É a vez de: Ana');
       assert.equal(await page.locator('[data-action="skip"]').isDisabled(), true);
       assert.equal(await page.locator('[data-action="draw"]').isDisabled(), true);
     }
@@ -51,6 +52,8 @@ for (const outcome of ['prazo', 'aceite', 'aceita no desafio', 'recusada no desa
     } else {
       await b.locator('[data-action="challenge"]').click();
       await a.locator('#challenge-ok').click();
+      assert.equal(await a.locator('.word-turn-label').textContent(), 'É a vez de: Ana');
+      assert.equal(await b.locator('.word-turn-label').textContent(), 'É a vez de: Ana');
       await b.locator(`[data-vote="${outcome.startsWith('aceita') ? 'sim' : 'nao'}"]`).click();
       if (outcome.startsWith('recusada')) {
         await a.locator('#challenge-loss').click();
@@ -64,7 +67,8 @@ for (const outcome of ['prazo', 'aceite', 'aceita no desafio', 'recusada no desa
     }
     for (const page of [a, b]) {
       await page.locator('.victory-panel').waitFor();
-      assert.equal(await page.locator('.final-word strong').innerText(), 'CAA');
+      assert.equal(await page.locator('.final-word > strong').innerText(), 'CAA');
+      assert.equal(await page.locator('.word-turn-label').textContent(), 'Vitória de Ana');
     }
     assert.equal((await current()).game.winnerId, (await current()).players[0].id);
   });
