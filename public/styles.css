@@ -214,6 +214,10 @@ fieldset:disabled input, fieldset:disabled select { opacity: .65; }
 .empty-seat .avatar { border: 1px dashed var(--painel-borda); background: transparent; color: var(--texto-secundario); }
 .empty-seat .player-info strong { font-weight: var(--peso-texto); font-size: calc(var(--fonte-base) * 0.75); }
 .start-area { margin-top: 26px; }
+.bot-controls { margin-top: 18px; }
+.bot-icon { display: inline-block; font-size: .9em; vertical-align: middle; }
+.remove-bot { font-size: calc(var(--fonte-base) * 1.25); }
+.lobby-bot-notice { color: var(--texto-secundario); font-size: calc(var(--fonte-base) * .75); line-height: 1.6; margin-top: 12px; overflow-wrap: anywhere; }
 .start-area .field-hint { margin-bottom: 0; text-align: center; }
 .waiting { padding: 18px 10px; background: var(--painel-suave); border-radius: 7px; font-size: calc(var(--fonte-base) * 0.75); text-align: center; }
 .waiting > span { margin-right: 8px; }

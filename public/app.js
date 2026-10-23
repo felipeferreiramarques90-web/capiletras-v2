@@ -38,7 +38,8 @@
   }
   const canAct = () => socket.connected && !busy;
   const isHost = () => room?.meId === room?.hostId;
-  const avatar = (player, index) => `<span class="avatar color-${index % 4}" aria-hidden="true">${escape(player.name.slice(0, 1).toUpperCase())}</span>`;
+  const playerName = (player) => `${player?.isBot ? '<span class="bot-icon" aria-label="Bot">🤖</span> ' : ''}${escape(player?.name)}`;
+  const avatar = (player, index) => `<span class="avatar color-${index % 4}" aria-hidden="true">${player.isBot ? '🤖' : escape(player.name.slice(0, 1).toUpperCase())}</span>`;
 
   // Ilustração original, reutilizada apenas na apresentação dos versos.
   const capybaraSvg = () => `<svg class="capybara" viewBox="0 0 120 120" aria-hidden="true" focusable="false">
@@ -183,14 +184,15 @@
         <div class="lobby-tip"><span aria-hidden="true">✳</span><p>Não precisa saber a palavra inteira.<br>Só a próxima letra.</p></div>
       </section>
       <section class="panel players-panel"><div class="section-top"><div><span class="eyebrow">A TURMA</span><h2>Quem está na roda</h2></div><span class="count-badge">${room.players.filter((p) => p.connected).length}/${room.settings.playerCount}</span></div>
-        <ul class="player-list">${room.players.map((p, i) => `<li>${avatar(p, i)}<div class="player-info"><strong>${escape(p.name)}${p.id === room.meId ? ' <span class="you-label">(você)</span>' : ''}</strong><small>${p.id === room.hostId ? 'Anfitrião' : 'Na turma'} · ${p.connected ? 'Conectado' : 'Aguardando reconexão'}</small></div><span class="status-dot ${p.connected ? 'connected' : ''}" aria-label="${p.connected ? 'Conectado' : 'Desconectado'}"></span>${isHost() && !p.connected ? `<button class="text-button" data-remove="${p.id}" ${disabled(!canAct())}>Liberar vaga</button>` : ''}</li>`).join('')}${Array.from({ length: Math.max(0, room.settings.playerCount - room.players.length) }, () => '<li class="empty-seat"><span class="avatar">+</span><div class="player-info"><strong>Uma cadeira livre</strong><small>Compartilhe o código da sala</small></div></li>').join('')}</ul>
+        <ul class="player-list">${room.players.map((p, i) => `<li>${avatar(p, i)}<div class="player-info"><strong>${playerName(p)}${p.id === room.meId ? ' <span class="you-label">(você)</span>' : ''}</strong><small>${p.id === room.hostId ? 'Anfitrião' : 'Na turma'} · ${p.connected ? 'Conectado' : 'Aguardando reconexão'}</small></div><span class="status-dot ${p.connected ? 'connected' : ''}" aria-label="${p.connected ? 'Conectado' : 'Desconectado'}"></span>${isHost() && p.isBot ? `<button class="icon-button remove-bot" data-remove-bot="${p.id}" aria-label="Remover ${escape(p.name)}" ${disabled(!canAct())}>×</button>` : ''}${isHost() && !p.connected ? `<button class="text-button" data-remove="${p.id}" ${disabled(!canAct())}>Liberar vaga</button>` : ''}</li>`).join('')}${Array.from({ length: Math.max(0, room.settings.playerCount - room.players.length) }, () => '<li class="empty-seat"><span class="avatar">+</span><div class="player-info"><strong>Uma cadeira livre</strong><small>Compartilhe o código da sala</small></div></li>').join('')}</ul>
+        <div class="bot-controls">${isHost() ? `<button class="button secondary full" data-action="add-bot" ${disabled(!canAct() || room.players.length >= room.config.maxPlayers)}>Adicionar bot <span aria-hidden="true">🤖 +</span></button>` : ''}</div><p class="lobby-bot-notice" role="status">${escape(room.notice)}</p>
         <div class="start-area">${isHost() ? `<button class="button primary full" data-action="start" ${disabled(!ready || !canAct())}>Iniciar partida <span>→</span></button><p class="field-hint">${ready ? 'Todo mundo chegou. Pode começar!' : `Aguardando os ${room.settings.playerCount} jogadores ficarem conectados.`}</p>` : '<div class="waiting"><span class="status-dot connected"></span> Aguardando o anfitrião iniciar a partida…</div>'}</div>
       </section></div><p class="room-note">Caiu a conexão? Volte pelo mesmo navegador para retomar sua vaga. O anfitrião pode liberar vagas desconectadas no lobby.</p></section>`;
   }
 
   function wordHeading(player, finished = false) {
     const ownTurn = !finished && player?.id === room.meId;
-    return `<div class="word-turn-label ${ownTurn ? 'own-turn-label' : ''}" role="status">${finished ? 'Vitória de' : 'É a vez de:'} <strong class="word-turn-name">${escape(player?.name)}</strong></div>`;
+    return `<div class="word-turn-label ${ownTurn ? 'own-turn-label' : ''}" role="status">${finished ? 'Vitória de' : 'É a vez de:'} <strong class="word-turn-name">${playerName(player)}</strong></div>`;
   }
 
   function table() {
@@ -201,7 +203,7 @@
     const meIndex = room.players.findIndex((p) => p.id === room.meId);
     const ordered = [...room.players.slice(meIndex + 1), ...room.players.slice(0, meIndex)];
     return `<section class="game-layout">${roomBar('PALAVRAS SE CONSTROEM EM BOA COMPANHIA')}
-      <div class="opponents">${ordered.map((p) => { const i = room.players.findIndex((item) => item.id === p.id); return `<div class="opponent ${p.id === game.turnPlayerId ? 'active' : ''} ${!p.connected ? 'offline-player' : ''}">${avatar(p, i)}<div><strong>${escape(p.name)}</strong><span>${p.left ? 'Saiu da sala' : !p.connected ? 'Reconectando…' : `${p.cardCount} carta${p.cardCount === 1 ? '' : 's'}`}</span></div><span class="mini-cards card-back" aria-hidden="true">${capybaraSvg()}</span></div>`; }).join('')}</div>
+      <div class="opponents">${ordered.map((p) => { const i = room.players.findIndex((item) => item.id === p.id); return `<div class="opponent ${p.id === game.turnPlayerId ? 'active' : ''} ${!p.connected ? 'offline-player' : ''}">${avatar(p, i)}<div><strong>${playerName(p)}</strong><span>${p.left ? 'Saiu da sala' : !p.connected ? 'Reconectando…' : `${p.cardCount} carta${p.cardCount === 1 ? '' : 's'}`}</span></div><span class="mini-cards card-back" aria-hidden="true">${capybaraSvg()}</span></div>`; }).join('')}</div>
       <div class="turn-bar ${myTurn ? 'your-turn' : ''}" role="status"><span class="status-dot connected"></span>${!socket.connected ? 'Reconectando… Suas cartas estão guardadas.' : game.challenge ? 'Desafio em andamento · a partida aguarda o resultado.' : game.pendingVictory ? 'Última carta na mesa · vitória pendente.' : game.paused ? 'Partida pausada · aguardando outro jogador reconectar' : game.turnPlayerId === room.meId ? (game.noPlayableCards ? (game.canSkipTurn ? 'Sem carta jogável. Você pode usar Não consigo jogar.' : 'Sem carta jogável. Compre uma carta primeiro.') : 'É a sua vez! Escolha uma carta para jogar.') : `Vez de ${escape(current?.name)}. Prepare sua próxima letra.`}<span class="turn-number">TURNO ${game.turnNumber}</span></div>${game.paused && !game.challenge && !game.pendingVictory && isHost() ? `<div class="paused-actions"><button class="text-button" data-action="end" ${disabled(!canAct())}>Encerrar partida e voltar à sala →</button></div>` : ''}
       <section class="table-felt" aria-label="Centro da mesa"><div class="felt-caption">CAPILETRAS · A MESA É DE TODOS</div>${game.pendingVictory && !game.challenge ? `<section class="pending-victory" aria-label="Vitória pendente"><p id="victory-countdown" role="status"></p><small>${game.pendingVictory.acceptedCount}/${game.pendingVictory.voterCount} aceitaram</small>${game.pendingVictory.playerId !== room.meId ? `<button class="button primary" data-action="accept-victory" ${disabled(!canAct() || !game.pendingVictory.canAccept)}>Aceito a palavra</button>` : '<small>Aguardando os outros jogadores.</small>'}</section>` : ''}
         <div class="table-center"><button class="draw-pile ${game.canDraw ? 'available' : ''}" data-action="draw" ${disabled(!game.canDraw || !canAct())} aria-label="Comprar uma carta. ${game.deckCount} cartas na pilha, ${game.discardCount} para reembaralhar."><span class="deck-back card-back" aria-hidden="true">${capybaraSvg()}</span><strong>COMPRAR</strong><small>${game.deckCount} na pilha${game.discardCount ? ` · ${game.discardCount} jogadas` : ''}</small></button>
@@ -426,6 +428,8 @@
       else { closeLetters(); await chooseCard(card); }
       return;
     }
+    const removeBot = event.target.closest('[data-remove-bot]');
+    if (removeBot && !removeBot.disabled) { await send('room:bot:remove', { playerId: removeBot.dataset.removeBot }); return; }
     const button = event.target.closest('[data-action]');
     if (!button || button.disabled) return;
     switch (button.dataset.action) {
@@ -433,6 +437,7 @@
         if (!name.trim()) { toast('Primeiro, conte como podemos te chamar.'); $('#player-name').focus(); return; }
         await send('room:create', { sessionId, name }); break;
       case 'start': await send('game:start'); break;
+      case 'add-bot': await send('room:bot:add'); break;
       case 'challenge': await send('challenge:start'); break;
       case 'challenge-view': renderChallenge(); break;
       case 'draw': await send('game:draw'); break;
