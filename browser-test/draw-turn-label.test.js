@@ -3,18 +3,18 @@ import assert from 'node:assert/strict';
 import { createDeck, roomView } from '../game/game.js';
 import { setup, waitFor } from './helpers.js';
 
-test('compra obrigatória, motivos em prioridade e nome atualizado ao passar a vez', async (t) => {
+test('compra obrigatória, botão ausente enquanto indisponível e nome atualizado ao passar a vez', async (t) => {
   const { a, b, seed, current } = await setup(t);
   const deck = createDeck().filter((c) => ['swap-1', 'swap-2', 'swap-3', 'swap-4', 'swap-5'].includes(c.id));
   await seed([['swap-0'], ['letra-B', 'letra-C']], { debt: 0, word: '', deck });
-  assert.equal(await a.locator('[data-action="skip"]').isDisabled(), true);
-  assert.equal(await a.locator('#loss-help').innerText(), 'Compre uma carta primeiro');
+  assert.equal(await a.locator('[data-action="skip"]').count(), 0);
+  assert.equal(await a.locator('#loss-help').count(), 0);
   await a.locator('[data-action="draw"]').click();
   await waitFor(() => a.locator('[data-action="skip"]').isEnabled());
   await a.locator('[data-action="skip"]').click();
   for (const page of [a, b]) await page.locator('.word-turn-label').filter({ hasText: 'É a vez de: Bia' }).waitFor();
-  assert.equal(await a.locator('#loss-help').innerText(), 'Não é a sua vez');
-  assert.equal(await b.locator('#loss-help').innerText(), 'Você tem carta jogável');
+  assert.equal(await a.locator('#loss-help').count(), 0);
+  assert.equal(await b.locator('#loss-help').count(), 0);
   assert.equal((await current()).game.drawsThisTurn, 0);
   // Sem cartas disponíveis, não exige a compra antes de passar.
   await seed([['letra-K'], ['letra-B', 'letra-C']], { debt: 0, word: 'CA', deck: [] });
@@ -22,12 +22,12 @@ test('compra obrigatória, motivos em prioridade e nome atualizado ao passar a v
   await a.locator('[data-action="skip"]').click();
   await b.locator('.word-turn-label').filter({ hasText: 'É a vez de: Bia' }).waitFor();
   assert.equal((await current()).game.word, 'CA');
-  // A prioridade de compra vem antes do motivo de carta jogável.
+  // Com uma carta jogável, o botão segue ausente antes e depois da compra.
   await seed([['letra-A', 'letra-D'], ['letra-B', 'letra-C']], { debt: 0, word: '' });
-  assert.equal(await a.locator('#loss-help').innerText(), 'Compre uma carta primeiro');
+  assert.equal(await a.locator('#loss-help').count(), 0);
   await a.locator('[data-action="draw"]').click();
-  await a.locator('#loss-help').filter({ hasText: 'Você tem carta jogável' }).waitFor();
-  assert.equal(await a.locator('[data-action="skip"]').isDisabled(), true);
+  await waitFor(async () => (await current()).game.drawsThisTurn === 1);
+  assert.equal(await a.locator('[data-action="skip"]').count(), 0);
 });
 
 test('rótulo acompanha turno normal, forçado pelo 2x e retorno, com destaque próprio', async (t) => {
@@ -43,7 +43,7 @@ test('rótulo acompanha turno normal, forçado pelo 2x e retorno, com destaque p
   await check('Bia', b);
   await b.locator('[data-card="double-0"]').click();
   await check('Ana', a);
-  assert.equal(await a.locator('#loss-help').innerText(), 'Compre uma carta primeiro');
+  assert.equal(await a.locator('#loss-help').count(), 0);
   await a.locator('[data-card="letra-B"]').click();
   await check('Bia', b);
   await b.locator('[data-card="letra-C"]').click();

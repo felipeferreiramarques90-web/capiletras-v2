@@ -29,8 +29,8 @@ test('2x mantém Duvidar desabilitado até o jogador forçado pagar o débito', 
     assert.equal(await page.locator('[data-action="challenge"]').isDisabled(), true);
     assert.equal(await page.locator('#challenge-help-debt').isVisible(), true);
   }
-  assert.equal(await a.locator('[data-action="skip"]').isDisabled(), true);
-  assert.equal(await b.locator('[data-action="skip"]').isDisabled(), true);
+  assert.equal(await a.locator('[data-action="skip"]').count(), 0);
+  assert.equal(await b.locator('[data-action="skip"]').count(), 0);
   await b.locator('[data-card="letra-C"]').click();
   await b.locator('#debt-input').fill('AB');
   await b.locator('#confirm-debt').click();
@@ -41,7 +41,7 @@ test('2x mantém Duvidar desabilitado até o jogador forçado pagar o débito', 
   assert.equal((await current()).game.challenge.challengedId, (await current()).players[1].id);
 });
 
-test('desafio cancela a escolha de carta, transmite a prévia e revela os votos só no resultado', async (t) => {
+test('desafio cancela a escolha de carta, transmite a prévia e mostra só o resultado da votação', async (t) => {
   const { a, b, c, seed, current } = await setup(t, { players: 3 });
   const before = await seed([['wild-1', 'letra-B'], ['wild-0', 'letra-C'], ['letra-D', 'letra-E']], { word: 'CA', last: true, debt: 0 });
   // Abrimos a escolha de Ana antes do desafio de Caio.
@@ -53,7 +53,7 @@ test('desafio cancela a escolha de carta, transmite a prévia e revela os votos 
   assert.deepEqual((await current()).players.map((p) => p.hand), before.players.map((p) => p.hand));
   assert.equal(await b.locator('#challenge-input').evaluate((input) => input.readOnly), true);
   assert.equal(await a.locator('[data-action="draw"]').isDisabled(), true);
-  assert.equal(await a.locator('[data-action="skip"]').isDisabled(), true);
+  assert.equal(await a.locator('[data-action="skip"]').count(), 0);
   await a.locator('#challenge-input').fill('t1óo');
   assert.equal(await a.locator('#challenge-input').inputValue(), 'TO');
   await b.locator('#challenge-word').filter({ hasText: 'CATO' }).waitFor();
@@ -72,8 +72,9 @@ test('desafio cancela a escolha de carta, transmite a prévia e revela os votos 
   assert.equal(await a.locator('#challenge-vote-actions').isHidden(), true);
   assert.match(await a.locator('#challenge-description').innerText(), /não vota/);
   await b.locator('[data-vote="sim"]').click();
-  await c.locator('#challenge-progress').filter({ hasText: '1/2' }).waitFor();
-  assert.equal(await c.locator('#challenge-votes').innerText(), '');
+  await waitFor(async () => Object.keys((await current()).game.challenge.votes).length === 1);
+  assert.equal(await c.locator('#challenge-progress').isVisible(), false);
+  assert.equal(await c.locator('#challenge-votes').count(), 0);
   await c.locator('[data-vote="nao"]').click();
   for (const page of [a, b, c]) await page.locator('#challenge-dialog').waitFor({ state: 'hidden' });
   const after = await current();
@@ -119,11 +120,12 @@ test('modais não fecham por Esc, clique fora ou voltar; reconexão restaura fas
   await cannotClose(b);
   assert.deepEqual((await current()).game.challenge.votes, {}, 'fechar não gera um voto Sim');
   await b.locator('[data-vote="sim"]').click();
-  await c.locator('#challenge-progress').filter({ hasText: '1/2' }).waitFor();
+  await waitFor(async () => Object.keys((await current()).game.challenge.votes).length === 1);
+  assert.equal(await c.locator('#challenge-progress').isVisible(), false);
   const votingDeadline = (await current()).game.challenge.voteDeadline;
   await b.reload();
-  await b.locator('#challenge-progress').filter({ hasText: 'Seu voto foi registrado' }).waitFor();
-  assert.equal(await b.locator('#challenge-vote-actions').isHidden(), true);
+  await b.locator('[data-vote="sim"][aria-pressed="true"]').waitFor();
+  assert.equal(await b.locator('[data-vote="sim"]').isDisabled(), true);
   assert.equal((await current()).game.challenge.voteDeadline, votingDeadline);
   await cannotClose(b);
   await c.locator('[data-vote="sim"]').click();

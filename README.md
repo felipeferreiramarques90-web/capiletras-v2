@@ -30,9 +30,31 @@ Se já houver Chromium instalado, use `CHROMIUM_EXECUTABLE_PATH=/caminho/do/chro
 
 O front-end é estático: recarregue o navegador após editá-lo. Não há etapa de compilação. Para uma instalação exata a partir do lockfile, use `npm ci`. A porta usa `process.env.PORT`, com padrão `3000`; a mesma porta serve os arquivos e o Socket.IO. `GET /health` responde HTTP 200 com `{"status":"ok"}`.
 
+## Configurar o baralho
+
+No lobby, abra **Baralho**. Só o anfitrião edita as quantidades pelos botões **− / +** ou pelo campo numérico (confirme com Enter ou saindo do campo). As alterações válidas são salvas imediatamente e aparecem em tempo real para os demais participantes, em modo leitura. O total aparece no cabeçalho da seção. **Restaurar padrão** repõe as quantidades abaixo, sem mudar o número de jogadores.
+
+| Tipo configurável | Padrão |
+| --- | ---: |
+| Coringa * | 12 |
+| Vida ❤️ | 5 |
+| Passar letra → | 12 |
+| Troca 🔄 | 8 |
+| Bloqueio ➕🚫 | 6 |
+| 2x | 6 |
+| 2+* | 5 |
+
+As **26 letras e quatro restritivas** são fixas (30 cartas). Cada tipo configurável aceita inteiros de **0 a 30**, com limite de **150 cartas no total**. Todos podem ser zerados; nesse caso o baralho tem 30 cartas. O padrão permanece **84**. Quantidades inválidas são rejeitadas pelo servidor sem modificar a sala; o início fica indisponível com o motivo indicado.
+
+Mudar a composição ou o número de jogadores recalcula `floor((total - 1) / jogadores)` como máximo de cartas iniciais. Se a mão escolhida ultrapassar esse valor, ela é reduzida automaticamente, com aviso ao anfitrião. O início também valida a distribuição e a reserva de compra. A composição é travada durante a partida e preservada em **Jogar de novo** e no retorno à sala.
+
+Padrões e limites ficam em **`game/config.js`**: `CONFIGURABLE_CARD_TYPES`, `DEFAULT_DECK_COMPOSITION` (derivado de `CARD_TYPES`), `DECK_RULES`, `deckSize()` e `maxInitialCards()`. As validações puras ficam em **`game/deck.js`**; a composição JSON fica em **`room.settings.deckComposition`** e é salva pela mesma interface de storage. Salas antigas sem esse campo usam o padrão. O servidor monta o baralho a partir dela, sem mudar as regras das cartas, o reembaralhamento, a votação ou a política dos bots.
+
+Na mesa, **Comprar** e **Duvidar da palavra** ficam lado a lado. A mão mantém os tamanhos das cartas e uma faixa própria, sem rolagem vertical da página; mãos grandes e adversários excedentes rolam horizontalmente. Em telas baixas, o cabeçalho decorativo cede espaço ao jogo e a área do visor pode rolar internamente para mostrar palavras/avisos longos. O botão **Não consigo jogar** aparece junto da mão sem deslocar as cartas ou o centro.
+
 ## Jogar com bots
 
-No lobby, o anfitrião pode usar **Adicionar bot** quantas vezes quiser, até o limite de **8 participantes no total**. O botão **×** ao lado de cada bot remove sua vaga antes de iniciar. Bots têm nomes automáticos únicos e ícone 🤖 no lobby, na mesa e na indicação da vez. Ao preencher todas as vagas, adicionar outro bot aumenta o número configurado de participantes; se necessário, as cartas iniciais são reduzidas ao máximo permitido pelo mesmo baralho de **84 cartas**. Remover um bot de uma sala cheia também reduz a quantidade de vagas, respeitando o mínimo de dois jogadores.
+No lobby, o anfitrião pode usar **Adicionar bot** quantas vezes quiser, até o limite de **8 participantes no total**. O botão **×** ao lado de cada bot remove sua vaga antes de iniciar. Bots têm nomes automáticos únicos e ícone 🤖 no lobby, na mesa e na indicação da vez. Ao preencher todas as vagas, adicionar outro bot aumenta o número configurado de participantes; se necessário, as cartas iniciais são reduzidas ao máximo permitido pela composição escolhida para a sala. Remover um bot de uma sala cheia também reduz a quantidade de vagas, respeitando o mínimo de dois jogadores.
 
 É possível jogar com **1 humano e até 7 bots**, em um único nível de dificuldade. Bots não têm socket, ficam conectados no estado e nunca assumem o papel de anfitrião. Quando todos os humanos usam **Sair da sala**, a sala é removida e os agendamentos são cancelados. Uma queda de conexão reserva a vaga humana para reconexão: sem humanos conectados, os bots pausam; ao reconectar, retomam. Salas abandonadas continuam sujeitas à expiração.
 
@@ -79,12 +101,12 @@ A paleta e os tamanhos ficam nas variáveis de **`public/styles.css`**, no `:roo
 | `--carta-verso`, `--carta-verso-borda`, `--capivara-*` | Marrom `#69412c`, borda bege e cores da ilustração do verso. |
 | `--carta-largura`, `--carta-altura`, `--carta-fonte-*`, `--verso-*` | Frentes de **92 × 127 px** no desktop e **70 × 100 px** no celular, como antes; tamanhos das letras, símbolos e versos. |
 
-As letras fixas, o coringa e as restritivas têm `+` no canto; as restritivas mostram “vogal”, “consoante”, “a-m” e “n-z”. O Bloqueio mostra 🚫 no centro e `+` no canto. Cartas desabilitadas ficam esmaecidas e sem brilho; hover e seleção mantêm o comportamento. A arte fica nos componentes de renderização em `public/app.js`, separada da configuração de regras do servidor. O tema não altera regras, avisos, quantidades ou estado da partida: o baralho continua com **84 cartas**.
+As letras fixas, o coringa e as restritivas têm `+` no canto; as restritivas mostram “vogal”, “consoante”, “a-m” e “n-z”. O Bloqueio mostra 🚫 no centro e `+` no canto. Cartas desabilitadas ficam esmaecidas e sem brilho; hover e seleção mantêm o comportamento. A arte fica nos componentes de renderização em `public/app.js`, separada da configuração de regras do servidor. O tema não altera regras nem a arte das cartas. A composição padrão tem **84 cartas**, e as quantidades escolhidas pelo anfitrião valem para a sala.
 
 ## Como jogar
 
-- O baralho tem **84 cartas**: as 42 originais (26 letras fixas, 12 coringas verdes e as 4 cartas restritivas), mais **8 Trocas, 6 Bloqueios e 6 cartas 2x**, além de **5 cartas `2+*`, 5 cartas Vida e 12 cartas Passar letra**. As quantidades dos tipos anteriores permanecem iguais.
-- O mínimo de cartas iniciais é 3. O máximo é `floor((tamanhoDoBaralho - reservaDeCompra) / jogadores)`. A reserva padrão é 1: são até **41 cartas para 2 jogadores** ou **10 para 8**. O tamanho do baralho é calculado a partir das quantidades em `CARD_TYPES`, em `game/config.js`; a interface recebe a mesma configuração do servidor.
+- O baralho **padrão** tem **84 cartas**: as 42 originais (26 letras fixas, 12 coringas verdes e as 4 cartas restritivas), mais **8 Trocas, 6 Bloqueios e 6 cartas 2x**, além de **5 cartas `2+*`, 5 cartas Vida e 12 cartas Passar letra**. O anfitrião pode personalizar os sete tipos especiais no lobby; as letras e as restritivas são fixas.
+- O mínimo de cartas iniciais é 3. O máximo é `floor((tamanhoDoBaralho - reservaDeCompra) / jogadores)`. A reserva padrão é 1: com o baralho padrão, são até **41 cartas para 2 jogadores** ou **10 para 8**. O total é calculado a partir da composição salva na sala, somada às cartas fixas; a interface recebe os limites e os padrões de `game/config.js`.
 - Na sua vez, você pode comprar **no máximo uma carta**, opcionalmente. Comprar não passa a vez: baixe uma carta, inclusive a recém-comprada. Sem comprar, também pode jogar diretamente.
 - Cartas fixas acrescentam sua letra. Nas demais, um seletor habilita somente as letras válidas. As escolhas vão de A a Z, sem acentos; Y é tratado como consoante.
 - **Não consigo jogar** só fica disponível para quem está na vez, tem cartas e não consegue jogar nenhuma delas. Passar letra e Vida sempre são jogáveis. Antes de usar o botão, é obrigatório comprar a carta opcional deste turno. A exceção é quando baralho e descarte estão vazios: sem carta jogável, pode passar sem comprar. Se a carta comprada for jogável, o botão permanece desabilitado. O contador de compras zera em todo novo turno, inclusive no turno forçado e no retorno do 2x. O servidor rejeita o clique antecipado sem alterar o estado. Ele não fica disponível durante desafio ou vitória pendente.
@@ -156,7 +178,7 @@ As cartas injogáveis ficam esmaecidas e desabilitadas, e as opções são recal
 
 ## Duvidar da palavra
 
-O botão fica no centro da mesa e qualquer participante conectado pode usá-lo, inclusive fora da vez, durante a partida. O baralho continua com **84 cartas**. O servidor aceita apenas o primeiro desafio e rejeita os demais sem alterar a sala; o aviso de rejeição chega só a quem clicou. Também rejeita visor vazio, desafio à própria palavra e desafio a alguém protegido pela Vida, com o aviso **“Fulano está protegido pela Vida”**. Depois de uma vitória, não é possível desafiar.
+O botão fica no centro da mesa e qualquer participante conectado pode usá-lo, inclusive fora da vez, durante a partida. O desafio não altera a composição escolhida para a sala. O servidor aceita apenas o primeiro desafio e rejeita os demais sem alterar a sala; o aviso de rejeição chega só a quem clicou. Também rejeita visor vazio, desafio à própria palavra e desafio a alguém protegido pela Vida, com o aviso **“Fulano está protegido pela Vida”**. Depois de uma vitória, não é possível desafiar.
 
 **Só é permitido iniciar um desafio sem débito de letras acumuladas.** Enquanto alguém deve uma ou mais letras de Passar letra, o botão fica desabilitado para todos, com o motivo **“Há letras acumuladas pendentes”**. O servidor também valida a restrição e responde somente a quem tentou: **“Não dá para duvidar: Fulano ainda deve N letras”**, sem salvar nem publicar um novo estado. O **2x transfere o débito**, mantendo o impedimento. Pagar todas as letras em uma jogada ou zerá-las em uma penalidade zera o débito e recalcula o botão para todos. As regras anteriores continuam valendo: após zerar o visor, por exemplo, o visor vazio impede o desafio até alguém adicionar uma nova letra.
 

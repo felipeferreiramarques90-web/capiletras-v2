@@ -2,23 +2,23 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { setup, waitFor } from './helpers.js';
 
-test('Não consigo jogar: nome, motivo, compra opcional e perda da vez no celular', async (t) => {
+test('Não consigo jogar: nome, visibilidade, compra opcional e perda da vez no celular', async (t) => {
   const { a, b, seed, current } = await setup(t);
   await seed([['letra-K'], ['letra-B', 'letra-C']], { debt: 0, word: 'CA', drawsThisTurn: 1 });
   assert.match(await a.locator('[data-action="skip"]').innerText(), /Não consigo jogar/);
   assert.equal(await a.locator('[data-action="skip"]').isEnabled(), true);
-  assert.equal(await b.locator('[data-action="skip"]').isDisabled(), true);
+  assert.equal(await b.locator('[data-action="skip"]').count(), 0);
   await a.locator('[data-action="skip"]').click();
   await b.locator('.turn-bar').filter({ hasText: 'É a sua vez' }).waitFor();
   assert.equal((await current()).players[0].hand.length, 5);
   assert.equal((await current()).game.word, '');
-  assert.match(await b.locator('#loss-help').innerText(), /Compre uma carta primeiro/);
+  assert.equal(await b.locator('#loss-help').count(), 0);
   await a.locator('.table-notice').filter({ hasText: 'perdeu a vez' }).waitFor();
   assert.equal(await a.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await seed([['swap-0'], ['letra-C', 'letra-D']], { debt: 0, word: '' });
   await a.locator('[data-action="draw"]').click();
-  await waitFor(() => a.locator('[data-action="skip"]').isDisabled());
-  assert.match(await a.locator('#loss-help').innerText(), /Você tem carta jogável/);
+  await waitFor(async () => (await a.locator('[data-action="skip"]').count()) === 0);
+  assert.equal(await a.locator('#loss-help').count(), 0);
 });
 
 test('Vida protege contra desafio, sem aviso de proteção no botão da mesa', async (t) => {
@@ -28,8 +28,8 @@ test('Vida protege contra desafio, sem aviso de proteção no botão da mesa', a
   await a.locator('[data-letter="E"]').click();
   await b.locator('[data-action="challenge"]').click();
   await b.locator('#toast').filter({ hasText: 'Ana está protegido pela Vida' }).waitFor();
-  assert.doesNotMatch(await a.locator('#loss-help').innerText(), /Protegido/);
-  assert.equal(await a.locator('[data-action="skip"]').getAttribute('title'), null);
+  assert.equal(await a.locator('#loss-help').count(), 0);
+  assert.equal(await a.locator('[data-action="skip"]').count(), 0);
 });
 
 for (const outcome of ['prazo', 'aceite', 'aceita no desafio', 'recusada no desafio']) {
@@ -41,7 +41,7 @@ for (const outcome of ['prazo', 'aceite', 'aceita no desafio', 'recusada no desa
     for (const page of [a, b]) {
       await page.locator('#victory-countdown').filter({ hasText: 'Ana baixou a última carta' }).waitFor();
       assert.equal(await page.locator('.word-turn-label').textContent(), 'É a vez de: Ana');
-      assert.equal(await page.locator('[data-action="skip"]').isDisabled(), true);
+      assert.equal(await page.locator('[data-action="skip"]').count(), 0);
       assert.equal(await page.locator('[data-action="draw"]').isDisabled(), true);
     }
     assert.equal(await a.locator('[data-action="accept-victory"]').count(), 0);
