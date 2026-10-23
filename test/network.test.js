@@ -595,3 +595,34 @@ test('rede: valida entradas malformadas sem derrubar o servidor', async (t) => {
   assert.equal((await emit(a, 'game:start')).ok, true);
   assert.equal((await emit(a, 'game:play', null)).ok, false);
 });
+
+test('composição do lobby: validação pela rede, leitura em tempo real e baralho personalizado ao iniciar', async (t) => {
+  const { a, b, code, storage } = await setup(t);
+  const composition = Object.fromEntries(a.view.config.configurableCardTypes.map((type) => [type, 0]));
+  const before = await storage.getRoom(code);
+  assert.equal((await emit(b, 'room:deck', { composition })).ok, false);
+  assert.equal((await emit(a, 'room:deck', { composition: { ...composition, wild: -1 } })).ok, false);
+  assert.equal((await emit(a, 'room:deck', { composition: { ...composition, letter: 26 } })).ok, false);
+  assert.deepEqual(await storage.getRoom(code), before);
+  assert.equal((await emit(a, 'room:settings', { playerCount: 2, initialCards: 40 })).ok, true);
+  assert.equal((await emit(a, 'room:deck', { composition })).ok, true);
+  await waitFor(() => b.view.deckSize === 30);
+  assert.deepEqual(b.view.settings.deckComposition, composition);
+  assert.equal(a.view.settings.initialCards, 14);
+  assert.equal(a.view.settings.maxInitialCards, 14);
+  assert.match(a.view.settingsAdjustment.message, /ajustadas/);
+  assert.equal(b.view.settingsAdjustment, null);
+  assert.equal((await emit(b, 'room:deck:reset')).ok, false);
+  assert.equal((await emit(a, 'room:deck:reset')).ok, true);
+  await waitFor(() => b.view.deckSize === a.view.config.deckSize);
+  assert.deepEqual(a.view.settings.deckComposition, a.view.config.defaultDeckComposition);
+  assert.equal((await emit(a, 'room:deck', { composition })).ok, true);
+  assert.equal((await emit(a, 'game:start')).ok, true);
+  const playing = await storage.getRoom(code);
+  const cards = [...playing.game.deck, ...playing.game.discard, ...playing.players.flatMap((p) => p.hand)];
+  assert.equal(cards.length, a.view.deckSize);
+  assert.ok(cards.every((c) => !a.view.config.configurableCardTypes.includes(c.type)));
+  assert.equal((await emit(a, 'room:deck:reset')).ok, false);
+  assert.equal((await emit(a, 'room:deck', { composition: a.view.config.defaultDeckComposition })).ok, false);
+  assert.deepEqual(await storage.getRoom(code), playing);
+});

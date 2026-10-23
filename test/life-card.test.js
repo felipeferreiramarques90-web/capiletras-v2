@@ -28,7 +28,7 @@ test('Vida mantém cinco cartas e a composição completa gera 84 IDs únicos', 
   assert.equal(createDeck().length, 84);
   assert.equal(new Set(createDeck().map((card) => card.id)).size, 84);
   assert.equal(createDeck().filter((card) => card.type === 'life').length, 5);
-  assert.deepEqual([2, 3, 4, 5, 6, 7, 8].map(maxInitialCards), [41, 27, 20, 16, 13, 11, 10]);
+  assert.deepEqual([2, 3, 4, 5, 6, 7, 8].map((players) => maxInitialCards(players)), [41, 27, 20, 16, 13, 11, 10]);
 });
 
 test('Vida adiciona uma vogal, inclusive com visor vazio, e publica o aviso', () => {

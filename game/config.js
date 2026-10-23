@@ -38,11 +38,20 @@ export const CARD_TYPES = Object.freeze(Object.fromEntries(Object.entries({
   life: { quantity: 5, letters: 'AEIOU', effect: 'append', protectsFromChallenge: true, label: 'Vida', description: 'Só vogais', symbol: '❤️', color: 'pink' },
   pass: { quantity: 12, letters: '', effect: 'pass', debtIncrement: 1, label: 'Passar letra', symbol: '→', color: 'black' },
 }).map(([type, rule]) => [type, Object.freeze(rule)])));
-export const DECK_SIZE = Object.values(CARD_TYPES).reduce((total, card) => total + card.quantity, 0);
-export const maxInitialCards = (players) => Math.floor((DECK_SIZE - RULES.reservedDrawCards) / players);
+export const CONFIGURABLE_CARD_TYPES = Object.freeze(['wild', 'life', 'pass', 'swap', 'block', 'double', 'multi']);
+export const DECK_RULES = Object.freeze({ minQuantity: 0, maxQuantity: 30, maxTotal: 150 });
+// Os padrões vêm das quantidades históricas; letras e restritivas continuam fixas.
+export const DEFAULT_DECK_COMPOSITION = Object.freeze(Object.fromEntries(
+  CONFIGURABLE_CARD_TYPES.map((type) => [type, CARD_TYPES[type].quantity]),
+));
+export const deckSize = (composition = DEFAULT_DECK_COMPOSITION) => Object.entries(CARD_TYPES)
+  .reduce((total, [type, card]) => total + (CONFIGURABLE_CARD_TYPES.includes(type) ? composition[type] : card.quantity), 0);
+export const DECK_SIZE = deckSize();
+export const maxInitialCards = (players, composition = DEFAULT_DECK_COMPOSITION) => Math.floor((deckSize(composition) - RULES.reservedDrawCards) / players);
 export const PUBLIC_CONFIG = Object.freeze({
   maxPlayers: RULES.maxPlayers,
   deckSize: DECK_SIZE, cardTypes: CARD_TYPES,
+  configurableCardTypes: CONFIGURABLE_CARD_TYPES, defaultDeckComposition: DEFAULT_DECK_COMPOSITION, deckRules: DECK_RULES,
   minHand: RULES.minHand, reservedDrawCards: RULES.reservedDrawCards,
   maxDrawsPerTurn: RULES.maxDrawsPerTurn, lossPenalty: RULES.lossPenalty,
   challenge: CHALLENGE_RULES,

@@ -210,7 +210,7 @@ test('armazenamento assíncrono isola cópias e implementa get/save/delete/list'
   assert.equal(await storage.getRoom(room.code), null);
 });
 
-test('partida completa preserva todas as 84 cartas e produz vencedor', () => {
+test('partida completa preserva todas as cartas do baralho padrão e produz vencedor', () => {
   let room = playing(8, 3);
   let turns = 0;
   while (room.phase === 'playing' && turns++ < 150) {

@@ -10,7 +10,7 @@ import { createRoom, joinRoom, startGame, createDeck, roomView, playCard, drawCa
   disconnectPlayer, shouldDeleteRoom, updateSettings } from '../game/game.js';
 import { startChallenge, confirmChallenge, voteChallenge, loseChallenge, resolveChallenge } from '../game/challenge.js';
 import { acceptVictory, resolvePendingVictory } from '../game/victory.js';
-import { DECK_SIZE, CARD_TYPES } from '../game/config.js';
+import { DECK_SIZE, CARD_TYPES, RULES, deckSize } from '../game/config.js';
 
 const dictionary = createDictionary(['casa', 'casas', 'casca', 'canto', 'cantamos', 'cantaram', 'bola', 'bolas', 'bacana', 'abacate', 'capivara', 'futebol', 'zebra']);
 const now = 100_000;
@@ -65,7 +65,7 @@ test('lobby: só anfitrião humano gerencia bots, limite 8, nomes únicos e remo
   assert.equal(room.players.length, 8);
   assert.equal(new Set(room.players.map((p) => p.name)).size, 8);
   assert.equal(room.settings.maxInitialCards, undefined);
-  assert.ok(room.settings.initialCards <= Math.floor(83 / 8));
+  assert.ok(room.settings.initialCards <= Math.floor((deckSize(room.settings.deckComposition) - RULES.reservedDrawCards) / 8));
   rejectedWithoutChange(room, () => addBot(room, 'h', 'b8'), /8 jogadores/);
   rejectedWithoutChange(room, () => removeBot(room, 'h', 'h'), /não encontrado/);
   room = removeBot(room, 'h', 'b2');
@@ -277,7 +277,7 @@ function executeHuman(room, action, clock, random) {
   throw Error(`Ação humana inesperada: ${action.type}`);
 }
 
-test('simulação: um humano e três bots terminam muitas partidas sem travar, conservando 84 cartas', () => {
+test('simulação: um humano e três bots terminam muitas partidas sem travar, conservando o total configurado', () => {
   let seed=123456;
   const random=()=>((seed=(1664525*seed+1013904223)>>>0)/2**32);
   let totalTurns=0;
@@ -307,7 +307,7 @@ test('simulação: um humano e três bots terminam muitas partidas sem travar, c
         const action=decideBotAction(roomView(room,id),dictionary,random);
         if(action)room=applyBotAction(room,id,action,{version:room.game.version,now:clock,rng:random});
       }
-      assert.equal(room.players.reduce((n,p)=>n+p.hand.length,0)+room.game.deck.length+room.game.discard.length,84);
+      assert.equal(room.players.reduce((n,p)=>n+p.hand.length,0)+room.game.deck.length+room.game.discard.length,deckSize(room.settings.deckComposition));
     }
     assert.equal(room.phase,'finished',`partida ${match}: ${JSON.stringify({turn:room.game.turnNumber,word:room.game.word,ch:room.game.challenge,pending:room.game.pendingVictory,hands:room.players.map(p=>[p.id,p.hand.length])})}`);
     totalTurns+=room.game.turnNumber;

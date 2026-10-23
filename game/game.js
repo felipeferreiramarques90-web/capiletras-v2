@@ -1,4 +1,5 @@
-import { ALPHABET, CARD_TYPES, DECK_SIZE, PUBLIC_CONFIG, RULES, maxInitialCards } from './config.js';
+import { ALPHABET, CARD_TYPES, CONFIGURABLE_CARD_TYPES, DEFAULT_DECK_COMPOSITION, PUBLIC_CONFIG, RULES, deckSize, maxInitialCards } from './config.js';
+import { deckStartIssue, roomComposition, validateComposition } from './deck.js';
 import { GameError } from './errors.js';
 import { beginPendingVictory, finishVictory } from './victory.js';
 
@@ -20,8 +21,9 @@ const cleanName = (value) => {
 };
 
 // Não acessa relógio, rede ou armazenamento; aleatoriedade e horário são injetados.
-export function createDeck() {
-  return Object.entries(CARD_TYPES).flatMap(([type, rule]) => Array.from({ length: rule.quantity }, (_, i) => {
+export function createDeck(composition = DEFAULT_DECK_COMPOSITION) {
+  validateComposition(composition);
+  return Object.entries(CARD_TYPES).flatMap(([type, rule]) => Array.from({ length: CONFIGURABLE_CARD_TYPES.includes(type) ? composition[type] : rule.quantity }, (_, i) => {
     if (type !== 'letter') return { id: `${type}-${i}`, type };
     const letter = rule.letters[i % rule.letters.length];
     // IDs continuam únicos mesmo se a configuração passar a repetir letras fixas.
@@ -87,7 +89,7 @@ export function canSkipTurn(room, id) {
 export function createRoom({ code, playerId, sessionId, name, now }) {
   return {
     code, hostId: playerId, phase: 'lobby', createdAt: now, updatedAt: now,
-    emptySince: null, settings: { playerCount: 2, initialCards: RULES.defaultHand },
+    emptySince: null, settings: { playerCount: 2, initialCards: RULES.defaultHand, deckComposition: { ...DEFAULT_DECK_COMPOSITION } },
     players: [{ id: playerId, sessionId, name: cleanName(name), connected: true, left: false, hand: [] }],
     game: null,
     notice: 'Sala criada. Convide seus amigos!',
@@ -122,21 +124,48 @@ export function updateSettings(original, id, settings) {
   requireRule(Number.isInteger(playerCount) && playerCount >= RULES.minPlayers && playerCount <= RULES.maxPlayers,
     'Escolha entre 2 e 8 jogadores.');
   requireRule(playerCount >= room.players.length, 'Há mais jogadores na sala do que o limite escolhido.');
-  requireRule(Number.isInteger(initialCards) && initialCards >= RULES.minHand && initialCards <= maxInitialCards(playerCount),
-    `Escolha de 3 a ${maxInitialCards(playerCount)} cartas para essa quantidade de jogadores.`);
-  room.settings = { playerCount, initialCards };
+  const maximum = maxInitialCards(playerCount, roomComposition(room));
+  requireRule(Number.isInteger(initialCards) && initialCards >= RULES.minHand
+    && (initialCards <= maximum || playerCount !== room.settings.playerCount),
+    `Escolha de ${RULES.minHand} a ${maximum} cartas para essa quantidade de jogadores.`);
+  room.settings = { ...room.settings, playerCount, initialCards: Math.min(initialCards, maximum) };
+  recordHandAdjustment(room, initialCards > maximum);
   return room;
 }
+
+function recordHandAdjustment(room, adjusted) {
+  room.settingsAdjustment = adjusted ? {
+    revision: (room.settingsAdjustment?.revision ?? 0) + 1,
+    message: `Cartas iniciais ajustadas para ${room.settings.initialCards}, o máximo para este baralho e esta turma.`,
+  } : null;
+}
+
+export function updateDeckComposition(original, id, composition) {
+  requireHost(original, id);
+  requireRule(original.phase === 'lobby', 'A partida já começou.');
+  validateComposition(composition);
+  const room = clone(original);
+  room.settings.deckComposition = { ...composition };
+  const maximum = maxInitialCards(room.settings.playerCount, composition);
+  const adjusted = room.settings.initialCards > maximum;
+  room.settings.initialCards = Math.min(room.settings.initialCards, maximum);
+  recordHandAdjustment(room, adjusted);
+  return room;
+}
+
+export const restoreDefaultComposition = (room, id) => updateDeckComposition(room, id, DEFAULT_DECK_COMPOSITION);
 
 export function startGame(original, id, random) {
   const room = clone(original);
   requireHost(room, id);
   requireRule(room.phase === 'lobby' || room.phase === 'finished', 'A partida já começou.');
+  const issue = deckStartIssue(room);
+  requireRule(!issue, issue);
   room.players = room.players.filter((p) => !p.left);
   requireRule(room.players.some((p) => !p.isBot), 'A partida precisa de pelo menos um jogador humano.');
   requireRule(room.players.length === room.settings.playerCount && room.players.every((p) => p.connected),
     `Aguarde os ${room.settings.playerCount} jogadores ficarem conectados ou ajuste a sala.`);
-  const deck = shuffle(createDeck(), random);
+  const deck = shuffle(createDeck(roomComposition(room)), random);
   for (const player of room.players) player.hand = deck.splice(0, room.settings.initialCards);
   room.phase = 'playing';
   room.game = {
@@ -409,8 +438,10 @@ export function roomView(room, viewerId) {
   const challenge = game?.challenge;
   return {
     code: room.code, phase: room.phase, hostId: room.hostId, meId: viewerId,
-    settings: { ...room.settings, maxInitialCards: maxInitialCards(room.settings.playerCount) },
-    deckSize: DECK_SIZE, config: PUBLIC_CONFIG, notice: room.notice,
+    settings: { ...room.settings, deckComposition: { ...roomComposition(room) }, maxInitialCards: maxInitialCards(room.settings.playerCount, roomComposition(room)) },
+    settingsAdjustment: viewerId === room.hostId ? room.settingsAdjustment ?? null : null,
+    startIssue: deckStartIssue(room),
+    deckSize: deckSize(roomComposition(room)), config: PUBLIC_CONFIG, notice: room.notice,
     players: room.players.filter((p) => !p.left || room.phase !== 'lobby').map((p) => ({
       id: p.id, name: p.name, isBot: Boolean(p.isBot), connected: p.connected, left: p.left, cardCount: p.hand.length,
     })),

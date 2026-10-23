@@ -29,7 +29,7 @@ test('Passar letra soma 12 às 72 anteriores, sem alterar outros tipos, e recalc
   assert.equal(DECK_SIZE, 84);
   assert.equal(createDeck().length, 84);
   assert.equal(new Set(createDeck().map((card) => card.id)).size, 84);
-  assert.deepEqual([2, 3, 4, 5, 6, 7, 8].map(maxInitialCards), [41, 27, 20, 16, 13, 11, 10]);
+  assert.deepEqual([2, 3, 4, 5, 6, 7, 8].map((players) => maxInitialCards(players)), [41, 27, 20, 16, 13, 11, 10]);
 });
 
 test('Passar letra é válida como primeira jogada, passa a vez e não consome Bloqueio', () => {

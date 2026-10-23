@@ -310,7 +310,7 @@ test('aceitação reembaralha descarte e compra só as cartas que existirem', ()
   for (const available of [0, 2, 4]) {
     let room = confirm(begin(fixture(2)));
     room.game.deck = [];
-    room.game.discard = createDeck().slice(-available || 84);
+    room.game.discard = createDeck().slice(-available || createDeck().length);
     const before = room.players[1].hand.length;
     room = vote(room, 'p2', 'sim');
     assert.equal(room.players[1].hand.length, before + available);

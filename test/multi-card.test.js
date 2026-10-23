@@ -35,7 +35,7 @@ test('composição soma 84, preservando cinco 2+* e os demais tipos', () => {
 });
 
 test('máximo inicial com 84 cartas é recalculado para todas as quantidades de jogadores', () => {
-  assert.deepEqual([2, 3, 4, 5, 6, 7, 8].map(maxInitialCards), [41, 27, 20, 16, 13, 11, 10]);
+  assert.deepEqual([2, 3, 4, 5, 6, 7, 8].map((players) => maxInitialCards(players)), [41, 27, 20, 16, 13, 11, 10]);
   let room = createRoom({ code: 'ABC234', playerId: 'p1', sessionId: 's1', name: 'Ana', now: 1000 });
   room = updateSettings(room, 'p1', { playerCount: 2, initialCards: 41 });
   room = joinRoom(room, { playerId: 'p2', sessionId: 's2', name: 'Bia' });

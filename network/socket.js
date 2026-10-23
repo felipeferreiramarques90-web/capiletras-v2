@@ -1,7 +1,7 @@
 import { randomInt, randomUUID } from 'node:crypto';
 import {
   GameError, createRoom, joinRoom, updateSettings, startGame, drawCard, playCard,
-  skipTurn, disconnectPlayer, returnToLobby, removeFromLobby, shouldDeleteRoom,
+  skipTurn, disconnectPlayer, returnToLobby, removeFromLobby, shouldDeleteRoom, updateDeckComposition, restoreDefaultComposition,
 } from '../game/game.js';
 import { CHALLENGE_RULES } from '../game/config.js';
 import { startChallenge, previewChallenge, confirmChallenge, voteChallenge, loseChallenge, resolveChallenge } from '../game/challenge.js';
@@ -146,6 +146,8 @@ export function registerSockets(io, storage, { cleanupIntervalMs = 60_000, rando
     }
 
     on('room:settings', (data) => action((room, id) => updateSettings(room, id, data)));
+    on('room:deck', (data) => action((room, id) => updateDeckComposition(room, id, data?.composition)));
+    on('room:deck:reset', () => action((room, id) => restoreDefaultComposition(room, id)));
     on('game:start', () => action((room, id) => startGame(room, id, randomSource)));
     on('game:draw', () => action((room, id) => drawCard(room, id, randomSource)));
     on('game:play', (data) => action((room, id) => playCard(room, id, data?.cardId, data?.letter, data?.blockedLetter, data?.accumulatedLetters, data?.version ?? null, nowSource())));
