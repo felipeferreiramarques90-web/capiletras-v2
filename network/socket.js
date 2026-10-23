@@ -6,13 +6,16 @@ import {
 import { CHALLENGE_RULES } from '../game/config.js';
 import { startChallenge, previewChallenge, confirmChallenge, voteChallenge, loseChallenge, resolveChallenge } from '../game/challenge.js';
 import { acceptVictory, resolvePendingVictory } from '../game/victory.js';
+import { addBot, removeBot } from '../bots/players.js';
+import { defaultDictionary } from '../bots/load-dictionary.js';
+import { createBotScheduler } from './bots.js';
 
 const random = () => randomInt(0, 2 ** 32) / 2 ** 32;
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const newCode = () => Array.from({ length: 6 }, () => CODE_CHARS[randomInt(CODE_CHARS.length)]).join('');
 
 export function registerSockets(io, storage, { cleanupIntervalMs = 60_000, randomSource = random,
-  nowSource = () => Date.now(), challengeIntervalMs = CHALLENGE_RULES.tickMs } = {}) {
+  nowSource = () => Date.now(), challengeIntervalMs = CHALLENGE_RULES.tickMs, botOptions = {} } = {}) {
   const owners = new Map();
   const queues = new Map();
   const ownerKey = (code, id) => `${code}:${id}`;
@@ -39,10 +42,26 @@ export function registerSockets(io, storage, { cleanupIntervalMs = 60_000, rando
     room.updatedAt = nowSource();
     await storage.saveRoom(room);
     broadcast(room);
+    bots.schedule(room);
+  }
+
+  const bots = createBotScheduler({ storage, locked, settle, save, nowSource,
+    dictionary: botOptions.dictionary || defaultDictionary(), rng: botOptions.rng || randomSource,
+    timings: botOptions.timings, chooseAction: botOptions.chooseAction });
+
+  async function deleteRoom(room, { notify = true } = {}) {
+    bots.forget(room.code);
+    await storage.deleteRoom(room.code);
+    for (const player of room.players) {
+      const key = ownerKey(room.code, player.id);
+      const target = io.sockets.sockets.get(owners.get(key));
+      if (target) { if (notify) target.emit('room:expired'); target.data = {}; }
+      owners.delete(key);
+    }
   }
 
   function bind(socket, room, sessionId) {
-    const player = room.players.find((p) => p.sessionId === sessionId && !p.left);
+    const player = room.players.find((p) => !p.isBot && p.sessionId === sessionId && !p.left);
     const key = ownerKey(room.code, player.id);
     const oldSocket = io.sockets.sockets.get(owners.get(key));
     owners.set(key, socket.id);
@@ -91,6 +110,7 @@ export function registerSockets(io, storage, { cleanupIntervalMs = 60_000, rando
         await storage.saveRoom(room);
         bind(socket, room, credentials.sessionId);
         broadcast(room);
+        bots.schedule(room);
       });
     });
 
@@ -106,6 +126,7 @@ export function registerSockets(io, storage, { cleanupIntervalMs = 60_000, rando
         await storage.saveRoom({ ...room, updatedAt: nowSource() });
         bind(socket, room, credentials.sessionId);
         broadcast(room);
+        bots.schedule(room);
       });
     });
 
@@ -137,6 +158,8 @@ export function registerSockets(io, storage, { cleanupIntervalMs = 60_000, rando
     on('game:skip', (data) => action((room, id) => skipTurn(room, id, randomSource, data?.version ?? null)));
     on('room:lobby', () => action((room, id) => returnToLobby(room, id)));
     on('room:remove', (data) => action((room, id) => removeFromLobby(room, id, data?.playerId)));
+    on('room:bot:add', () => action((room, id) => addBot(room, id, randomUUID())));
+    on('room:bot:remove', (data) => action((room, id) => removeBot(room, id, data?.playerId)));
 
     async function detach(leave) {
       const { code, playerId } = socket.data;
@@ -147,8 +170,8 @@ export function registerSockets(io, storage, { cleanupIntervalMs = 60_000, rando
         const previous = await storage.getRoom(code);
         if (previous) {
           const room = settle(disconnectPlayer(previous, playerId, nowSource(), leave));
-          await save(room);
-          if (!room.players.length) await storage.deleteRoom(code);
+          if (!room.players.some((p) => !p.isBot && !p.left)) await deleteRoom(room, { notify: false });
+          else await save(room);
         }
         owners.delete(key);
         socket.data = {};
@@ -167,12 +190,13 @@ export function registerSockets(io, storage, { cleanupIntervalMs = 60_000, rando
     sweeping = true;
     try {
       for (const candidate of await storage.listRooms()) {
-        if (!candidate.game?.challenge && !candidate.game?.pendingVictory) continue;
+        if (!candidate.game?.challenge && !candidate.game?.pendingVictory && !candidate.players.some((p) => p.isBot)) continue;
         await locked(candidate.code, async () => {
           const room = await storage.getRoom(candidate.code);
           if (!room) return;
           const next = settle(room);
           if (next !== room) await save(next);
+          else bots.schedule(room);
         });
       }
     } catch (error) { console.error('Falha ao resolver prazos da partida:', error); }
@@ -188,20 +212,11 @@ export function registerSockets(io, storage, { cleanupIntervalMs = 60_000, rando
         await locked(candidate.code, async () => {
           const room = await storage.getRoom(candidate.code);
           if (!room || !shouldDeleteRoom(room, nowSource())) return;
-          await storage.deleteRoom(room.code);
-          for (const player of room.players) {
-            const key = ownerKey(room.code, player.id);
-            const target = io.sockets.sockets.get(owners.get(key));
-            if (target) {
-              target.emit('room:expired');
-              target.data = {};
-            }
-            owners.delete(key);
-          }
+          await deleteRoom(room);
         });
       }
     } catch (error) { console.error('Falha ao limpar salas:', error); }
   }, cleanupIntervalMs);
   cleanup.unref();
-  return () => { clearInterval(cleanup); clearInterval(challengeClock); };
+  return () => { clearInterval(cleanup); clearInterval(challengeClock); bots.stop(); };
 }
