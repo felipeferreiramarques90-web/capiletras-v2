@@ -1,7 +1,7 @@
 import { randomInt, randomUUID } from 'node:crypto';
 import {
   GameError, createRoom, joinRoom, updateSettings, startGame, drawCard, playCard,
-  skipTurn, disconnectPlayer, returnToLobby, removeFromLobby, roomView, shouldDeleteRoom,
+  skipTurn, disconnectPlayer, returnToLobby, removeFromLobby, shouldDeleteRoom,
 } from '../game/game.js';
 import { CHALLENGE_RULES } from '../game/config.js';
 import { startChallenge, previewChallenge, confirmChallenge, voteChallenge, loseChallenge, resolveChallenge } from '../game/challenge.js';
@@ -9,6 +9,7 @@ import { acceptVictory, resolvePendingVictory } from '../game/victory.js';
 import { addBot, removeBot } from '../bots/players.js';
 import { defaultDictionary } from '../bots/load-dictionary.js';
 import { createBotScheduler } from './bots.js';
+import { clientView } from './client-view.js';
 
 const random = () => randomInt(0, 2 ** 32) / 2 ** 32;
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -34,7 +35,7 @@ export function registerSockets(io, storage, { cleanupIntervalMs = 60_000, rando
   function broadcast(room) {
     for (const player of room.players.filter((p) => p.connected && !p.left)) {
       const target = io.sockets.sockets.get(owners.get(ownerKey(room.code, player.id)));
-      target?.emit('room:state', { ...roomView(room, player.id), serverNow: nowSource() });
+      target?.emit('room:state', { ...clientView(room, player.id), serverNow: nowSource() });
     }
   }
 

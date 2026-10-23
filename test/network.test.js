@@ -102,7 +102,7 @@ for (const outcome of ['recusa', 'aceitação', 'desconexão']) {
     const vote = outcome === 'recusa' ? 'nao' : 'sim';
     for (const socket of voters.slice(0, 3)) assert.equal((await emit(socket, 'challenge:vote', { challengeId, vote })).ok, true);
     if (outcome !== 'recusa') {
-      assert.equal(a.view.game.challenge.respondedCount, 3);
+      assert.equal(Object.hasOwn(a.view.game.challenge, 'respondedCount'), false);
       if (outcome === 'desconexão') {
         voters[3].disconnect();
         await waitFor(() => !a.view.game.challenge);
@@ -113,7 +113,7 @@ for (const outcome of ['recusa', 'aceitação', 'desconexão']) {
     assert.equal(saved.game.challenge, null);
     assert.equal(saved.game.challengeResult.tally.early, true);
     assert.equal(saved.game.challengeResult.tally.rejected, outcome === 'recusa');
-    assert.match(a.view.notice, /encerrada antecipadamente/);
+    assert.equal(a.view.notice, outcome === 'recusa' ? 'Palavra recusada' : 'Palavra aceita');
     assert.equal((await emit(voters[5], 'challenge:vote', { challengeId, vote: 'nao' })).ok, true);
     assert.deepEqual(await storage.getRoom(code), saved);
   });
@@ -209,7 +209,7 @@ test('rede: débito impede desafio com aviso privado e sem gravações, até ser
   assert.equal(b.view.game.challenge.challengedId, a.view.meId);
 });
 
-test('rede: primeiro desafio vence, cancela jogadas, oculta votos e revela o resultado', async (t) => {
+test('rede: primeiro desafio vence, cancela jogadas e transmite apenas voto próprio e resultado', async (t) => {
   const fixture = await setup(t);
   const { a, b, code, storage, connect } = fixture;
   assert.equal((await emit(a, 'room:settings', { playerCount: 3, initialCards: 3 })).ok, true);
@@ -235,10 +235,13 @@ test('rede: primeiro desafio vence, cancela jogadas, oculta votos e revela o res
   assert.equal((await emit(a, 'challenge:confirm', { challengeId, letters: 'to' })).ok, true);
   assert.equal((await emit(a, 'challenge:vote', { challengeId, vote: 'sim' })).ok, false);
   assert.equal((await emit(b, 'challenge:vote', { challengeId, vote: 'sim' })).ok, true);
-  await waitFor(() => c.view.game.challenge.respondedCount === 1);
+  await waitFor(() => c.view.game.version === b.view.game.version);
+  assert.equal(b.view.game.challenge.ownVote, 'sim');
   for (const socket of [a, b, c]) {
-    assert.equal(Object.hasOwn(socket.view.game.challenge, 'votes'), false);
-    assert.equal(Object.hasOwn(socket.view.game.challenge, 'tally'), false);
+    for (const field of ['votes', 'tally', 'respondedCount', 'voterCount', 'voterIds']) {
+      assert.equal(Object.hasOwn(socket.view.game.challenge, field), false);
+    }
+    assert.equal(socket.view.game.challenge.ownVote, socket === b ? 'sim' : null);
   }
   assert.equal((await emit(c, 'challenge:vote', { challengeId, vote: 'nao' })).ok, true);
   await waitFor(() => !b.view.game.challenge);
@@ -247,6 +250,10 @@ test('rede: primeiro desafio vence, cancela jogadas, oculta votos e revela o res
   assert.equal(final.game.lastLetterPlayerId, null);
   assert.equal(final.game.turnPlayerId, before.game.turnPlayerId);
   assert.equal(final.players[0].hand.length, before.players[0].hand.length + 4);
+  for (const socket of [a, b, c]) {
+    assert.deepEqual(socket.view.game.challengeResult, { outcome: 'recusada' });
+    assert.equal(socket.view.notice, 'Palavra recusada');
+  }
 
   const reset = structuredClone(final);
   assert.equal((await emit(b, 'game:play', { cardId: 'wild-0', letter: 'Z', version: before.game.version })).ok, false);
