@@ -11,7 +11,7 @@ const playerById = (room, id) => {
   requireRule(player, 'Jogador não encontrado nesta sala.');
   return player;
 };
-const requireHost = (room, id) => requireRule(room.hostId === id, 'Só o anfitrião pode fazer isso.');
+const requireHost = (room, id) => requireRule(room.hostId === id && room.players.some((p) => p.id === id && !p.isBot), 'Só o anfitrião pode fazer isso.');
 const cleanName = (value) => {
   requireRule(typeof value === 'string', 'Informe seu nome.');
   const name = value.trim().replace(/\s+/g, ' ');
@@ -40,6 +40,15 @@ export function shuffle(cards, random) {
 
 export function allowedLetters(card) {
   return card.type === 'letter' ? card.letter : (CARD_TYPES[card.type]?.letters || '');
+}
+
+// Prévia compartilhada pelo cérebro e pela aplicação da jogada. A validação
+// continua em playCard; este helper não autoriza nem modifica estado algum.
+export function previewCardWord(word, card, choice = '', accumulatedLetters = '') {
+  const base = word + accumulatedLetters, effect = CARD_TYPES[card.type]?.effect;
+  if (effect === 'replace') return base.slice(0, -1) + choice;
+  if (effect === 'pass' || effect === 'replay') return base;
+  return base + (card.type === 'letter' ? card.letter : choice);
 }
 
 export function debtForPlayer(game, id = game?.turnPlayerId) {
@@ -87,11 +96,11 @@ export function createRoom({ code, playerId, sessionId, name, now }) {
 
 export function joinRoom(original, { playerId, sessionId, name }) {
   const room = clone(original);
-  const existing = room.players.find((p) => p.sessionId === sessionId && !p.left);
+  const existing = room.players.find((p) => !p.isBot && p.sessionId === sessionId && !p.left);
   if (existing) {
     existing.connected = true;
     room.emptySince = null;
-    if (!room.players.some((p) => p.id === room.hostId && p.connected && !p.left)) room.hostId = existing.id;
+    if (!room.players.some((p) => p.id === room.hostId && !p.isBot && p.connected && !p.left)) room.hostId = existing.id;
     resumeTurn(room);
     if (room.game) room.game.version++;
     return room;
@@ -124,6 +133,7 @@ export function startGame(original, id, random) {
   requireHost(room, id);
   requireRule(room.phase === 'lobby' || room.phase === 'finished', 'A partida já começou.');
   room.players = room.players.filter((p) => !p.left);
+  requireRule(room.players.some((p) => !p.isBot), 'A partida precisa de pelo menos um jogador humano.');
   requireRule(room.players.length === room.settings.playerCount && room.players.every((p) => p.connected),
     `Aguarde os ${room.settings.playerCount} jogadores ficarem conectados ou ajuste a sala.`);
   const deck = shuffle(createDeck(), random);
@@ -135,6 +145,7 @@ export function startGame(original, id, random) {
     blockedLetter: null, protectedPlayerId: null, extraTurns: [], version: 0,
     letterDebt: { count: 0, playerId: null },
     lastLetterPlayerId: null, challenge: null, challengeResult: null,
+    letterPlayNumber: 0, botDecisions: {},
   };
   room.notice = 'A partida começou. Boa sorte!';
   return room;
@@ -265,7 +276,7 @@ export function playCard(original, id, cardId, choice, blockedChoice, accumulate
   room.game.protectedPlayerId = CARD_TYPES[card.type].protectsFromChallenge ? id : null;
   if (effect === 'replace') {
     const previous = room.game.word.at(-1);
-    room.game.word = room.game.word.slice(0, -1) + letter;
+    room.game.word = previewCardWord(room.game.word, card, letter);
     room.notice = `${player.name} jogou Troca: ${previous} virou ${letter}.`;
   } else if (effect === 'replay') {
     const previous = room.players.find((p) => p.id === previousPlayerId);
@@ -279,14 +290,17 @@ export function playCard(original, id, cardId, choice, blockedChoice, accumulate
     }
     room.notice = `${player.name} jogou Passar letra →.`;
   } else {
-    room.game.word += letter;
+    room.game.word = previewCardWord(room.game.word, card, letter);
     room.notice = effect === 'block' ? `${player.name} jogou Bloqueio: adicionou ${letter} e bloqueou ${blockedLetter} até a próxima jogada com letra.`
       : effect === 'appendMany' ? `${player.name} jogou ${CARD_TYPES[card.type].label}: adicionou ${letter}.`
         : CARD_TYPES[card.type].protectsFromChallenge ? `${player.name} jogou Vida ${CARD_TYPES[card.type].symbol}: adicionou ${letter}.`
         : `${player.name} jogou a letra ${letter}.`;
   }
   room.game.lastPlayerId = id;
-  if (usesLetters) room.game.lastLetterPlayerId = id;
+  if (usesLetters) {
+    room.game.lastLetterPlayerId = id;
+    room.game.letterPlayNumber = (room.game.letterPlayNumber || 0) + 1;
+  }
   if (paidLetters) room.notice = `${player.name} pagou ${owed} letra${owed === 1 ? '' : 's'} acumulada${owed === 1 ? '' : 's'} (${paidLetters}). ${room.notice}`;
   room.game.version++;
   if (lastCard) {
@@ -340,13 +354,15 @@ export function skipTurn(original, id, random, expectedVersion = original.game?.
 export function disconnectPlayer(original, id, now, leave = false) {
   const room = clone(original);
   const player = playerById(room, id);
+  requireRule(!player.isBot, 'Bots não possuem conexão para encerrar.');
   player.connected = false;
   player.left = leave;
   room.notice = `${player.name} ${leave ? 'saiu da sala' : 'desconectou; a vaga está reservada'}.`;
   if (leave && room.phase === 'lobby') room.players = room.players.filter((p) => p.id !== id);
   const active = connected(room);
-  if (id === room.hostId && active.length) room.hostId = active[0].id;
-  if (!active.length && room.emptySince === null) room.emptySince = now;
+  const humans = active.filter((p) => !p.isBot);
+  if (id === room.hostId && humans.length) room.hostId = humans[0].id;
+  if (!humans.length && room.emptySince === null) room.emptySince = now;
   resumeTurn(room);
   if (room.game) room.game.version++;
   return room;
@@ -380,7 +396,7 @@ export function removeFromLobby(original, hostId, playerId) {
 }
 
 export function shouldDeleteRoom(room, now) {
-  return !room.players.length || (room.emptySince !== null && now - room.emptySince >= RULES.emptyRoomTtlMs)
+  return !room.players.some((p) => !p.isBot && !p.left) || (room.emptySince !== null && now - room.emptySince >= RULES.emptyRoomTtlMs)
     || now - room.updatedAt >= RULES.inactiveRoomTtlMs;
 }
 
@@ -396,13 +412,14 @@ export function roomView(room, viewerId) {
     settings: { ...room.settings, maxInitialCards: maxInitialCards(room.settings.playerCount) },
     deckSize: DECK_SIZE, config: PUBLIC_CONFIG, notice: room.notice,
     players: room.players.filter((p) => !p.left || room.phase !== 'lobby').map((p) => ({
-      id: p.id, name: p.name, connected: p.connected, left: p.left, cardCount: p.hand.length,
+      id: p.id, name: p.name, isBot: Boolean(p.isBot), connected: p.connected, left: p.left, cardCount: p.hand.length,
     })),
     hand: structuredClone(viewer.hand),
     game: game ? {
       word: game.word, turnPlayerId: game.turnPlayerId, lastPlayerId: game.lastPlayerId,
       winnerId: game.winnerId, turnNumber: game.turnNumber, drawsThisTurn: game.drawsThisTurn,
       version: game.version, blockedLetter: game.blockedLetter, extraTurns: [...game.extraTurns],
+      letterPlayNumber: game.letterPlayNumber || 0, botDecisionPlay: game.botDecisions?.[viewerId] ?? null,
       protectedPlayerId: game.protectedPlayerId,
       pendingVictory: game.pendingVictory ? {
         playerId: game.pendingVictory.playerId, id: game.pendingVictory.id, deadline: game.pendingVictory.deadline,

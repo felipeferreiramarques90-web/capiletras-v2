@@ -41,6 +41,7 @@ export const CARD_TYPES = Object.freeze(Object.fromEntries(Object.entries({
 export const DECK_SIZE = Object.values(CARD_TYPES).reduce((total, card) => total + card.quantity, 0);
 export const maxInitialCards = (players) => Math.floor((DECK_SIZE - RULES.reservedDrawCards) / players);
 export const PUBLIC_CONFIG = Object.freeze({
+  maxPlayers: RULES.maxPlayers,
   deckSize: DECK_SIZE, cardTypes: CARD_TYPES,
   minHand: RULES.minHand, reservedDrawCards: RULES.reservedDrawCards,
   maxDrawsPerTurn: RULES.maxDrawsPerTurn, lossPenalty: RULES.lossPenalty,
