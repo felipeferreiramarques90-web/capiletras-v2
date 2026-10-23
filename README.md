@@ -30,6 +30,36 @@ Se já houver Chromium instalado, use `CHROMIUM_EXECUTABLE_PATH=/caminho/do/chro
 
 O front-end é estático: recarregue o navegador após editá-lo. Não há etapa de compilação. Para uma instalação exata a partir do lockfile, use `npm ci`. A porta usa `process.env.PORT`, com padrão `3000`; a mesma porta serve os arquivos e o Socket.IO. `GET /health` responde HTTP 200 com `{"status":"ok"}`.
 
+## Jogar com bots
+
+No lobby, o anfitrião pode usar **Adicionar bot** quantas vezes quiser, até o limite de **8 participantes no total**. O botão **×** ao lado de cada bot remove sua vaga antes de iniciar. Bots têm nomes automáticos únicos e ícone 🤖 no lobby, na mesa e na indicação da vez. Ao preencher todas as vagas, adicionar outro bot aumenta o número configurado de participantes; se necessário, as cartas iniciais são reduzidas ao máximo permitido pelo mesmo baralho de **84 cartas**. Remover um bot de uma sala cheia também reduz a quantidade de vagas, respeitando o mínimo de dois jogadores.
+
+É possível jogar com **1 humano e até 7 bots**, em um único nível de dificuldade. Bots não têm socket, ficam conectados no estado e nunca assumem o papel de anfitrião. Quando todos os humanos usam **Sair da sala**, a sala é removida e os agendamentos são cancelados. Uma queda de conexão reserva a vaga humana para reconexão: sem humanos conectados, os bots pausam; ao reconectar, retomam. Salas abandonadas continuam sujeitas à expiração.
+
+O bot recebe somente a **própria mão e a visão pública**, exatamente como um cliente. Procura jogadas que preservem um prefixo do dicionário, respeitando as opções calculadas pelo servidor, Bloqueio, Troca, vogais da Vida, `2+*` e pagamento de letras acumuladas. Prioriza uma palavra completa ao baixar a última carta. Sem continuação, compra se puder; depois usa uma defesa ou blefa. Para evitar ciclos de recompra da mesma carta, o blefe prefere gastar cartas antigas. **Não consigo jogar** só é usado quando a validação normal o permite.
+
+Os bots podem duvidar tanto de humanos quanto de outros bots, **somente quando o visor não é prefixo válido** e o desafio está permitido. Cada bot sorteia uma única vez por jogada que coloca letra: **35% no jogo normal** e **75% durante vitória pendente**. Um sorteio desfavorável na janela final deixa o bot aguardando; ele não aceita uma palavra suspeita. Com prefixo válido, aceita a vitória pendente e nunca duvida. Na votação, **todos os bots aceitam a palavra de um humano depois do OK**, inclusive o bot desafiante; contra outro bot, votam conforme a palavra completa no dicionário. Como desafiado, o bot mostra uma continuação real de até 16 letras e confirma, ou usa PERDI se não encontrar uma palavra.
+
+Configuração em **`bots/config.js`**:
+
+| Constante | Padrão |
+| --- | --- |
+| `BOT_NAMES` | Lista de nomes automáticos. |
+| `actionMinMs` / `actionMaxMs` | 1.000 / 3.000 ms antes de jogar, comprar, completar ou decidir duvidar. |
+| `responseMinMs` / `responseMaxMs` | 500 / 1.500 ms para votar ou aceitar a palavra. |
+| `CHANCE_BOT_DUVIDAR` / `CHANCE_BOT_DUVIDAR_ULTIMA_CARTA` | 0,35 / 0,75; usados por `BOT_RULES.challengeChance` / `finalChallengeChance`. |
+| `maxAttemptsPerTurn` | 3 tentativas antes da ação de segurança. |
+| `maxPaymentCandidates`, `maxContinuations`, `maxSearchNodes` | Limites de busca: 96, 48 e 20.000. |
+| `minWordLength` / `recentDrawBluffPenalty` | Mínimo de 3 letras no dicionário / preferência por cartas antigas em blefes. |
+
+O cérebro puro fica em **`bots/brain.js`**, com RNG injetável para testes. **`bots/actions.js`** despacha as intenções para as mesmas funções puras de jogada, compra, desafio e votação usadas pelos humanos. Os timers ficam em **`network/bots.js`**, usam a mesma fila por sala dos sockets e descartam ações cuja versão ficou antiga. O limite de tentativas recorre às opções legais de segurança, sem passar a vez fora das regras. Salas restauradas refazem os agendamentos; o JSON guarda apenas `isBot`, dados normais do jogador, `game.letterPlayNumber` e `game.botDecisions`, que impedem novos sorteios na mesma jogada. Nenhum timer, função ou referência ao dicionário entra no estado.
+
+### Fonte e licença do dicionário
+
+Incluímos **317.673 palavras** normalizadas do corpus [fserb/pt-br](https://github.com/fserb/pt-br), de Fernando Serboncini, sob **licença MIT**. Foram combinados o léxico e as **conjugações verbais** do snapshot `93ba2a6f3b2f85262fba72df09d448c6bb2fa50a`. As entradas ficam em maiúsculas, sem acentos nem cedilha, apenas A–Z; palavras de menos de três letras ou com espaços/hífens são descartadas, assim como duplicatas. A atribuição, os links de origem e o hash estão em **`bots/data/SOURCE.md`**; a licença integral acompanha os dados em **`bots/data/LICENSE-MIT.txt`**.
+
+O servidor carrega **`bots/data/pt-BR.txt`** uma vez na inicialização, em um trie compacto de vetores tipados, só em memória. Não precisa de rede nem de serviço externo. O dicionário é um recurso de decisão dos bots: **não muda a regra de votação nem impõe validação automática às palavras dos humanos**.
+
 ## Tema visual: campo de futebol
 
 A mesa usa faixas de gramado com linha do meio e círculo central discretos. Lobby, botões e modais mantêm a estrutura, com painéis claros e tipografia **Georgia**, seguida por Times New Roman e serifa do sistema como fallback. Não há download de fontes ou imagens externas. Os versos marrons mostram uma capivara em **SVG inline original**, também nas mãos dos adversários; a bomba da `2+*` é outro SVG original.
@@ -189,8 +219,14 @@ game/config.js       Regras ajustáveis, tipos de carta e limites
 game/game.js         Lógica pura, validações e visão privada de cada jogador
 game/challenge.js    Desafios, votação, penalidades e resolução pura de prazos
 game/victory.js      Janela de vitória, aceite unânime e prazos persistidos
+bots/brain.js        Decisões dos bots com visão privada e RNG injetável
+bots/actions.js      Despacho para as mesmas validações puras dos humanos
+bots/players.js      Inclusão e remoção de bots no lobby
+bots/dictionary.js   Trie e buscas por prefixo, palavra e continuação
+bots/data/           Corpus pt-BR normalizado, fonte e licença MIT
 storage/memory.js    Interface assíncrona de armazenamento, implementada em memória
 network/socket.js    Eventos Socket.IO, identificação, filas por sala e limpeza
+network/bots.js      Atrasos, descarte de ações antigas e retomada dos bots
 server.js            Express, arquivos estáticos e rota /health
 public/              Interface em HTML, CSS e JavaScript, sem compilação
 test/                Testes automatizados com o runner nativo do Node.js
