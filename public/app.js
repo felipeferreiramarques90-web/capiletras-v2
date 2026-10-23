@@ -197,7 +197,6 @@
 
   function table() {
     const game = room.game;
-    const skipReason = game.challenge ? 'Desafio em andamento' : game.pendingVictory ? 'Vitória pendente' : !game.drawsThisTurn && game.availableCount > 0 ? 'Compre uma carta primeiro' : !game.noPlayableCards ? 'Você tem carta jogável' : game.turnPlayerId !== room.meId ? 'Não é a sua vez' : !room.hand.length ? 'Sua mão está vazia' : game.paused ? 'Partida pausada' : `Compre até ${room.config.lossPenalty} cartas e perca a vez.`;
     const current = room.players.find((p) => p.id === game.turnPlayerId);
     const myTurn = game.canPlay && canAct();
     const meIndex = room.players.findIndex((p) => p.id === room.meId);
@@ -205,14 +204,13 @@
     return `<section class="game-layout">${roomBar('PALAVRAS SE CONSTROEM EM BOA COMPANHIA')}
       <div class="opponents">${ordered.map((p) => { const i = room.players.findIndex((item) => item.id === p.id); return `<div class="opponent ${p.id === game.turnPlayerId ? 'active' : ''} ${!p.connected ? 'offline-player' : ''}">${avatar(p, i)}<div><strong>${playerName(p)}</strong><span>${p.left ? 'Saiu da sala' : !p.connected ? 'Reconectando…' : `${p.cardCount} carta${p.cardCount === 1 ? '' : 's'}`}</span></div><span class="mini-cards card-back" aria-hidden="true">${capybaraSvg()}</span></div>`; }).join('')}</div>
       <div class="turn-bar ${myTurn ? 'your-turn' : ''}" role="status"><span class="status-dot connected"></span>${!socket.connected ? 'Reconectando… Suas cartas estão guardadas.' : game.challenge ? 'Desafio em andamento · a partida aguarda o resultado.' : game.pendingVictory ? 'Última carta na mesa · vitória pendente.' : game.paused ? 'Partida pausada · aguardando outro jogador reconectar' : game.turnPlayerId === room.meId ? (game.noPlayableCards ? (game.canSkipTurn ? 'Sem carta jogável. Você pode usar Não consigo jogar.' : 'Sem carta jogável. Compre uma carta primeiro.') : 'É a sua vez! Escolha uma carta para jogar.') : `Vez de ${escape(current?.name)}. Prepare sua próxima letra.`}<span class="turn-number">TURNO ${game.turnNumber}</span></div>${game.paused && !game.challenge && !game.pendingVictory && isHost() ? `<div class="paused-actions"><button class="text-button" data-action="end" ${disabled(!canAct())}>Encerrar partida e voltar à sala →</button></div>` : ''}
-      <section class="table-felt" aria-label="Centro da mesa"><div class="felt-caption">CAPILETRAS · A MESA É DE TODOS</div>${game.pendingVictory && !game.challenge ? `<section class="pending-victory" aria-label="Vitória pendente"><p id="victory-countdown" role="status"></p><small>${game.pendingVictory.acceptedCount}/${game.pendingVictory.voterCount} aceitaram</small>${game.pendingVictory.playerId !== room.meId ? `<button class="button primary" data-action="accept-victory" ${disabled(!canAct() || !game.pendingVictory.canAccept)}>Aceito a palavra</button>` : '<small>Aguardando os outros jogadores.</small>'}</section>` : ''}
+      <section class="table-felt" aria-label="Centro da mesa">${game.pendingVictory && !game.challenge ? `<section class="pending-victory" aria-label="Vitória pendente"><p id="victory-countdown" role="status"></p>${game.pendingVictory.playerId !== room.meId ? `<button class="button primary" data-action="accept-victory" ${disabled(!canAct() || !game.pendingVictory.canAccept)}>Aceito a palavra</button>` : '<small>Aguardando os outros jogadores.</small>'}</section>` : ''}
         <div class="table-center"><button class="draw-pile ${game.canDraw ? 'available' : ''}" data-action="draw" ${disabled(!game.canDraw || !canAct())} aria-label="Comprar uma carta. ${game.deckCount} cartas na pilha, ${game.discardCount} para reembaralhar."><span class="deck-back card-back" aria-hidden="true">${capybaraSvg()}</span><strong>COMPRAR</strong><small>${game.deckCount} na pilha${game.discardCount ? ` · ${game.discardCount} jogadas` : ''}</small></button>
-        <div class="word-area">${wordHeading(current)}<div class="word-display ${game.word ? '' : 'word-empty'}" aria-label="Palavra atual: ${escape(game.word || 'vazia')}">${game.word ? escape(game.word) : 'A primeira letra é com você.'}</div><p>${game.word ? `${game.word.length} letra${game.word.length === 1 ? '' : 's'} e contando…` : 'Uma carta é tudo que precisa para começar.'}</p>${game.blockedLetter ? `<div class="block-badge" role="status">➕🚫 Letra bloqueada: <strong>${game.blockedLetter}</strong><span>até a próxima jogada com letra</span></div>` : ''}${game.letterDebt.count ? `<div class="debt-badge" role="status"><span aria-hidden="true">→</span> ${escape(room.players.find((p) => p.id === game.letterDebt.playerId)?.name)} deve ${game.letterDebt.count} letra${game.letterDebt.count === 1 ? '' : 's'}</div>` : ''}${game.extraTurns.length ? `<p class="extra-turn-notice">2x ativo · retorno para ${escape(room.players.find((p) => p.id === game.extraTurns.at(-1))?.name)}</p>` : ''}</div>
-        <div class="lose-area"><button class="button lose-button skip-button" data-action="skip" aria-describedby="loss-help" ${disabled(!game.canSkipTurn || !canAct())}>Não consigo jogar <span aria-hidden="true">↺</span></button><p id="loss-help">${escape(skipReason)}</p></div></div>
+        <div class="word-area">${wordHeading(current)}<div class="word-display ${game.word ? '' : 'word-empty'}" aria-label="Palavra atual: ${escape(game.word || 'vazia')}">${game.word ? escape(game.word) : 'A primeira letra é com você.'}</div><p class="table-notice" role="status">${escape(room.notice)}</p>${game.blockedLetter ? `<div class="block-badge" role="status">➕🚫 Letra bloqueada: <strong>${game.blockedLetter}</strong><span>até a próxima jogada com letra</span></div>` : ''}${game.letterDebt.count ? `<div class="debt-badge" role="status"><span aria-hidden="true">→</span> ${escape(room.players.find((p) => p.id === game.letterDebt.playerId)?.name)} deve ${game.letterDebt.count} letra${game.letterDebt.count === 1 ? '' : 's'}</div>` : ''}${game.extraTurns.length ? `<p class="extra-turn-notice">2x ativo · retorno para ${escape(room.players.find((p) => p.id === game.extraTurns.at(-1))?.name)}</p>` : ''}</div>
+        </div>
         <div class="challenge-table-actions"><button class="button challenge-button" data-action="challenge" aria-describedby="challenge-help-debt" ${disabled(!canAct() || Boolean(game.challenge) || game.letterDebt.count > 0)}>Duvidar da palavra <span aria-hidden="true">?</span></button>${game.letterDebt.count > 0 ? '<p id="challenge-help-debt" class="challenge-debt-reason" role="status">Há letras acumuladas pendentes.</p>' : '<span id="challenge-help-debt" hidden></span>'}${game.challenge ? '<button class="text-button" data-action="challenge-view">Acompanhar desafio →</button>' : ''}</div>
-        <p class="table-notice" role="status">${escape(room.notice)}</p>${game.challengeResult ? `<section class="challenge-result" aria-label="Resultado do desafio"><strong>Resultado do desafio</strong><p>Palavra: ${escape(game.challengeResult.word)}</p>${challengeVotesMarkup(game.challengeResult)}</section>` : ''}
       </section>
-      <section class="hand-section" aria-label="Sua mão"><div class="hand-heading"><div><span class="eyebrow">SUAS POSSIBILIDADES</span><h2>Sua mão <span>${room.hand.length} carta${room.hand.length === 1 ? '' : 's'}</span></h2></div><p>${game.drawsThisTurn && game.turnPlayerId === room.meId ? (game.noPlayableCards ? 'Você já comprou e segue sem carta jogável. Use Não consigo jogar.' : 'Você já comprou. Agora, baixe uma carta.') : !game.availableCount ? 'Sem cartas para comprar. Escolha uma da mão.' : `Compre até ${room.config.maxDrawsPerTurn} carta por turno, se quiser.`}</p></div>
+      <section class="hand-section" aria-label="Sua mão"><div class="hand-heading"><div><span class="eyebrow">SUAS POSSIBILIDADES</span><h2>Sua mão <span>${room.hand.length} carta${room.hand.length === 1 ? '' : 's'}</span></h2></div><p>${game.drawsThisTurn && game.turnPlayerId === room.meId ? (game.noPlayableCards ? 'Você já comprou e segue sem carta jogável. Use Não consigo jogar.' : 'Você já comprou. Agora, baixe uma carta.') : !game.availableCount ? 'Sem cartas para comprar. Escolha uma da mão.' : `Compre até ${room.config.maxDrawsPerTurn} carta por turno, se quiser.`}</p>${game.canSkipTurn && canAct() ? '<button class="button lose-button skip-button hand-skip-button" data-action="skip">Não consigo jogar <span aria-hidden="true">↺</span></button>' : ''}</div>
       <div class="hand-cards">${room.hand.map((card) => cardButton(card, myTurn && game.playableCardIds.includes(card.id))).join('')}</div><p class="hand-note">${myTurn ? (game.noPlayableCards ? (game.canSkipTurn ? 'Sem carta jogável: use Não consigo jogar.' : 'Sem carta jogável: compre uma carta primeiro.') : 'Clique em uma carta para jogar.') : 'Sua mão é visível só para você.'} Não consigo jogar: só na sua vez, sem carta jogável.</p></section>
     </section>`;
   }
@@ -231,7 +229,7 @@
   function victory() {
     const winner = room.players.find((p) => p.id === room.game.winnerId);
     const won = winner.id === room.meId;
-    return `<section class="room-layout">${roomBar('FIM DE PARTIDA · COMEÇO DE OUTRA HISTÓRIA')}<section class="victory-panel"><div class="victory-star" aria-hidden="true">✳</div><span class="eyebrow">MÃO VAZIA. SORRISO CHEIO.</span><h1>${won ? 'Essa foi sua!' : `${escape(winner.name)} venceu!`}</h1><p>${won ? 'Você encontrou a última letra e levou a melhor.' : 'A última carta foi jogada. Vale uma revanche?'}</p><div class="final-word">${wordHeading(winner, true)}<strong>${escape(room.game.word)}</strong></div>${room.game.challengeResult ? `<section class="victory-challenge-result" aria-label="Resultado do desafio">${challengeVotesMarkup(room.game.challengeResult)}<p>${escape(room.notice)}</p></section>` : ''}<div class="victory-actions">${isHost() ? `<button class="button primary" data-action="start" ${disabled(!canAct())}>Jogar de novo <span>→</span></button><button class="button secondary" data-action="lobby" ${disabled(!canAct())}>Voltar à sala</button>` : '<p class="muted">O anfitrião pode começar outra partida ou voltar à sala.</p><button class="button secondary" data-action="leave" '+disabled(!canAct())+'>Voltar ao início</button>'}</div><p class="field-hint">${isHost() ? 'Para mudar jogadores ou configurações, volte à sala.' : 'Você pode continuar aqui para a próxima rodada.'}</p></section></section>`;
+    return `<section class="room-layout">${roomBar('FIM DE PARTIDA · COMEÇO DE OUTRA HISTÓRIA')}<section class="victory-panel"><div class="victory-star" aria-hidden="true">✳</div><span class="eyebrow">MÃO VAZIA. SORRISO CHEIO.</span><h1>${won ? 'Essa foi sua!' : `${escape(winner.name)} venceu!`}</h1><p>${won ? 'Você encontrou a última letra e levou a melhor.' : 'A última carta foi jogada. Vale uma revanche?'}</p><div class="final-word">${wordHeading(winner, true)}<strong>${escape(room.game.word)}</strong></div>${['Palavra aceita', 'Palavra recusada'].includes(room.notice) ? `<p class="victory-challenge-result" role="status">${escape(room.notice)}</p>` : ''}<div class="victory-actions">${isHost() ? `<button class="button primary" data-action="start" ${disabled(!canAct())}>Jogar de novo <span>→</span></button><button class="button secondary" data-action="lobby" ${disabled(!canAct())}>Voltar à sala</button>` : '<p class="muted">O anfitrião pode começar outra partida ou voltar à sala.</p><button class="button secondary" data-action="leave" '+disabled(!canAct())+'>Voltar ao início</button>'}</div><p class="field-hint">${isHost() ? 'Para mudar jogadores ou configurações, volte à sala.' : 'Você pode continuar aqui para a próxima rodada.'}</p></section></section>`;
   }
 
   function closeLetters() {
@@ -458,11 +456,6 @@
     }
   });
 
-  function challengeVotesMarkup(result) {
-    const tally = result.tally;
-    if (!tally) return '<p>Desafio encerrado sem votação.</p>';
-    return `<p>${tally.rejected ? 'Palavra recusada' : 'Palavra aceita'} · ${tally.yes} Sim / ${tally.no} Não${tally.early ? ` · Encerrada antecipadamente (${tally.pending} dispensados)` : ''}</p><ul class="challenge-vote-list">${Object.entries(result.votes).map(([id, vote]) => `<li><span>${escape(room.players.find((p) => p.id === id)?.name || 'Jogador')}</span><strong>${vote === 'sim' ? 'Sim' : 'Não'}</strong></li>`).join('')}</ul>`;
-  }
 
   const challengeNow = () => Date.now() + serverClockOffset;
   function updateVictoryClock() {
@@ -516,15 +509,23 @@
     } else if (!mine) $('#challenge-input').value = challenge.addedLetters;
     const nameOf = (id) => room.players.find((p) => p.id === id)?.name || 'Jogador';
     $('#challenge-title').textContent = completing ? 'Completar a palavra' : 'Aceitar palavra?';
+    $('#challenge-description').hidden = voting;
     $('#challenge-description').textContent = `${nameOf(challenge.challengerId)} desafia ${nameOf(challenge.challengedId)} a completar a palavra. ${mine ? 'Você é o desafiado e não vota.' : 'Acompanhe a palavra em tempo real.'}`;
     $('#challenge-input').maxLength = room.config.challenge.maxLetters;
     $('#challenge-edit').hidden = !completing;
     $('#challenge-ok').hidden = !mine || !completing;
     $('#challenge-loss').hidden = !mine || voting;
-    $('#challenge-vote-actions').hidden = !voting || !challenge.canVote;
-    $('#challenge-progress').textContent = voting ? `${challenge.respondedCount}/${challenge.voterCount} responderam. ${challenge.hasVoted ? 'Seu voto foi registrado.' : ''} Os votos ficam ocultos até o resultado.` : (mine ? 'Complete a palavra ou use PERDI.' : 'Só o desafiado pode completar ou usar PERDI.');
-    $('#challenge-votes').innerHTML = challenge.tally ? challengeVotesMarkup(challenge) : '';
-    $('#challenge-action-help').textContent = voting ? (mine ? 'Você não vota. Aguarde o resultado.' : challenge.hasVoted ? 'Aguarde os demais votantes.' : 'Não responder no prazo ou estar desconectado conta como Sim.') : 'As ações da partida ficam suspensas durante o desafio.';
+    $('#challenge-vote-actions').hidden = !voting || mine;
+    $('#challenge-progress').hidden = voting;
+    $('#challenge-progress').textContent = completing ? (mine ? 'Complete a palavra ou use PERDI.' : 'Só o desafiado pode completar ou usar PERDI.') : '';
+    $('#challenge-action-help').hidden = voting;
+    $('#challenge-action-help').textContent = completing ? 'As ações da partida ficam suspensas durante o desafio.' : '';
+    $('#challenge-dialog').classList.toggle('voting-dialog', voting);
+    for (const button of document.querySelectorAll('[data-vote]')) {
+      const ownVote = challenge.ownVote === button.dataset.vote;
+      button.classList.toggle('own-vote', ownVote);
+      button.setAttribute('aria-pressed', String(ownVote));
+    }
     refreshChallengePreview();
     updateChallengeClock();
     guardChallengeHistory(challenge.id);
