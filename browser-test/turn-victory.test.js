@@ -15,7 +15,7 @@ test('Não consigo jogar: nome, visibilidade, compra opcional e perda da vez no 
   assert.equal(await b.locator('#loss-help').count(), 0);
   await a.locator('.table-notice').filter({ hasText: 'perdeu a vez' }).waitFor();
   assert.equal(await a.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
-  await seed([['swap-0'], ['letra-C', 'letra-D']], { debt: 0, word: '' });
+  await seed([['swap-0'], ['letra-C', 'letra-D']], { debt: 0, word: '', deck: [{ id: 'letra-A', type: 'letter', letter: 'A' }] });
   await a.locator('[data-action="draw"]').click();
   await waitFor(async () => (await a.locator('[data-action="skip"]').count()) === 0);
   assert.equal(await a.locator('#loss-help').count(), 0);

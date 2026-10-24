@@ -95,7 +95,7 @@ test('lobby: composição editável só pelo anfitrião, total ao vivo, limites,
   const { page, context, storage, code, clients, url } = await setup(t);
   await page.locator('.deck-settings summary').click();
   await page.locator('#deck-wild').waitFor({ state: 'visible' });
-  assert.equal(await page.locator('#deck-total').innerText(), '72 cartas');
+  assert.equal(await page.locator('#deck-total').innerText(), '76 cartas');
   assert.equal(await page.locator('#initial-cards').inputValue(), '7');
   assert.equal(await page.locator('#deck-life').inputValue(), '0');
   for (const [width, height] of [[375,667],[1440,900]]) {
@@ -111,8 +111,8 @@ test('lobby: composição editável só pelo anfitrião, total ao vivo, limites,
 
   await page.locator('[data-deck-type=wild][data-deck-step="1"]').click();
   await waitFor(async () => (await storage.getRoom(code)).settings.deckComposition.wild === 13);
-  await page.locator('#deck-total').filter({ hasText: '73 cartas' }).waitFor();
-  await waitFor(() => clients[0].view?.deckSize === 73);
+  await page.locator('#deck-total').filter({ hasText: '77 cartas' }).waitFor();
+  await waitFor(() => clients[0].view?.deckSize === 77);
   assert.equal(clients[0].view.settings.deckComposition.wild, 13);
   await page.locator('#deck-wild').fill('31'); await page.locator('#deck-wild').blur();
   assert.equal(await page.locator('[data-action=start]').isDisabled(), true);
@@ -121,7 +121,7 @@ test('lobby: composição editável só pelo anfitrião, total ao vivo, limites,
   await page.locator('[data-action=reset-deck]').click();
   await page.locator('#deck-wild').filter({ visible: true }).waitFor();
   await waitFor(async () => (await page.locator('#deck-wild').inputValue()) === '12');
-  await page.locator('#initial-cards').fill('36');
+  await page.locator('#initial-cards').fill('38');
   assert.equal(await page.locator('[data-action=start]').isDisabled(), true);
   assert.match(await page.locator('#start-help').innerText(), /reservar cartas/);
   await page.locator('#initial-cards').fill('7');
@@ -141,7 +141,7 @@ test('lobby: composição editável só pelo anfitrião, total ao vivo, limites,
   await other.goto(url); await other.locator('.deck-settings summary').click();
   assert.equal(await other.locator('input[data-deck-type]').count(), 0);
   assert.equal(await other.locator('[data-action=reset-deck]').count(), 0);
-  await page.locator('#initial-cards').fill('35'); await page.locator('#settings-form button').click();
+  await page.locator('#initial-cards').fill('37'); await page.locator('#settings-form button').click();
   for (const type of clients[0].view.config.configurableCardTypes) {
     await page.locator(`#deck-${type}`).fill('0'); await page.locator(`#deck-${type}`).blur();
     await waitFor(async () => (await storage.getRoom(code)).settings.deckComposition[type] === 0);

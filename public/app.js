@@ -18,7 +18,7 @@
   let selectedLetter = null;
   let selectedBlock = null;
   let pendingDebtLetters = '';
-  let pendingDebtVersion = null;
+  let selectedPlayVersion = null;
   let challengeDialogId = null;
   let challengeHistoryGuard = null;
   let challengePreviewTimer;
@@ -58,16 +58,25 @@
   </svg>`;
   const bombSvg = () => `<svg class="card-bomb" viewBox="0 0 80 80" aria-hidden="true" focusable="false"><circle cx="34" cy="49" r="23" fill="currentColor"/><path d="m46 28 5-9 8 4-5 9M56 20c-1-8 9-8 8-14m-9 1-2-4m17 10 5 1m-4-8 4-3" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M19 46c1-5 4-9 9-10" class="bomb-shine" fill="none" stroke-width="4" stroke-linecap="round"/></svg>`;
 
+  // Espada original, apontada para cima; o gradiente pertence a cada carta.
+  const swordSvg = (id) => {
+    const gradientId = `espada-${id.replace(/[^A-Za-z0-9_-]/g, '')}`;
+    return `<svg class="card-sword-art" viewBox="0 0 80 96" aria-hidden="true" focusable="false"><defs><linearGradient id="${gradientId}" x1="0" y1="0" x2="1" y2="1"><stop class="sword-gold" offset="0"/><stop class="sword-orange" offset=".5"/><stop class="sword-magenta" offset="1"/></linearGradient></defs><g fill="none" stroke="url(#${gradientId})" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"><path d="M40 6 27 26v36l13 8 13-8V26zM40 9v58M21 64l-6 8 25-4 25 4-6-8M35 72v14h10V72M32 90h16"/></g></svg>`;
+  };
+  const canUseCard = (card) => Boolean(room?.game && card && canAct()
+    && (room.game.canPlay || (card.type === 'sword' && room.game.canPlaySword))
+    && room.game.playableCardIds.includes(card.id));
+
   // Identidade visual independente da configuração de regras recebida do servidor.
   function cardArtwork(card) {
     const faces = {
       letter: ['+', card.letter], wild: ['+', '*'], vowel: ['+', 'vogal'],
       consonant: ['+', 'consoante'], first: ['+', 'a-m'], last: ['+', 'n-z'],
       swap: ['🔄', '🔄'], block: ['+', '🚫'], double: ['', '2x'],
-      multi: ['2+*', bombSvg()], life: ['♥', '♥'], pass: ['→', '→'],
+      multi: ['2+*', bombSvg()], life: ['♥', '♥'], pass: ['→', '→'], sword: ['+', swordSvg(card.id)],
     };
     const [corner, center] = faces[card.type] || ['', ''];
-    return { corner, center: card.type === 'multi' ? center : escape(center) };
+    return { corner, center: ['multi', 'sword'].includes(card.type) ? center : escape(center) };
   }
 
   function toast(message) {
@@ -131,10 +140,10 @@
     storage.set('room', state.code);
     if (selectedCard) {
       if (room.game?.challenge) { closeLetters(); }
-      else if (pendingDebtVersion !== null && room.game?.version !== pendingDebtVersion) {
+      else if (selectedPlayVersion !== null && room.game?.version !== selectedPlayVersion) {
         closeLetters();
         toast('A mesa mudou. Escolha sua carta novamente.');
-      } else if (!room.game?.canPlay || !room.game.playableCardIds.includes(selectedCard.id)) closeLetters();
+      } else if (!canUseCard(selectedCard)) closeLetters();
       else if ($('#debt-dialog').open) refreshDebtOptions();
       else refreshLetterOptions();
     }
@@ -256,7 +265,6 @@
   function table() {
     const game = room.game;
     const current = room.players.find((p) => p.id === game.turnPlayerId);
-    const myTurn = game.canPlay && canAct();
     const meIndex = room.players.findIndex((p) => p.id === room.meId);
     const ordered = [...room.players.slice(meIndex + 1), ...room.players.slice(0, meIndex)];
     return `<section class="game-layout">${roomBar('PALAVRAS SE CONSTROEM EM BOA COMPANHIA')}
@@ -267,7 +275,7 @@
         <div class="table-controls"><button class="draw-pile ${game.canDraw ? 'available' : ''}" data-action="draw" ${disabled(!game.canDraw || !canAct())} aria-label="Comprar uma carta. ${game.deckCount} cartas na pilha, ${game.discardCount} para reembaralhar."><span class="deck-back card-back" aria-hidden="true">${capybaraSvg()}</span><strong>COMPRAR</strong><small>${game.deckCount} na pilha${game.discardCount ? ` · ${game.discardCount} jogadas` : ''}</small></button><div class="challenge-table-actions"><button class="button challenge-button" data-action="challenge" aria-describedby="challenge-help-debt" ${disabled(!canAct() || Boolean(game.challenge) || game.letterDebt.count > 0)}>Duvidar da palavra <span aria-hidden="true">?</span></button>${game.letterDebt.count > 0 ? '<p id="challenge-help-debt" class="challenge-debt-reason" role="status">Há letras acumuladas pendentes.</p>' : '<span id="challenge-help-debt" hidden></span>'}${game.challenge ? '<button class="text-button" data-action="challenge-view">Acompanhar desafio →</button>' : ''}</div></div>
       </section>
       <section class="hand-section" aria-label="Sua mão"><div class="hand-heading"><h2>Sua mão <span>${room.hand.length} carta${room.hand.length === 1 ? '' : 's'}</span></h2>${game.canSkipTurn && canAct() ? '<button class="button lose-button skip-button hand-skip-button" data-action="skip">Não consigo jogar <span aria-hidden="true">↺</span></button>' : ''}</div>
-      <div class="hand-cards">${room.hand.map((card) => cardButton(card, myTurn && game.playableCardIds.includes(card.id))).join('')}</div></section>
+      <div class="hand-cards">${room.hand.map((card) => cardButton(card, canUseCard(card))).join('')}</div></section>
     </section>`;
   }
 
@@ -277,9 +285,10 @@
     const title = fixed ? card.letter : rule.label;
     const description = rule.description ? `${title} · ${rule.description}` : title;
     const artwork = cardArtwork(card);
+    const actionLabel = card.type === 'sword' ? description : `Jogar ${description}`;
     const special = !fixed && card.type !== 'wild';
-    const reason = room.game.playableCardIds.includes(card.id) ? '' : card.type === 'swap' && !room.game.word ? 'Visor vazio' : card.type === 'double' ? 'Sem jogada anterior' : 'Letra bloqueada';
-    return `<button class="playing-card card-${rule.color} card-face-${card.type} ${card.type === 'wild' ? 'wild-card' : ''} ${special ? 'special-card' : ''} ${reason ? 'unplayable-card' : ''}" data-card="${escape(card.id)}" ${disabled(!enabled)} aria-label="Jogar ${escape(description)}${reason ? `: ${reason}` : ''}" title="${escape(reason || description)}"><span class="card-corner" aria-hidden="true">${escape(artwork.corner)}</span><strong class="${special ? 'card-special-title' : ''}" aria-hidden="true">${artwork.center}</strong>${card.type === 'pass' ? '<span class="card-corner card-corner-right" aria-hidden="true">→</span>' : ''}<span class="card-bottom">${escape(reason || description.toUpperCase())}</span></button>`;
+    const reason = room.game.playableCardIds.includes(card.id) ? '' : card.type === 'sword' ? 'Aguarde uma oportunidade' : card.type === 'swap' && !room.game.word ? 'Visor vazio' : card.type === 'double' ? 'Sem jogada anterior' : 'Letra bloqueada';
+    return `<button class="playing-card card-${rule.color} card-face-${card.type} ${card.type === 'wild' ? 'wild-card' : ''} ${special ? 'special-card' : ''} ${reason ? 'unplayable-card' : ''}" data-card="${escape(card.id)}" ${disabled(!enabled)} aria-label="${escape(actionLabel)}${reason ? `: ${reason}` : ''}" title="${escape(reason || description)}"><span class="card-corner" aria-hidden="true">${escape(artwork.corner)}</span><strong class="${special ? 'card-special-title' : ''}" aria-hidden="true">${artwork.center}</strong>${card.type === 'pass' ? '<span class="card-corner card-corner-right" aria-hidden="true">→</span>' : ''}<span class="card-bottom">${escape(card.type === 'sword' ? rule.caption : reason || description.toUpperCase())}</span></button>`;
   }
 
   function victory() {
@@ -293,7 +302,7 @@
     selectedLetter = null;
     selectedBlock = null;
     pendingDebtLetters = '';
-    pendingDebtVersion = null;
+    selectedPlayVersion = null;
     $('#debt-dialog').close();
     $('#letter-dialog').close();
     $('#multi-dialog').close();
@@ -391,12 +400,13 @@
     $('#confirm-debt').disabled = !canAct() || !room.game.canPlay || !valid;
   }
   async function submitSelectedCard(letter, blockedLetter) {
-    const data = { version: room.game.version, cardId: selectedCard.id, letter, blockedLetter, accumulatedLetters: pendingDebtLetters };
+    const data = { version: selectedPlayVersion ?? room.game.version, cardId: selectedCard.id, letter, blockedLetter, accumulatedLetters: pendingDebtLetters };
     closeLetters();
     await send('game:play', data);
   }
   async function chooseCard(card) {
     selectedCard = card;
+    selectedPlayVersion ??= room.game.version;
     const effect = room.config.cardTypes[card.type].effect;
     if (effect === 'pass' || effect === 'replay' || card.type === 'letter') await submitSelectedCard();
     else openLetters(card);
@@ -405,7 +415,7 @@
     $('#debt-dialog').dataset.cardTheme = card.type;
     closeLetters();
     selectedCard = card;
-    pendingDebtVersion = room.game.version;
+    selectedPlayVersion = room.game.version;
     $('#debt-input').value = '';
     refreshDebtOptions();
     $('#debt-dialog').showModal();
@@ -502,8 +512,9 @@
     const removeButton = event.target.closest('[data-remove]');
     if (removeButton && !removeButton.disabled) { await send('room:remove', { playerId: removeButton.dataset.remove }); return; }
     const cardElement = event.target.closest('[data-card]');
-    if (cardElement && !cardElement.disabled && room?.game?.canPlay && canAct()) {
+    if (cardElement && !cardElement.disabled) {
       const card = room.hand.find((item) => item.id === cardElement.dataset.card);
+      if (!canUseCard(card)) return;
       const effect = room.config.cardTypes[card.type].effect;
       if (debtCount() > 0 && effect !== 'pass' && effect !== 'replay') beginDebt(card);
       else { closeLetters(); await chooseCard(card); }

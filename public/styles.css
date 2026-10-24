@@ -41,6 +41,14 @@
   --pass-arrow-middle: #f3da71;
   --pass-arrow-end: #ff8fc0;
   --pass-arrow-gradient: linear-gradient(90deg, var(--pass-arrow-start), var(--pass-arrow-middle), var(--pass-arrow-end));
+  --sword-card-background: #14151d;
+  --sword-card-border: #986333;
+  --sword-card-ink: #ffe6a6;
+  --sword-gold: #ffde73;
+  --sword-orange: #ff9b4b;
+  --sword-magenta: #f16bb7;
+  --sword-art-height: 68px;
+  --sword-caption-font: 8px;
   --carta-verso: #69412c;
   --carta-verso-borda: #d8af7e;
   --carta-verso-sombra: #452b1d;
@@ -574,3 +582,15 @@ body:has(.game-layout) .site-footer { display: none; }
   body:has(.game-layout) .site-header, body:has(.game-layout) .site-footer { display: none; }
   .game-layout .hand-heading { min-height: 48px; }
 }
+
+/* Espada: mesma estrutura das frentes, arte distinta da seta de Passar letra. */
+.playing-card.card-sword { --card-bg: var(--sword-card-background); --card-border: var(--sword-card-border); --card-ink: var(--sword-card-ink); }
+.playing-card.card-face-sword > strong { display: flex; justify-content: center; }
+.card-sword-art { height: var(--sword-art-height); width: 100%; }
+.sword-gold { stop-color: var(--sword-gold); }
+.sword-orange { stop-color: var(--sword-orange); }
+.sword-magenta { stop-color: var(--sword-magenta); }
+.playing-card.card-face-sword .card-bottom { font-size: var(--sword-caption-font); letter-spacing: 0; line-height: 1.1; text-align: center; font-weight: var(--peso-destaque); }
+[data-card-theme="sword"] { --seletor-fundo: var(--sword-card-background); --seletor-texto: var(--sword-card-ink); --seletor-borda: var(--sword-card-border); }
+[data-card-theme="sword"] h2 { color: var(--texto); }
+@media (max-width: 650px) { :root { --sword-art-height: 50px; --sword-caption-font: 7px; } }
