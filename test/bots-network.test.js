@@ -128,3 +128,37 @@ test('rede: sorteios independentes persistem e não se repetem em broadcasts ou 
  assert.equal(f.human.view.game.botDecisionPlay,null);
  assert.deepEqual((await restored.getRoom(f.code)).game.botDecisions,saved.game.botDecisions);
 });
+
+test('rede: bot usa espada fora da vez pelo mesmo reducer, preservando turno e compra',async t=>{
+ const f=await setup(t,{rng:()=>.1});await f.start(1);
+ const seeded=await f.seed([['letra-X','letra-Z'],['sword-0','letra-S']],{
+  turnPlayerId:f.human.view.meId,lastLetterPlayerId:null,drawsThisTurn:1,playNumber:7,botSwordDecisions:{},
+ });
+ const botId=seeded.players[1].id;
+ await waitFor(async()=>{const r=await f.storage.getRoom(f.code);return r.game.lastPlayerId===botId;});
+ const saved=await f.storage.getRoom(f.code);
+ assert.ok(dictionary.hasPrefix(saved.game.word));assert.equal(saved.game.word.length,3);assert.equal(saved.game.turnPlayerId,f.human.view.meId);
+ assert.equal(saved.game.drawsThisTurn,1);assert.equal(saved.game.playNumber,8);
+ assert.equal(saved.game.botSwordDecisions[botId],7);
+ assert.equal(saved.players[1].hand.length,1);assert.equal(saved.game.discard[0].type,'sword');
+ assert.deepEqual(saved,JSON.parse(JSON.stringify(saved)));
+});
+
+test('rede: decisão negativa da espada não é sorteada outra vez ao reconectar ou restaurar',async t=>{
+ let calls=0;
+ const chooseAction=(...args)=>{calls++;return decideBotAction(...args);};
+ const f=await setup(t,{chooseAction});await f.start(1);
+ await f.seed([['letra-X','letra-Z'],['sword-0','letra-S']],{
+  turnPlayerId:f.human.view.meId,lastLetterPlayerId:null,playNumber:11,botSwordDecisions:{},
+ });
+ const botId=f.human.view.players.find(p=>p.isBot).id;
+ await waitFor(async()=>(await f.storage.getRoom(f.code)).game.botSwordDecisions[botId]===11);
+ const baseline=calls;
+ await emit(f.human,'room:join',{code:f.code,sessionId:f.human.sessionId,name:'Ana'});
+ const restored=new MemoryStorage();await restored.saveRoom(JSON.parse(JSON.stringify(await f.storage.getRoom(f.code))));
+ const app=createApp({roomStorage:restored,challengeIntervalMs:5,botOptions:{dictionary,rng:()=>0,timings:timing,chooseAction}});
+ app.server.listen(0,'127.0.0.1');await once(app.server,'listening');t.after(()=>new Promise(r=>app.io.close(r)));
+ await new Promise(r=>setTimeout(r,50));
+ assert.equal(calls,baseline);
+ assert.equal((await restored.getRoom(f.code)).game.word,'CA');
+});

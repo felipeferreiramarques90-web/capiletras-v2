@@ -27,6 +27,9 @@ export function botTask(view, dictionary) {
     return game.pendingVictory.canAccept && dictionary.hasPrefix(game.word)
       ? { kind: 'accept', key: `accept:${game.pendingVictory.id}` } : null;
   }
+  if (!game.paused && game.canPlaySword && game.botSwordDecisionPlay !== game.playNumber) {
+    return { kind: 'sword', key: `sword:${game.playNumber}` };
+  }
   return !game.paused && game.canPlay ? { kind: 'turn', key: `turn:${game.turnNumber}:${game.drawsThisTurn}` } : null;
 }
 
@@ -139,6 +142,14 @@ export function decideBotAction(view, dictionary, rng, { safety = false } = {}) 
     });
     if (letters === undefined) return { type: 'lose', challengeId: challenge.id };
     return { type: challenge.addedLetters === letters ? 'confirm' : 'preview', challengeId: challenge.id, letters };
+  }
+  if (task.kind === 'sword') {
+    const chosen = rng() < BOT_RULES.swordChance;
+    const options = view.hand.filter((card) => card.type === 'sword' && view.game.playableCardIds.includes(card.id))
+      .flatMap((card) => candidatesFor(view, card, dictionary));
+    options.sort((a, b) => Number(dictionary.isWord(b.word)) - Number(dictionary.isWord(a.word)));
+    return chosen && options.length ? { ...finishPlay(options[0], view, dictionary), type: 'sword', playNumber: view.game.playNumber }
+      : { type: 'sword-decision', playNumber: view.game.playNumber };
   }
   if (task.kind === 'accept') return { type: 'accept', pendingId: view.game.pendingVictory.id };
   if (task.kind === 'doubt') {

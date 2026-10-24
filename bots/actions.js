@@ -1,4 +1,4 @@
-import { GameError, drawCard, playCard, skipTurn } from '../game/game.js';
+import { GameError, drawCard, playCard, skipTurn, canPlaySword } from '../game/game.js';
 import { startChallenge, previewChallenge, confirmChallenge, voteChallenge, loseChallenge } from '../game/challenge.js';
 import { acceptVictory } from '../game/victory.js';
 
@@ -6,6 +6,15 @@ import { acceptVictory } from '../game/victory.js';
 export function applyBotAction(room, id, action, { version, now, rng }) {
   if (!room.players.some((p) => p.id === id && p.isBot && !p.left)) throw new GameError('Bot não encontrado.');
   if (room.game?.version !== version || room.phase !== 'playing') throw new GameError('A mesa mudou. Ação antiga do bot descartada.');
+  if (action.type === 'sword' || action.type === 'sword-decision') {
+    if (!canPlaySword(room, id) || (room.game.playNumber || 0) !== action.playNumber
+      || room.game.botSwordDecisions?.[id] === action.playNumber) throw new GameError('Espada indisponível ou bot já decidiu nesta jogada.');
+    const next = action.type === 'sword'
+      ? playCard(room, id, action.cardId, action.letter, undefined, '', version, now) : structuredClone(room);
+    next.game.botSwordDecisions ??= {};
+    next.game.botSwordDecisions[id] = action.playNumber;
+    return next;
+  }
   if (action.type === 'decision' || action.type === 'challenge') {
     if (room.game.letterPlayNumber !== action.letterPlayNumber || room.game.botDecisions?.[id] === action.letterPlayNumber) {
       throw new GameError('O bot já decidiu nesta jogada.');
