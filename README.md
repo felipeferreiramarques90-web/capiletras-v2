@@ -51,11 +51,11 @@ A mão inicial padrão é de **7 cartas**, definida em `RULES.defaultHand`. Muda
 
 Padrões e limites ficam em **`game/config.js`**: `CONFIGURABLE_CARD_TYPES`, `DEFAULT_DECK_COMPOSITION` (derivado de `CARD_TYPES`), `DECK_RULES`, `deckSize()` e `maxInitialCards()`. As validações puras ficam em **`game/deck.js`**; a composição JSON fica em **`room.settings.deckComposition`** e é salva pela mesma interface de storage. Salas antigas sem esse campo usam o padrão. Composições salvas antes da espada mantêm as demais quantidades e usam espada em 0 até o anfitrião editar ou restaurar o padrão. O servidor monta o baralho a partir dela, sem mudar as regras das cartas, o reembaralhamento, a votação ou a política dos bots.
 
-Na mesa, **Comprar** e **Duvidar da palavra** ficam lado a lado. A mão mantém os tamanhos das cartas e uma faixa própria, sem rolagem vertical da página; mãos grandes e adversários excedentes rolam horizontalmente. Em telas baixas, o cabeçalho decorativo cede espaço ao jogo e a área do visor pode rolar internamente para mostrar palavras/avisos longos. O botão **Não consigo jogar** aparece junto da mão sem deslocar as cartas ou o centro.
+Na mesa, **Comprar** e **Duvidar da palavra** ficam lado a lado. A mão mantém os tamanhos das cartas e uma faixa própria, sem rolagem vertical da página; mãos grandes rolam horizontalmente; os avatares dos adversários cabem juntos no topo, inclusive com oito participantes em 360px. Em telas baixas, o cabeçalho decorativo cede espaço ao jogo e a área do visor pode rolar internamente para mostrar palavras/avisos longos. O botão **Não consigo jogar** aparece junto da mão sem deslocar as cartas ou o centro.
 
 ## Jogar com bots
 
-No lobby, o anfitrião pode usar **Adicionar bot** quantas vezes quiser, até o limite de **8 participantes no total**. O botão **×** ao lado de cada bot remove sua vaga antes de iniciar. Bots têm nomes automáticos únicos e ícone 🤖 no lobby, na mesa e na indicação da vez. Ao preencher todas as vagas, adicionar outro bot aumenta o número configurado de participantes; se necessário, as cartas iniciais são reduzidas ao máximo permitido pela composição escolhida para a sala. Remover um bot de uma sala cheia também reduz a quantidade de vagas, respeitando o mínimo de dois jogadores.
+No lobby, o anfitrião pode usar **Adicionar bot** quantas vezes quiser, até o limite de **8 participantes no total**. O botão **×** ao lado de cada bot remove sua vaga antes de iniciar. Bots têm nomes automáticos únicos **Bot 1, Bot 2, Bot 3…**, sempre reutilizando o menor número livre na sala (nomes antigos salvos continuam válidos), e ícone 🤖 no lobby, na mesa e na indicação da vez. Ao preencher todas as vagas, adicionar outro bot aumenta o número configurado de participantes; se necessário, as cartas iniciais são reduzidas ao máximo permitido pela composição escolhida para a sala. Remover um bot de uma sala cheia também reduz a quantidade de vagas, respeitando o mínimo de dois jogadores.
 
 É possível jogar com **1 humano e até 7 bots**, em um único nível de dificuldade. Bots não têm socket, ficam conectados no estado e nunca assumem o papel de anfitrião. Quando todos os humanos usam **Sair da sala**, a sala é removida e os agendamentos são cancelados. Uma queda de conexão reserva a vaga humana para reconexão: sem humanos conectados, os bots pausam; ao reconectar, retomam. Salas abandonadas continuam sujeitas à expiração.
 
@@ -69,7 +69,7 @@ Configuração em **`bots/config.js`**:
 
 | Constante | Padrão |
 | --- | --- |
-| `BOT_NAMES` | Lista de nomes automáticos. |
+| `BOT_NAME_PREFIX` | Prefixo “Bot”; usa o menor número disponível. |
 | `actionMinMs` / `actionMaxMs` | 5.000 / 13.000 ms para jogar, comprar, Não consigo jogar, duvidar, espada e completar palavra. |
 | `finalDoubtMinMs` / `finalDoubtMaxMs` | 1.000 / 8.000 ms para decidir duvidar na janela final de 10 segundos. |
 | `deadlineMarginMs` | 250 ms de margem: o agendamento respeita o prazo absoluto restante ao restaurar/retomar desafios. |
@@ -93,6 +93,16 @@ O servidor carrega **`bots/data/pt-BR.txt`** uma vez na inicialização, em um t
 A **lista comum** usa [FrequencyWords, de Hermit Dave](https://github.com/hermitdave/FrequencyWords), português brasileiro do corpus **OpenSubtitles2018 / OPUS**, sob **CC BY-SA 4.0**. A cópia original de 50.000 entradas com contagens fica em `bots/data/pt-BR-frequency.txt`. Na inicialização, `bots/load-dictionary.js` filtra entradas com pelo menos `BOT_RULES.commonMinFrequency` ocorrências, normaliza como o completo, remove duplicatas e mantém a interseção com ele: **11.304 palavras** com a configuração atual. Os pesos só filtram palavras raras; não são usados nos sorteios. Fonte, snapshot, atribuição e transformações estão em **`bots/data/SOURCE-COMMON.md`**; a licença integral está em **`bots/data/LICENSE-CC-BY-SA-4.0.txt`**.
 
 Os dois tries ficam só em memória; nenhum dicionário, peso ou modo sorteado entra no estado salvo das salas. Não é necessário acesso à rede na inicialização. Os dicionários são recursos dos bots: **não mudam a regra de votação nem impõem validação automática às palavras dos humanos**.
+
+## Avatares e som
+
+As caixinhas do topo mostram um avatar e a quantidade de cartas, sem o nome fixo. Humanos usam uma ou duas iniciais e uma cor estável derivada do identificador; bots mantêm o robô. Toque, foco ou passar o mouse exibe o nome completo por 2,4 segundos. A borda destaca quem está na vez e a marca discreta indica desconexão. A faixa se adapta ao número de participantes, sem rolagem horizontal. `public/avatars.js` centraliza os auxiliares e o tempo do balão.
+
+O som é inteiramente **original, sintetizado por código com Web Audio API**: ruído filtrado, osciladores e envelopes. Não há arquivos de áudio, músicas, cantos ou gravações de terceiros. `public/audio/sound.js` mantém um único AudioContext e só inicia após toque/clique ou tecla do usuário. O apito toca somente quando a vez chega ao jogador local, inclusive no retorno do 2x, sem repetir em atualizações da mesma vez. Cartas têm batida (mais discreta para os outros), compras têm deslize, modais têm abertura/fechamento suaves e botões têm clique.
+
+Durante a partida há murmúrio de estádio com ondulação lenta e pad grave, quase imperceptíveis. Um desafio troca o ambiente por pulsação grave e notas dissonantes, com maior tensão nos últimos segundos; ao terminar, volta ao ambiente. Vitória pendente mantém o ambiente. As trocas usam fades. A aba em segundo plano suspende o contexto; ao voltar, um aviso de vez que ficou pendente só toca se ainda for a vez local.
+
+O controle **🔊/🔇** e o volume geral permanecem acessíveis também nos modais. Preferências ficam apenas no `localStorage` (`capiletras:audio`); padrão ligado, volume geral 55%, ambiente muito baixo. **Volumes, fades, durações e intervalo de atualização** estão em `public/audio/config.js` (`AUDIO`). Falta de suporte ou bloqueio de áudio não impede o jogo. Não há eventos de rede, áudio no servidor ou alterações no estado da partida.
 
 ## Tema visual: campo de futebol
 
