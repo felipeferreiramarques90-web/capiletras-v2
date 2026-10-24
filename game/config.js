@@ -3,7 +3,7 @@ export const RULES = Object.freeze({
   minPlayers: 2,
   maxPlayers: 8,
   minHand: 3,
-  defaultHand: 5,
+  defaultHand: 7,
   reservedDrawCards: 1,
   maxDrawsPerTurn: 1,
   lossPenalty: 4,
@@ -31,16 +31,16 @@ export const CARD_TYPES = Object.freeze(Object.fromEntries(Object.entries({
   consonant: { quantity: 1, letters: 'BCDFGHJKLMNPQRSTVWXYZ', effect: 'append', label: 'Só consoante', symbol: '→', color: 'peach' },
   first: { quantity: 1, letters: 'ABCDEFGHIJKLM', effect: 'append', label: 'A até M', symbol: '→', color: 'peach' },
   last: { quantity: 1, letters: 'NOPQRSTUVWXYZ', effect: 'append', label: 'N até Z', symbol: '→', color: 'peach' },
-  swap: { quantity: 8, letters: ALPHABET, effect: 'replace', label: 'Troca', symbol: '🔄', color: 'blue' },
+  swap: { quantity: 6, letters: ALPHABET, effect: 'replace', label: 'Troca', symbol: '🔄', color: 'blue' },
   block: { quantity: 6, letters: ALPHABET, effect: 'block', label: 'Bloqueio', symbol: '➕🚫', color: 'red' },
   double: { quantity: 6, letters: '', effect: 'replay', label: '2x', symbol: '2x', color: 'orange' },
-  multi: { quantity: 5, letters: ALPHABET, effect: 'appendMany', minLetters: 2, maxLetters: 16, label: '2+*', symbol: '2+*', color: 'purple' },
-  life: { quantity: 5, letters: 'AEIOU', effect: 'append', protectsFromChallenge: true, label: 'Vida', description: 'Só vogais', symbol: '❤️', color: 'pink' },
-  pass: { quantity: 12, letters: '', effect: 'pass', debtIncrement: 1, label: 'Passar letra', symbol: '→', color: 'black' },
+  multi: { quantity: 4, letters: ALPHABET, effect: 'appendMany', minLetters: 2, maxLetters: 16, label: '2+*', symbol: '2+*', color: 'purple' },
+  life: { quantity: 0, letters: 'AEIOU', effect: 'append', protectsFromChallenge: true, label: 'Vida', description: 'Só vogais', symbol: '❤️', color: 'pink' },
+  pass: { quantity: 8, letters: '', effect: 'pass', debtIncrement: 1, label: 'Passar letra', symbol: '→', color: 'black' },
 }).map(([type, rule]) => [type, Object.freeze(rule)])));
 export const CONFIGURABLE_CARD_TYPES = Object.freeze(['wild', 'life', 'pass', 'swap', 'block', 'double', 'multi']);
 export const DECK_RULES = Object.freeze({ minQuantity: 0, maxQuantity: 30, maxTotal: 150 });
-// Os padrões vêm das quantidades históricas; letras e restritivas continuam fixas.
+// Os padrões vêm das quantidades acima; letras e restritivas continuam fixas.
 export const DEFAULT_DECK_COMPOSITION = Object.freeze(Object.fromEntries(
   CONFIGURABLE_CARD_TYPES.map((type) => [type, CARD_TYPES[type].quantity]),
 ));

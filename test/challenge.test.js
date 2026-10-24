@@ -1,3 +1,4 @@
+import { compositionForHands } from './helpers/composition.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CHALLENGE_RULES, DECK_SIZE } from '../game/config.js';
@@ -20,7 +21,8 @@ function fixture(count = 3) {
   return room;
 }
 function hand(room, id, ids) {
-  const cards = createDeck();
+  room.settings.deckComposition = compositionForHands([ids]);
+  const cards = createDeck(room.settings.deckComposition);
   room.players.find((p) => p.id === id).hand = ids.map((id) => cards.find((c) => c.id === id));
 }
 const begin = (room = fixture(), id = 'p2') => startChallenge(room, id, now);
@@ -51,9 +53,9 @@ function assertReset(room, before, penalizedId) {
   assert.deepEqual(JSON.parse(JSON.stringify(room)), room);
 }
 
-test('desafio não altera o baralho de 84 cartas e tem tempos/limites em constantes', () => {
-  assert.equal(DECK_SIZE, 84);
-  assert.equal(createDeck().length, 84);
+test('desafio não altera o baralho de 72 cartas e tem tempos/limites em constantes', () => {
+  assert.equal(DECK_SIZE, 72);
+  assert.equal(createDeck().length, 72);
   assert.equal(CHALLENGE_RULES.completionMs, 30_000);
   assert.equal(CHALLENGE_RULES.voteMs, 15_000);
   assert.equal(Object.hasOwn(CHALLENGE_RULES, 'lossMs'), false);

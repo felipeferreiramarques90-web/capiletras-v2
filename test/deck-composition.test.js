@@ -17,9 +17,9 @@ function rejectUnchanged(room, change, pattern) {
   assert.deepEqual(room, before);
 }
 
-test('padrão deriva das constantes atuais: 84 cartas e 30 fixas, sem mudanças nas quantidades', () => {
-  assert.equal(DECK_SIZE, 84);
-  assert.deepEqual(DEFAULT_DECK_COMPOSITION, { wild: 12, life: 5, pass: 12, swap: 8, block: 6, double: 6, multi: 5 });
+test('padrão deriva das constantes: 72 cartas, 30 fixas e Vida desativada', () => {
+  assert.equal(DECK_SIZE, 72);
+  assert.deepEqual(DEFAULT_DECK_COMPOSITION, { wild: 12, life: 0, pass: 8, swap: 6, block: 6, double: 6, multi: 4 });
   for (const type of CONFIGURABLE_CARD_TYPES) assert.equal(DEFAULT_DECK_COMPOSITION[type], CARD_TYPES[type].quantity);
   assert.equal(deckSize(allZero), 30);
   assert.deepEqual(roomComposition(lobby()), DEFAULT_DECK_COMPOSITION);
@@ -99,7 +99,7 @@ test('adicionar bots recalcula a mão pelo baralho escolhido, inclusive sem espe
 
 test('início rejeita estado inválido e falta de reserva sem mutação, com motivo público', () => {
   for (const corrupt of [
-    { ...lobby(), settings: { ...lobby().settings, initialCards: 42 } },
+    { ...lobby(), settings: { ...lobby().settings, initialCards: maxInitialCards(2) + 1 } },
     { ...lobby(), settings: { ...lobby().settings, deckComposition: Object.fromEntries(CONFIGURABLE_CARD_TYPES.map((type) => [type, 30])) } },
   ]) {
     assert.ok(deckStartIssue(corrupt));
@@ -133,3 +133,27 @@ for (const type of [...CONFIGURABLE_CARD_TYPES, 'todos']) {
     else assert.ok(allCards(room).every((c) => c.type !== type));
   });
 }
+
+test('mão inicial padrão é 7 e ajusta ao reduzir o baralho ou aumentar a turma', () => {
+  const original = lobby();
+  assert.equal(RULES.defaultHand, 7);
+  assert.equal(original.settings.initialCards, 7);
+  const eight = updateSettings(original, 'h', { playerCount: 8, initialCards: original.settings.initialCards });
+  assert.equal(eight.settings.initialCards, 7, '7 cabe no padrão de 72 com oito jogadores');
+  const reduced = updateDeckComposition(eight, 'h', allZero);
+  assert.equal(reduced.settings.initialCards, maxInitialCards(8, allZero));
+  assert.match(roomView(reduced, 'h').settingsAdjustment.message, /ajustadas para 3/);
+  const smallerFirst = updateDeckComposition(original, 'h', allZero);
+  assert.equal(smallerFirst.settings.initialCards, 7);
+  assert.equal(updateSettings(smallerFirst, 'h', { playerCount: 8, initialCards: 7 }).settings.initialCards, 3);
+  assert.deepEqual(JSON.parse(JSON.stringify(reduced)), reduced);
+});
+
+test('baralho padrão de 72, sem Vida e mão de 7: partida com bots termina com estado serializável', () => {
+  const room = simulateMatch(DEFAULT_DECK_COMPOSITION);
+  assert.equal(room.settings.initialCards, 7);
+  assert.equal(allCards(room).length, 72);
+  assert.ok(allCards(room).every((card) => card.type !== 'life'));
+  assert.equal(room.game.protectedPlayerId, null);
+  assert.deepEqual(JSON.parse(JSON.stringify(room)), room);
+});

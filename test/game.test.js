@@ -9,13 +9,13 @@ import { CARD_TYPES, DECK_SIZE, RULES, maxInitialCards } from '../game/config.js
 import { MemoryStorage } from '../storage/memory.js';
 
 const random = () => 0.375;
-function lobby(count = 2, hand = 5) {
+function lobby(count = 2, hand = RULES.defaultHand) {
   let room = createRoom({ code: 'ABC234', playerId: 'p1', sessionId: 's1', name: 'Ana', now: 1000 });
   room = updateSettings(room, 'p1', { playerCount: count, initialCards: hand });
   for (let i = 2; i <= count; i++) room = joinRoom(room, { playerId: `p${i}`, sessionId: `s${i}`, name: `Pessoa ${i}` });
   return room;
 }
-const playing = (count = 2, hand = 5) => startGame(lobby(count, hand), 'p1', random);
+const playing = (count = 2, hand = RULES.defaultHand) => startGame(lobby(count, hand), 'p1', random);
 const firstPlay = (room, id = room.game.turnPlayerId) => {
   const hand = room.players.find((p) => p.id === id).hand;
   const card = hand.find((c) => !['double', 'pass'].includes(c.type) && !CARD_TYPES[c.type].protectsFromChallenge && isCardPlayable(c, room.game)) || hand.find((c) => isCardPlayable(c, room.game));
@@ -30,11 +30,11 @@ const firstPlay = (room, id = room.game.turnPlayerId) => {
 };
 const allCards = (room) => [...room.game.deck, ...room.game.discard, ...room.players.flatMap((p) => p.hand)];
 
-test('baralho contém exatamente 84 cartas com identificadores únicos e a composição pedida', () => {
+test('baralho contém exatamente 72 cartas com identificadores únicos e a composição pedida', () => {
   const cards = createDeck();
-  assert.equal(DECK_SIZE, 84);
+  assert.equal(DECK_SIZE, 72);
   assert.equal(cards.length, DECK_SIZE);
-  for (const [type, count] of [['swap', 8], ['block', 6], ['double', 6], ['multi', 5], ['life', 5], ['pass', 12]]) assert.equal(cards.filter((c) => c.type === type).length, count);
+  for (const [type, count] of [['swap', 6], ['block', 6], ['double', 6], ['multi', 4], ['life', 0], ['pass', 8]]) assert.equal(cards.filter((c) => c.type === type).length, count);
   assert.equal(new Set(cards.map((c) => c.id)).size, DECK_SIZE);
   assert.equal(cards.filter((c) => c.type === 'wild').length, 12);
   assert.equal(cards.filter((c) => c.type === 'letter').length, 26);
@@ -69,7 +69,7 @@ test('só o anfitrião configura/inicia e o início exige todos os participantes
 test('comprar é opcional, limitado a uma vez por turno e não passa a vez', () => {
   const original = playing();
   let room = drawCard(original, 'p1', random);
-  assert.equal(room.players[0].hand.length, 6);
+  assert.equal(room.players[0].hand.length, RULES.defaultHand + 1);
   assert.equal(room.game.turnPlayerId, 'p1');
   assert.equal(room.game.drawsThisTurn, 1);
   assert.equal(roomView(room, 'p1').game.canDraw, false);
@@ -80,7 +80,7 @@ test('comprar é opcional, limitado a uma vez por turno e não passa a vez', () 
   room = firstPlay(room);
   assert.equal(room.game.turnPlayerId, 'p1');
   assert.equal(drawCard(room, 'p1', random).game.drawsThisTurn, 1);
-  assert.equal(original.players[0].hand.length, 5, 'a entrada não é modificada');
+  assert.equal(original.players[0].hand.length, RULES.defaultHand, 'a entrada não é modificada');
 });
 
 test('a carta recém-comprada pode ser jogada no mesmo turno', () => {
@@ -90,7 +90,7 @@ test('a carta recém-comprada pode ser jogada no mesmo turno', () => {
   let room = drawCard(original, 'p1', random);
   const card = room.players[0].hand.at(-1);
   room = playCard(room, 'p1', card.id, allowedLetters(card)[0]);
-  assert.equal(room.players[0].hand.length, 5);
+  assert.equal(room.players[0].hand.length, RULES.defaultHand);
   assert.equal(room.game.turnPlayerId, 'p2');
 });
 
@@ -204,7 +204,7 @@ test('armazenamento assíncrono isola cópias e implementa get/save/delete/list'
   const saved = await storage.getRoom(room.code);
   assert.equal(saved.game.word, '');
   saved.players[0].hand.pop();
-  assert.equal((await storage.getRoom(room.code)).players[0].hand.length, 5);
+  assert.equal((await storage.getRoom(room.code)).players[0].hand.length, RULES.defaultHand);
   assert.equal((await storage.listRooms()).length, 1);
   await storage.deleteRoom(room.code);
   assert.equal(await storage.getRoom(room.code), null);

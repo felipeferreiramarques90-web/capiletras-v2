@@ -1,3 +1,4 @@
+import { compositionForHands } from '../test/helpers/composition.js';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { chromium } from 'playwright';
@@ -54,7 +55,8 @@ export async function setup(t, { players = 2, ...options } = {}) {
 
   async function seed(hands, { debt = 2, word = 'X', blockedLetter = 'K', last = false, lastLetter = 0, ...game } = {}) {
     const room = await storage.getRoom(code);
-    const deck = createDeck(), used = new Set(hands.flat());
+    room.settings.deckComposition = compositionForHands(hands);
+    const deck = createDeck(room.settings.deckComposition), used = new Set(hands.flat());
     room.players.forEach((p, i) => { p.hand = hands[i].map((id) => deck.find((card) => card.id === id)); });
     Object.assign(room.game, { deck: deck.filter((card) => !used.has(card.id)), discard: [], word, blockedLetter,
       turnPlayerId: room.players[0].id, letterDebt: { count: debt, playerId: debt ? room.players[0].id : null },

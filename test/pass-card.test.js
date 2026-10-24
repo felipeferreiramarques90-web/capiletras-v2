@@ -1,3 +1,4 @@
+import { compositionForHands } from './helpers/composition.js';
 import test from 'node:test';
 import { resolvePendingVictory } from '../game/victory.js';
 import assert from 'node:assert/strict';
@@ -14,7 +15,8 @@ function fixture({ hands = [['pass-0', 'letra-B', 'letra-E'], ['pass-1', 'letra-
   room = updateSettings(room, 'p1', { playerCount: hands.length, initialCards: 3 });
   for (let i = 1; i < hands.length; i++) room = joinRoom(room, { playerId: `p${i + 1}`, sessionId: `s${i + 1}`, name: ['Ana', 'Bia', 'Caio'][i] });
   room = startGame(room, 'p1', random);
-  const cards = createDeck(), used = new Set(hands.flat());
+  room.settings.deckComposition = compositionForHands(hands);
+  const cards = createDeck(room.settings.deckComposition), used = new Set(hands.flat());
   room.players.forEach((p, i) => { p.hand = hands[i].map((id) => cards.find((card) => card.id === id)); });
   Object.assign(room.game, { deck: cards.filter((card) => !used.has(card.id)), word, blockedLetter,
     turnPlayerId: turn, lastPlayerId: last,
@@ -23,13 +25,13 @@ function fixture({ hands = [['pass-0', 'letra-B', 'letra-E'], ['pass-1', 'letra-
 }
 const play = (room, cardId, letter, blockedLetter, payment) => playCard(room, room.game.turnPlayerId, cardId, letter, blockedLetter, payment);
 
-test('Passar letra soma 12 às 72 anteriores, sem alterar outros tipos, e recalcula limites', () => {
-  const counts = { letter: 26, wild: 12, vowel: 1, consonant: 1, first: 1, last: 1, swap: 8, block: 6, double: 6, multi: 5, life: 5, pass: 12 };
+test('Passar letra tem oito cartas no padrão de 72 e recalcula limites', () => {
+  const counts = { letter: 26, wild: 12, vowel: 1, consonant: 1, first: 1, last: 1, swap: 6, block: 6, double: 6, multi: 4, life: 0, pass: 8 };
   assert.deepEqual(Object.fromEntries(Object.entries(CARD_TYPES).map(([type, rule]) => [type, rule.quantity])), counts);
-  assert.equal(DECK_SIZE, 84);
-  assert.equal(createDeck().length, 84);
-  assert.equal(new Set(createDeck().map((card) => card.id)).size, 84);
-  assert.deepEqual([2, 3, 4, 5, 6, 7, 8].map((players) => maxInitialCards(players)), [41, 27, 20, 16, 13, 11, 10]);
+  assert.equal(DECK_SIZE, 72);
+  assert.equal(createDeck().length, 72);
+  assert.equal(new Set(createDeck().map((card) => card.id)).size, 72);
+  assert.deepEqual([2, 3, 4, 5, 6, 7, 8].map((players) => maxInitialCards(players)), [35, 23, 17, 14, 11, 10, 8]);
 });
 
 test('Passar letra é válida como primeira jogada, passa a vez e não consome Bloqueio', () => {

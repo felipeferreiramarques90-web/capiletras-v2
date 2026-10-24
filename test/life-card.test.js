@@ -1,3 +1,4 @@
+import { compositionForHands } from './helpers/composition.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CARD_TYPES, DECK_SIZE, maxInitialCards } from '../game/config.js';
@@ -12,7 +13,8 @@ function fixture({ hands = [['life-0', 'letra-B', 'letra-E'], ['double-0', 'letr
   room = updateSettings(room, 'p1', { playerCount: hands.length, initialCards: 3 });
   for (let i = 1; i < hands.length; i++) room = joinRoom(room, { playerId: `p${i + 1}`, sessionId: `s${i + 1}`, name: `Pessoa ${i + 1}` });
   room = startGame(room, 'p1', random);
-  const cards = createDeck();
+  room.settings.deckComposition = compositionForHands(hands);
+  const cards = createDeck(room.settings.deckComposition);
   const used = new Set(hands.flat());
   room.players.forEach((player, i) => { player.hand = hands[i].map((id) => cards.find((card) => card.id === id)); });
   Object.assign(room.game, { word, blockedLetter, deck: cards.filter((card) => !used.has(card.id)) });
@@ -20,15 +22,15 @@ function fixture({ hands = [['life-0', 'letra-B', 'letra-E'], ['double-0', 'letr
 }
 const playLife = (room, letter = 'A') => playCard(room, 'p1', 'life-0', letter);
 
-test('Vida mantém cinco cartas e a composição completa gera 84 IDs únicos', () => {
-  const previous = { letter: 26, wild: 12, vowel: 1, consonant: 1, first: 1, last: 1, swap: 8, block: 6, double: 6, multi: 5, pass: 12 };
-  assert.equal(Object.values(previous).reduce((sum, count) => sum + count, 0), 79);
-  assert.deepEqual(Object.fromEntries(Object.entries(CARD_TYPES).map(([type, rule]) => [type, rule.quantity])), { ...previous, life: 5 });
-  assert.equal(DECK_SIZE, 84);
-  assert.equal(createDeck().length, 84);
-  assert.equal(new Set(createDeck().map((card) => card.id)).size, 84);
-  assert.equal(createDeck().filter((card) => card.type === 'life').length, 5);
-  assert.deepEqual([2, 3, 4, 5, 6, 7, 8].map((players) => maxInitialCards(players)), [41, 27, 20, 16, 13, 11, 10]);
+test('Vida é opcional: zero no padrão de 72 cartas e disponível por composição personalizada', () => {
+  assert.equal(CARD_TYPES.life.quantity, 0);
+  assert.equal(DECK_SIZE, 72);
+  assert.equal(createDeck().length, DECK_SIZE);
+  assert.equal(new Set(createDeck().map((card) => card.id)).size, DECK_SIZE);
+  assert.equal(createDeck().filter((card) => card.type === 'life').length, 0);
+  const customized = createDeck(compositionForHands([['life-0', 'life-1']]));
+  assert.equal(customized.filter((card) => card.type === 'life').length, 2);
+  assert.deepEqual([2, 3, 4, 5, 6, 7, 8].map((players) => maxInitialCards(players)), [35, 23, 17, 14, 11, 10, 8]);
 });
 
 test('Vida adiciona uma vogal, inclusive com visor vazio, e publica o aviso', () => {

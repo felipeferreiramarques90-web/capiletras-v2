@@ -1,3 +1,4 @@
+import { compositionForHands } from './helpers/composition.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { RULES } from '../game/config.js';
@@ -12,7 +13,8 @@ function fixture(hands = [['letra-K'], ['letra-B', 'letra-C'], ['letra-D', 'letr
   room = updateSettings(room, 'p1', { playerCount: hands.length, initialCards: 3 });
   for (let i = 1; i < hands.length; i++) room = joinRoom(room, { playerId: `p${i + 1}`, sessionId: `s${i + 1}`, name: ['Ana', 'Bia', 'Caio'][i] });
   room = startGame(room, 'p1', random);
-  const cards = createDeck(), used = new Set(hands.flat());
+  room.settings.deckComposition = compositionForHands(hands);
+  const cards = createDeck(room.settings.deckComposition), used = new Set(hands.flat());
   room.players.forEach((p, i) => { p.hand = hands[i].map((id) => cards.find((c) => c.id === id)); });
   Object.assign(room.game, { deck: cards.filter((c) => !used.has(c.id)), word: 'CA', blockedLetter: 'K', lastPlayerId: 'p3', lastLetterPlayerId: 'p3' });
   return room;

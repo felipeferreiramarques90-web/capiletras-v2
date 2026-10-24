@@ -1,3 +1,5 @@
+import { compositionForHands } from './helpers/composition.js';
+import { RULES, maxInitialCards } from '../game/config.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
@@ -57,22 +59,23 @@ test('HTTP: /health responde 200 e o mesmo servidor entrega o front-end e Socket
   assert.equal((await fetch(`${url}/socket.io/socket.io.js`)).status, 200);
   assert.equal((await fetch(`${url}/game/game.js`)).status, 404);
   const config = await (await fetch(`${url}/api/config`)).json();
-  assert.equal(config.deckSize, 84);
-  assert.equal(config.cardTypes.swap.quantity, 8);
+  assert.equal(config.deckSize, 72);
+  assert.equal(config.cardTypes.swap.quantity, 6);
   assert.equal(config.cardTypes.block.quantity, 6);
   assert.equal(config.cardTypes.double.quantity, 6);
-  assert.equal(config.cardTypes.multi.quantity, 5);
-  assert.equal(config.cardTypes.life.quantity, 5);
-  assert.equal(config.cardTypes.pass.quantity, 12);
+  assert.equal(config.cardTypes.multi.quantity, 4);
+  assert.equal(config.cardTypes.life.quantity, 0);
+  assert.equal(config.cardTypes.pass.quantity, 8);
   assert.equal(config.cardTypes.life.letters, 'AEIOU');
   assert.equal(config.cardTypes.multi.minLetters, 2);
   assert.equal(config.cardTypes.multi.maxLetters, 16);
 });
 
 async function seedHands({ a, b, code, storage }, hands, game = {}) {
+  assert.equal((await emit(a, 'room:deck', { composition: compositionForHands(hands) })).ok, true);
   assert.equal((await emit(a, 'game:start')).ok, true);
   const room = await storage.getRoom(code);
-  const cards = createDeck();
+  const cards = createDeck(room.settings.deckComposition);
   const used = new Set(hands.flat());
   room.players.forEach((p, i) => { p.hand = hands[i].map((id) => cards.find((c) => c.id === id)); });
   Object.assign(room.game, { deck: cards.filter((c) => !used.has(c.id)), discard: [], ...game });
@@ -486,14 +489,14 @@ test('rede: mãos privadas, autoridade do servidor, compra concorrente e PERDI e
   assert.equal((await emit(b, 'game:start')).ok, false);
   assert.equal((await emit(a, 'game:start')).ok, true);
   await waitFor(() => b.view.phase === 'playing');
-  assert.equal(a.view.hand.length, 5);
-  assert.equal(b.view.hand.length, 5);
+  assert.equal(a.view.hand.length, RULES.defaultHand);
+  assert.equal(b.view.hand.length, RULES.defaultHand);
   assert.ok(b.view.players.every((p) => !p.hand && !p.sessionId));
   assert.equal(b.view.game.deck, undefined);
   assert.equal((await emit(b, 'game:draw')).ok, false);
   const draws = await Promise.all([emit(a, 'game:draw'), emit(a, 'game:draw')]);
   assert.equal(draws.filter((result) => result.ok).length, 1);
-  assert.equal(a.view.hand.length, 6);
+  assert.equal(a.view.hand.length, RULES.defaultHand + 1);
   const stolen = b.view.hand[0];
   assert.equal((await emit(a, 'game:play', { cardId: stolen.id, letter: allowedLetters(stolen)[0] })).ok, false);
   const card = a.view.hand.find((c) => !['double', 'pass'].includes(c.type) && !a.view.config.cardTypes[c.type].protectsFromChallenge && a.view.game.playableCardIds.includes(c.id));
@@ -505,12 +508,12 @@ test('rede: mãos privadas, autoridade do servidor, compra concorrente e PERDI e
   assert.equal((await emit(b, 'game:draw')).ok, true);
   assert.equal((await emit(a, 'game:skip')).ok, false);
   assert.equal(b.view.game.word, letter);
-  assert.equal(a.view.hand.length, 5);
+  assert.equal(a.view.hand.length, RULES.defaultHand);
   assert.equal(b.view.game.turnPlayerId, b.view.meId);
   assert.equal(b.view.game.drawsThisTurn, 1);
   const saved = await storage.getRoom(code);
   assert.equal(saved.game.word, letter);
-  assert.equal(saved.players[0].hand.length, 5);
+  assert.equal(saved.players[0].hand.length, RULES.defaultHand);
 });
 
 test('rede: reconexão retoma cartas e identidade; a partida pausa e continua', async (t) => {
@@ -604,7 +607,7 @@ test('composição do lobby: validação pela rede, leitura em tempo real e bara
   assert.equal((await emit(a, 'room:deck', { composition: { ...composition, wild: -1 } })).ok, false);
   assert.equal((await emit(a, 'room:deck', { composition: { ...composition, letter: 26 } })).ok, false);
   assert.deepEqual(await storage.getRoom(code), before);
-  assert.equal((await emit(a, 'room:settings', { playerCount: 2, initialCards: 40 })).ok, true);
+  assert.equal((await emit(a, 'room:settings', { playerCount: 2, initialCards: maxInitialCards(2) })).ok, true);
   assert.equal((await emit(a, 'room:deck', { composition })).ok, true);
   await waitFor(() => b.view.deckSize === 30);
   assert.deepEqual(b.view.settings.deckComposition, composition);

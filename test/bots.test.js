@@ -1,3 +1,4 @@
+import { compositionForHands } from './helpers/composition.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createDictionary, normalizeWord } from '../bots/dictionary.js';
@@ -19,7 +20,8 @@ const lobby = () => createRoom({ code: 'ABC234', playerId: 'h', sessionId: 'huma
 function fixture(ids = ['wild-0', 'letra-Z'], { word = 'CA', blockedLetter = null, owed = 0, ...game } = {}) {
   let room = addBot(addBot(lobby(), 'h', 'b1'), 'h', 'b2');
   room = startGame(room, 'h', () => 0.375);
-  const cards = createDeck(), used = new Set(ids);
+  room.settings.deckComposition = compositionForHands([ids]);
+  const cards = createDeck(room.settings.deckComposition), used = new Set(ids);
   const spare = cards.filter((c) => !used.has(c.id));
   room.players[1].hand = ids.map((id) => cards.find((c) => c.id === id));
   room.players[0].hand = spare.splice(0, 3);
@@ -73,8 +75,8 @@ test('lobby: só anfitrião humano gerencia bots, limite 8, nomes únicos e remo
   assert.equal(room.hostId, 'h');
   const playing = startGame(room, 'h', rng);
   rejectedWithoutChange(playing, () => addBot(playing, 'h', 'b8'), /lobby/);
-  assert.equal(DECK_SIZE, 84);
-  assert.equal(createDeck().length, 84);
+  assert.equal(DECK_SIZE, 72);
+  assert.equal(createDeck().length, 72);
 });
 
 test('bot nunca vira anfitrião ou desconectado; salas sem humanos são removíveis', () => {
