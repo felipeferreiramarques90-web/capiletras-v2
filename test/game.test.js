@@ -30,9 +30,9 @@ const firstPlay = (room, id = room.game.turnPlayerId) => {
 };
 const allCards = (room) => [...room.game.deck, ...room.game.discard, ...room.players.flatMap((p) => p.hand)];
 
-test('baralho contém exatamente 72 cartas com identificadores únicos e a composição pedida', () => {
+test('baralho contém exatamente 76 cartas com identificadores únicos e a composição pedida', () => {
   const cards = createDeck();
-  assert.equal(DECK_SIZE, 72);
+  assert.equal(DECK_SIZE, 76);
   assert.equal(cards.length, DECK_SIZE);
   for (const [type, count] of [['swap', 6], ['block', 6], ['double', 6], ['multi', 4], ['life', 0], ['pass', 8]]) assert.equal(cards.filter((c) => c.type === type).length, count);
   assert.equal(new Set(cards.map((c) => c.id)).size, DECK_SIZE);

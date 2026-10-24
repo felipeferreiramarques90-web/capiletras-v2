@@ -53,11 +53,14 @@ function finish(room, penalizedId, reason, automatic, now, random) {
   game.letterDebt = { count: 0, playerId: null };
   game.protectedPlayerId = null;
   game.lastLetterPlayerId = null;
+  game.lastPlayerId = null;
   game.challenge = null;
   game.pendingVictory = null;
   game.version++;
-  if (pending) advanceTurn(room);
-  room.notice = `${challenge.tally ? `${voteNotice(challenge.tally)} ` : ''}${penalized.name} ${penalizedId === challenge.challengedId ? `disse PERDI${automatic ? ' automaticamente' : ''} e ` : ''}comprou ${cards.length} carta${cards.length === 1 ? '' : 's'}. Mesa reiniciada: palavra, débito, bloqueio e proteção zerados. ${pending ? 'Vitória cancelada; a vez passou.' : 'A vez continua a mesma.'}`;
+  // Uma espada baixada fora da vez não pode tirar a vez de quem aguardava.
+  const advances = pending && pending.playerId === game.turnPlayerId;
+  if (advances) advanceTurn(room);
+  room.notice = `${challenge.tally ? `${voteNotice(challenge.tally)} ` : ''}${penalized.name} ${penalizedId === challenge.challengedId ? `disse PERDI${automatic ? ' automaticamente' : ''} e ` : ''}comprou ${cards.length} carta${cards.length === 1 ? '' : 's'}. Mesa reiniciada: palavra, débito, bloqueio e proteção zerados. ${pending ? (advances ? 'Vitória cancelada; a vez passou.' : 'Vitória cancelada; a vez continua a mesma.') : 'A vez continua a mesma.'}`;
   return room;
 }
 

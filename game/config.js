@@ -37,8 +37,9 @@ export const CARD_TYPES = Object.freeze(Object.fromEntries(Object.entries({
   multi: { quantity: 4, letters: ALPHABET, effect: 'appendMany', minLetters: 2, maxLetters: 16, label: '2+*', symbol: '2+*', color: 'purple' },
   life: { quantity: 0, letters: 'AEIOU', effect: 'append', protectsFromChallenge: true, label: 'Vida', description: 'Só vogais', symbol: '❤️', color: 'pink' },
   pass: { quantity: 8, letters: '', effect: 'pass', debtIncrement: 1, label: 'Passar letra', symbol: '→', color: 'black' },
+  sword: { quantity: 4, letters: ALPHABET, effect: 'interrupt', label: 'Jogar na vez do outro', caption: 'jogue na vez do outro', symbol: '⚔️', color: 'sword' },
 }).map(([type, rule]) => [type, Object.freeze(rule)])));
-export const CONFIGURABLE_CARD_TYPES = Object.freeze(['wild', 'life', 'pass', 'swap', 'block', 'double', 'multi']);
+export const CONFIGURABLE_CARD_TYPES = Object.freeze(['wild', 'life', 'pass', 'swap', 'block', 'double', 'multi', 'sword']);
 export const DECK_RULES = Object.freeze({ minQuantity: 0, maxQuantity: 30, maxTotal: 150 });
 // Os padrões vêm das quantidades acima; letras e restritivas continuam fixas.
 export const DEFAULT_DECK_COMPOSITION = Object.freeze(Object.fromEntries(

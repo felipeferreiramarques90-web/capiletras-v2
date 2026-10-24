@@ -59,7 +59,7 @@ test('HTTP: /health responde 200 e o mesmo servidor entrega o front-end e Socket
   assert.equal((await fetch(`${url}/socket.io/socket.io.js`)).status, 200);
   assert.equal((await fetch(`${url}/game/game.js`)).status, 404);
   const config = await (await fetch(`${url}/api/config`)).json();
-  assert.equal(config.deckSize, 72);
+  assert.equal(config.deckSize, 76);
   assert.equal(config.cardTypes.swap.quantity, 6);
   assert.equal(config.cardTypes.block.quantity, 6);
   assert.equal(config.cardTypes.double.quantity, 6);
@@ -628,4 +628,52 @@ test('composição do lobby: validação pela rede, leitura em tempo real e bara
   assert.equal((await emit(a, 'room:deck:reset')).ok, false);
   assert.equal((await emit(a, 'room:deck', { composition: a.view.config.defaultDeckComposition })).ok, false);
   assert.deepEqual(await storage.getRoom(code), playing);
+});
+
+for (const race of ['duas espadas', 'espada e jogador da vez']) test(`rede: ${race} com a mesma versão salva só a primeira jogada`, async (t) => {
+  const fixture = await setup(t), { a, b, code, storage, connect } = fixture;
+  assert.equal((await emit(a,'room:settings',{playerCount:3,initialCards:3})).ok,true);
+  const c = await connect();
+  assert.equal((await emit(c,'room:join',{code,sessionId:c.sessionId,name:'Caio'})).ok,true);
+  await seedHands(fixture,[['wild-0','letra-A'],['sword-0','letra-B'],['sword-1','letra-C']],{
+    word:'CA',lastPlayerId:null,lastLetterPlayerId:a.view.meId,drawsThisTurn:1,
+  });
+  await waitFor(() => c.view?.game?.version === a.view.game.version);
+  const version = a.view.game.version;
+  assert.equal(a.view.game.canPlaySword,false); assert.equal(b.view.game.canPlaySword,true); assert.equal(c.view.game.canPlaySword,true);
+  const before = await storage.getRoom(code);
+  const replies = await Promise.all([
+    emit(b,'game:play',{cardId:'sword-0',letter:'S',version}),
+    race === 'duas espadas' ? emit(c,'game:play',{cardId:'sword-1',letter:'N',version})
+      : emit(a,'game:play',{cardId:'letra-A',version}),
+  ]);
+  assert.equal(replies.filter((reply) => reply.ok).length,1);
+  assert.match(replies.find((reply) => !reply.ok).error,/mesa mudou/);
+  const after = await storage.getRoom(code);
+  assert.equal(after.game.discard.length,1); assert.equal(after.game.word.length,3);
+  assert.equal(after.game.playNumber,1);
+  if (after.game.lastPlayerId !== a.view.meId) {
+    assert.equal(after.game.turnPlayerId,before.game.turnPlayerId); assert.equal(after.game.drawsThisTurn,1);
+    assert.deepEqual(after.players[0].hand,before.players[0].hand);
+  }
+  for (const socket of [a,b,c]) {
+    assert.ok(socket.view.players.every((p) => !Object.hasOwn(p,'hand')));
+    assert.equal(socket.view.game.deck,undefined);
+  }
+});
+
+test('rede: espada inválida ou fora da janela é rejeitada sem alterar mãos nem storage', async (t) => {
+  const fixture = await setup(t), { a,b,storage,code } = fixture;
+  await seedHands(fixture,[['sword-1','letra-A'],['sword-0','letra-B']],{word:'CA',blockedLetter:'S'});
+  const before = await storage.getRoom(code);
+  for (const letter of ['S','Á','ı','AB','',undefined]) {
+    assert.equal((await emit(b,'game:play',{cardId:'sword-0',letter})).ok,false);
+    assert.deepEqual(await storage.getRoom(code),before);
+  }
+  assert.equal((await emit(a,'game:play',{cardId:'sword-1',letter:'A'})).ok,false);
+  assert.deepEqual(await storage.getRoom(code),before);
+  assert.equal((await emit(b,'game:play',{cardId:'sword-0',letter:'a'})).ok,true);
+  assert.equal(a.view.game.word,'CAA'); assert.equal(a.view.game.blockedLetter,null);
+  assert.equal(a.view.game.lastLetterPlayerId,b.view.meId);
+  assert.equal(a.view.game.turnPlayerId,a.view.meId);
 });

@@ -25,13 +25,13 @@ function fixture({ hands = [['pass-0', 'letra-B', 'letra-E'], ['pass-1', 'letra-
 }
 const play = (room, cardId, letter, blockedLetter, payment) => playCard(room, room.game.turnPlayerId, cardId, letter, blockedLetter, payment);
 
-test('Passar letra tem oito cartas no padrão de 72 e recalcula limites', () => {
-  const counts = { letter: 26, wild: 12, vowel: 1, consonant: 1, first: 1, last: 1, swap: 6, block: 6, double: 6, multi: 4, life: 0, pass: 8 };
+test('Passar letra tem oito cartas no padrão de 76 e recalcula limites', () => {
+  const counts = { letter: 26, wild: 12, vowel: 1, consonant: 1, first: 1, last: 1, swap: 6, block: 6, double: 6, multi: 4, life: 0, pass: 8, sword: 4 };
   assert.deepEqual(Object.fromEntries(Object.entries(CARD_TYPES).map(([type, rule]) => [type, rule.quantity])), counts);
-  assert.equal(DECK_SIZE, 72);
-  assert.equal(createDeck().length, 72);
-  assert.equal(new Set(createDeck().map((card) => card.id)).size, 72);
-  assert.deepEqual([2, 3, 4, 5, 6, 7, 8].map((players) => maxInitialCards(players)), [35, 23, 17, 14, 11, 10, 8]);
+  assert.equal(DECK_SIZE, 76);
+  assert.equal(createDeck().length, 76);
+  assert.equal(new Set(createDeck().map((card) => card.id)).size, 76);
+  assert.deepEqual([2, 3, 4, 5, 6, 7, 8].map((players) => maxInitialCards(players)), [37, 25, 18, 15, 12, 10, 9]);
 });
 
 test('Passar letra é válida como primeira jogada, passa a vez e não consome Bloqueio', () => {

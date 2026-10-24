@@ -57,9 +57,21 @@ export function debtForPlayer(game, id = game?.turnPlayerId) {
   return game?.letterDebt && game.letterDebt.playerId === id ? game.letterDebt.count : 0;
 }
 
+function swordEligible(game, id) {
+  return Boolean(game && id && game.turnPlayerId !== id && game.lastPlayerId !== id
+    && !game.letterDebt.count && !game.challenge && !game.pendingVictory && !game.winnerId);
+}
+
+export function canPlaySword(room, id) {
+  const player = room.players.find((p) => p.id === id && p.connected && !p.left);
+  return Boolean(room.phase === 'playing' && player && connected(room).length >= RULES.minPlayers
+    && swordEligible(room.game, id) && player.hand.some((card) => card.type === 'sword'));
+}
+
 export function playableLetters(card, game, id = game?.turnPlayerId) {
   const effect = CARD_TYPES[card.type]?.effect;
   const owesLetters = debtForPlayer(game, id) > 0;
+  if (effect === 'interrupt' && !swordEligible(game, id)) return '';
   if (!game || (effect === 'replace' && !game.word && !owesLetters)) return '';
   // O pagamento precede a carta e consome o Bloqueio. Na Troca, a última letra
   // dependerá do texto acumulado; a validação definitiva acontece na jogada.
@@ -174,19 +186,24 @@ export function startGame(original, id, random) {
     blockedLetter: null, protectedPlayerId: null, extraTurns: [], version: 0,
     letterDebt: { count: 0, playerId: null },
     lastLetterPlayerId: null, challenge: null, challengeResult: null,
-    letterPlayNumber: 0, botDecisions: {},
+    letterPlayNumber: 0, botDecisions: {}, playNumber: 0, botSwordDecisions: {},
   };
   room.notice = 'A partida começou. Boa sorte!';
   return room;
 }
 
-function requireTurn(room, id) {
+function requireGameAction(room, id) {
   requireRule(room.phase === 'playing', 'Não há partida em andamento.');
   requireRule(!room.game.challenge, 'Aguarde o fim do desafio para continuar a partida.');
   requireRule(!room.game.pendingVictory, 'Aguarde a resolução da vitória pendente.');
   const player = playerById(room, id);
   requireRule(player.connected, 'Reconecte para continuar.');
   requireRule(connected(room).length >= RULES.minPlayers, 'Partida pausada. Aguardando outro jogador reconectar.');
+  return player;
+}
+
+function requireTurn(room, id) {
+  const player = requireGameAction(room, id);
   requireRule(room.game.turnPlayerId === id, 'Aguarde a sua vez.');
   return player;
 }
@@ -258,12 +275,13 @@ export function drawCard(original, id, random) {
 
 export function playCard(original, id, cardId, choice, blockedChoice, accumulatedLetters, expectedVersion = original.game?.version, now = 0) {
   const room = clone(original);
-  const player = requireTurn(room, id);
+  const player = requireGameAction(room, id);
   requireRule(Number.isInteger(expectedVersion) && expectedVersion === room.game.version, 'A mesa mudou. Escolha sua carta novamente.');
   const index = player.hand.findIndex((card) => card.id === cardId);
   requireRule(index >= 0, 'Essa carta não está na sua mão.');
   const card = player.hand[index];
   const effect = CARD_TYPES[card.type]?.effect;
+  if (effect !== 'interrupt') requireRule(room.game.turnPlayerId === id, 'Aguarde a sua vez.');
   requireRule(isCardPlayable(card, room.game, id), 'Essa carta não pode ser jogada agora.');
   const usesLetters = effect !== 'replay' && effect !== 'pass';
   const owed = debtForPlayer(room.game, id);
@@ -290,7 +308,9 @@ export function playCard(original, id, cardId, choice, blockedChoice, accumulate
     requireRule(letter.length >= rule.minLetters && letter.length <= rule.maxLetters,
       `A carta ${rule.label} exige de ${rule.minLetters} a ${rule.maxLetters} letras.`);
     requireRule(letter[0] !== room.game.blockedLetter, `A primeira letra não pode ser ${room.game.blockedLetter}.`);
-  } else if (usesLetters) requireRule(letter.length === 1 && playableLetters(card, room.game, id).includes(letter),
+  } else if (effect === 'interrupt') requireRule(typeof choice === 'string' && /^[A-Za-z]$/.test(choice) && playableLetters(card, room.game, id).includes(letter),
+    'Escolha uma letra de A a Z diferente da letra bloqueada.');
+  else if (usesLetters) requireRule(letter.length === 1 && playableLetters(card, room.game, id).includes(letter),
     'Escolha uma letra permitida por essa carta, diferente da letra bloqueada e da última letra ao usar Troca.');
   const blockedLetter = typeof blockedChoice === 'string' ? blockedChoice.toUpperCase() : '';
   if (effect === 'block') requireRule(blockedLetter.length === 1 && ALPHABET.includes(blockedLetter), 'Escolha uma letra de A a Z para bloquear.');
@@ -320,12 +340,14 @@ export function playCard(original, id, cardId, choice, blockedChoice, accumulate
     room.notice = `${player.name} jogou Passar letra →.`;
   } else {
     room.game.word = previewCardWord(room.game.word, card, letter);
-    room.notice = effect === 'block' ? `${player.name} jogou Bloqueio: adicionou ${letter} e bloqueou ${blockedLetter} até a próxima jogada com letra.`
+    room.notice = effect === 'interrupt' ? `${player.name} jogou na vez de ${playerById(room, room.game.turnPlayerId).name} ⚔️.`
+      : effect === 'block' ? `${player.name} jogou Bloqueio: adicionou ${letter} e bloqueou ${blockedLetter} até a próxima jogada com letra.`
       : effect === 'appendMany' ? `${player.name} jogou ${CARD_TYPES[card.type].label}: adicionou ${letter}.`
         : CARD_TYPES[card.type].protectsFromChallenge ? `${player.name} jogou Vida ${CARD_TYPES[card.type].symbol}: adicionou ${letter}.`
         : `${player.name} jogou a letra ${letter}.`;
   }
   room.game.lastPlayerId = id;
+  room.game.playNumber = (room.game.playNumber || 0) + 1;
   if (usesLetters) {
     room.game.lastLetterPlayerId = id;
     room.game.letterPlayNumber = (room.game.letterPlayNumber || 0) + 1;
@@ -339,7 +361,7 @@ export function playCard(original, id, cardId, choice, blockedChoice, accumulate
     room.game.extraTurns.push(id);
     if (room.players.some((p) => p.id === previousPlayerId && p.connected && !p.left)) setTurn(room, previousPlayerId);
     else advanceTurn(room);
-  } else {
+  } else if (effect !== 'interrupt') {
     advanceTurn(room);
   }
   if (room.phase === 'playing' && effect === 'pass') {
@@ -450,6 +472,8 @@ export function roomView(room, viewerId) {
       word: game.word, turnPlayerId: game.turnPlayerId, lastPlayerId: game.lastPlayerId,
       winnerId: game.winnerId, turnNumber: game.turnNumber, drawsThisTurn: game.drawsThisTurn,
       version: game.version, blockedLetter: game.blockedLetter, extraTurns: [...game.extraTurns],
+      playNumber: game.playNumber || 0, botSwordDecisionPlay: game.botSwordDecisions?.[viewerId] ?? null,
+      canPlaySword: canPlaySword(room, viewerId),
       letterPlayNumber: game.letterPlayNumber || 0, botDecisionPlay: game.botDecisions?.[viewerId] ?? null,
       protectedPlayerId: game.protectedPlayerId,
       pendingVictory: game.pendingVictory ? {

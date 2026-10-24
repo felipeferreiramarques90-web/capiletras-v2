@@ -38,6 +38,7 @@ function assertReset(room, before, penalizedId) {
   assert.equal(room.game.challenge, null);
   assert.equal(room.game.word, '');
   assert.equal(room.game.lastLetterPlayerId, null);
+  assert.equal(room.game.lastPlayerId, null);
   assert.equal(room.game.blockedLetter, null);
   assert.equal(room.game.protectedPlayerId, null);
   assert.deepEqual(room.game.letterDebt, { count: 0, playerId: null });
@@ -53,9 +54,9 @@ function assertReset(room, before, penalizedId) {
   assert.deepEqual(JSON.parse(JSON.stringify(room)), room);
 }
 
-test('desafio não altera o baralho de 72 cartas e tem tempos/limites em constantes', () => {
-  assert.equal(DECK_SIZE, 72);
-  assert.equal(createDeck().length, 72);
+test('desafio não altera o baralho de 76 cartas e tem tempos/limites em constantes', () => {
+  assert.equal(DECK_SIZE, 76);
+  assert.equal(createDeck().length, 76);
   assert.equal(CHALLENGE_RULES.completionMs, 30_000);
   assert.equal(CHALLENGE_RULES.voteMs, 15_000);
   assert.equal(Object.hasOwn(CHALLENGE_RULES, 'lossMs'), false);

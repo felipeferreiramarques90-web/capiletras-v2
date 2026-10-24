@@ -75,8 +75,8 @@ test('lobby: só anfitrião humano gerencia bots, limite 8, nomes únicos e remo
   assert.equal(room.hostId, 'h');
   const playing = startGame(room, 'h', rng);
   rejectedWithoutChange(playing, () => addBot(playing, 'h', 'b8'), /lobby/);
-  assert.equal(DECK_SIZE, 72);
-  assert.equal(createDeck().length, 72);
+  assert.equal(DECK_SIZE, 76);
+  assert.equal(createDeck().length, 76);
 });
 
 test('bot nunca vira anfitrião ou desconectado; salas sem humanos são removíveis', () => {

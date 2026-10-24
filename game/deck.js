@@ -2,7 +2,12 @@ import { CONFIGURABLE_CARD_TYPES, DEFAULT_DECK_COMPOSITION, DECK_RULES, RULES, d
 import { GameError } from './errors.js';
 
 // Apenas dados JSON. Salas antigas, sem composição salva, usam o padrão atual.
-export const roomComposition = (room) => room.settings.deckComposition ?? DEFAULT_DECK_COMPOSITION;
+export const roomComposition = (room) => {
+  const composition = room.settings.deckComposition;
+  if (!composition) return DEFAULT_DECK_COMPOSITION;
+  // Salas salvas antes da espada preservam o baralho que já haviam escolhido.
+  return Object.hasOwn(composition, 'sword') ? composition : { ...composition, sword: 0 };
+};
 
 export function validateComposition(composition) {
   if (!composition || typeof composition !== 'object' || Array.isArray(composition)
