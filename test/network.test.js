@@ -617,7 +617,7 @@ test('composição do lobby: validação pela rede, leitura em tempo real e bara
   assert.equal(b.view.settingsAdjustment, null);
   assert.equal((await emit(b, 'room:deck:reset')).ok, false);
   assert.equal((await emit(a, 'room:deck:reset')).ok, true);
-  await waitFor(() => b.view.deckSize === a.view.config.deckSize);
+  await waitFor(() => b.view.deckSize === a.view.config.deckSize - a.view.config.defaultDeckComposition.sword);
   assert.deepEqual(a.view.settings.deckComposition, a.view.config.defaultDeckComposition);
   assert.equal((await emit(a, 'room:deck', { composition })).ok, true);
   assert.equal((await emit(a, 'game:start')).ok, true);
@@ -630,7 +630,7 @@ test('composição do lobby: validação pela rede, leitura em tempo real e bara
   assert.deepEqual(await storage.getRoom(code), playing);
 });
 
-for (const race of ['duas espadas', 'espada e jogador da vez']) test(`rede: ${race} com a mesma versão salva só a primeira jogada`, async (t) => {
+for (const race of ['duas espadas', 'espada e jogador da vez']) test(`rede: ${race} com a mesma versão aplica cada pedido ainda válido no estado atual`, async (t) => {
   const fixture = await setup(t), { a, b, code, storage, connect } = fixture;
   assert.equal((await emit(a,'room:settings',{playerCount:3,initialCards:3})).ok,true);
   const c = await connect();
@@ -647,11 +647,12 @@ for (const race of ['duas espadas', 'espada e jogador da vez']) test(`rede: ${ra
     race === 'duas espadas' ? emit(c,'game:play',{cardId:'sword-1',letter:'N',version})
       : emit(a,'game:play',{cardId:'letra-A',version}),
   ]);
-  assert.equal(replies.filter((reply) => reply.ok).length,1);
-  assert.match(replies.find((reply) => !reply.ok).error,/mesa mudou/);
+  const accepted = race === 'duas espadas' ? 2 : replies.filter((reply) => reply.ok).length;
+  assert.equal(replies.filter((reply) => reply.ok).length, accepted);
+  if (race === 'espada e jogador da vez') assert.ok(accepted >= 1);
   const after = await storage.getRoom(code);
-  assert.equal(after.game.discard.length,1); assert.equal(after.game.word.length,3);
-  assert.equal(after.game.playNumber,1);
+  assert.equal(after.game.discard.length,accepted); assert.equal(after.game.word.length,2 + accepted);
+  assert.equal(after.game.playNumber,accepted);
   if (after.game.lastPlayerId !== a.view.meId) {
     assert.equal(after.game.turnPlayerId,before.game.turnPlayerId); assert.equal(after.game.drawsThisTurn,1);
     assert.deepEqual(after.players[0].hand,before.players[0].hand);

@@ -26,7 +26,7 @@ test('espada: quatro no padrão de 76, máximo inicial recalculado, zero e resta
   assert.equal(CARD_TYPES.sword.quantity, 4);
   assert.equal(DECK_SIZE, 76);
   assert.equal(createDeck().filter((c) => c.type === 'sword').length, 4);
-  assert.deepEqual([2,3,4,5,6,7,8].map((n) => maxInitialCards(n)), [37,25,18,15,12,10,9]);
+  assert.deepEqual([2,3,4,5,6,7,8].map((n) => maxInitialCards(n)), [35,25,18,15,12,10,9]);
   let lobby = createRoom({ code:'ABC234', playerId:'p1', sessionId:'s1', name:'Ana', now });
   lobby = updateDeckComposition(lobby,'p1',{...DEFAULT_DECK_COMPOSITION,sword:0});
   assert.equal(roomView(lobby,'p1').deckSize,72);
@@ -62,7 +62,7 @@ test('carta fica indisponível na própria vez, inclusive forçada por 2x; sozin
   assert.equal(room.game.turnPlayerId,'p1');
   assert.equal(canPlaySword(room,'p1'),false);
   assert.equal(isCardPlayable(room.players[0].hand[0],room.game,'p1'),false);
-  unchanged(room,() => cast(room,'p1'),/não pode/);
+  unchanged(room,() => cast(room,'p1'),/Compre uma carta/);
   assert.equal(roomView(room,'p1').game.canSkipTurn,false);
   room = drawCard(room,'p1',rng);
   // Testa a habilitação com a compra já realizada e somente a espada na mão.
@@ -154,35 +154,22 @@ test('2x após outra carta chama o autor dessa carta; espada encerra proteção 
   assert.equal(room.game.turnPlayerId,'p3');
 });
 
-test('última espada abre janela de dúvida; aceitação vence e recusa/PERDI preservam a vez já em curso', () => {
+test('espada única não pode ser usada nem abrir vitória pendente', () => {
   const base = fixture([['letra-A','wild-0'],['sword-0'],['letra-C','letra-D']],{ drawsThisTurn:1,extraTurns:['p3'] });
-  const pending = cast(base);
-  assert.equal(pending.phase,'playing'); assert.equal(pending.game.pendingVictory.playerId,'p2');
-  assert.equal(pending.game.pendingVictory.deadline,now+RULES.victoryWindowMs);
-  assert.equal(resolvePendingVictory(pending,now+RULES.victoryWindowMs).game.winnerId,'p2');
-  const challenge = startChallenge(pending,'p3',now);
-  const lost = loseChallenge(challenge,'p2',challenge.game.challenge.id,now,rng);
-  assert.equal(lost.players[1].hand.length,4); assert.equal(lost.game.pendingVictory,null);
-  assert.equal(lost.game.turnPlayerId,'p1'); assert.equal(lost.game.drawsThisTurn,1);
-  assert.deepEqual(lost.game.extraTurns,['p3']); assert.equal(lost.game.word,'');
-  for (const vote of ['sim','nao']) {
-    let room = confirmChallenge(challenge,'p2',challenge.game.challenge.id,'A',now,rng);
-    room = voteChallenge(room,'p1',room.game.challenge.id,vote,now,rng);
-    if (room.game.challenge) room = voteChallenge(room,'p3',room.game.challenge.id,vote,now,rng);
-    assert.equal(room.phase, vote === 'sim' ? 'finished' : 'playing');
-    assert.equal(room.game.turnPlayerId,'p1');
-    if (vote === 'sim') assert.equal(room.game.winnerId,'p2');
-    else assert.equal(room.players[1].hand.length,4);
-  }
+  unchanged(base, () => cast(base), /Compre uma carta/);
+  assert.equal(canPlaySword(base, 'p2'), false);
 });
 
-test('corrida entre duas espadas e entre espada e carta normal aceita apenas a primeira versão válida', () => {
+test('espadas usam o estado atual mesmo com versão antiga; a carta normal da vez continua atômica', () => {
   const original = fixture(), version = original.game.version;
   const first = cast(original);
-  unchanged(first,() => cast(first,'p3','sword-2','A',version),/mesa mudou/);
-  unchanged(first,() => playCard(first,'p1','letra-A',undefined,undefined,'',version,now),/mesa mudou/);
+  const second = cast(first,'p3','sword-2','A',version);
+  assert.equal(second.game.word, 'CASA');
+  assert.equal(second.game.lastLetterPlayerId, 'p3');
+  unchanged(second, () => cast(second,'p3','sword-2','A',version));
+  unchanged(second, () => playCard(second,'p1','letra-A',undefined,undefined,'',version,now), /mesa mudou/);
   const normal = playCard(original,'p1','letra-A',undefined,undefined,'',version,now);
-  unchanged(normal,() => cast(normal,'p3','sword-2','A',version),/mesa mudou/);
+  assert.equal(cast(normal,'p3','sword-2','A',version).game.word, 'CAAA');
 });
 
 test('reset do desafio e Não consigo jogar limpam último jogador e liberam espada fora da vez', () => {

@@ -123,7 +123,7 @@ test('Bloqueio persiste por toda a cadeia de 2x e só uma jogada com letra o con
   let room = scenario({ hands: [['block', 'double:1', 'A', 'B'], ['double', 'C', 'D', 'E']] });
   room = play(room, 'block', 'X', 'A');
   for (const key of ['double', 'double:1']) {
-    assert.equal(isCardPlayable(card(key), room.game), true);
+    assert.equal(isCardPlayable(card(key), room.game, room.game.turnPlayerId, room.players.find((p) => p.id === room.game.turnPlayerId).hand.length), true);
     room = play(room, key);
     assert.equal(room.game.word, 'X');
     assert.equal(room.game.blockedLetter, 'A');
@@ -183,13 +183,11 @@ test('2x em cadeia desempilha todos os retornos antes de retomar a ordem normal'
   assert.deepEqual(JSON.parse(JSON.stringify(room)), room);
 });
 
-test('2x como última carta vence sem iniciar turnos extras', () => {
-  const room = play(scenario({ hands: [['A'], ['double']], last: 'p1', turn: 1, word: 'A' }), 'double');
-  assert.equal(room.phase, 'finished');
-  assert.equal(room.game.winnerId, 'p2');
-  assert.deepEqual(room.game.extraTurns, []);
-  assert.equal(room.game.word, 'A');
-  assert.equal(canSkipTurn(room, 'p2'), false);
+test('2x como carta única exige compra sem alterar os retornos', () => {
+  const room = scenario({ hands: [['A'], ['double']], last: 'p1', turn: 1, word: 'A' });
+  const before = structuredClone(room);
+  assert.throws(() => play(room, 'double'), /Compre uma carta/);
+  assert.deepEqual(room, before);
 });
 
 test('desconexão durante 2x pula o forçado ou o retorno sem perder a ordem normal', () => {

@@ -35,15 +35,15 @@ test('composição soma 76, com quatro 2+* e os demais tipos configurados', () =
 });
 
 test('máximo inicial com 76 cartas é recalculado para todas as quantidades de jogadores', () => {
-  assert.deepEqual([2, 3, 4, 5, 6, 7, 8].map((players) => maxInitialCards(players)), [37, 25, 18, 15, 12, 10, 9]);
+  assert.deepEqual([2, 3, 4, 5, 6, 7, 8].map((players) => maxInitialCards(players)), [35, 25, 18, 15, 12, 10, 9]);
   let room = createRoom({ code: 'ABC234', playerId: 'p1', sessionId: 's1', name: 'Ana', now: 1000 });
-  room = updateSettings(room, 'p1', { playerCount: 2, initialCards: 37 });
+  room = updateSettings(room, 'p1', { playerCount: 2, initialCards: 35 });
   room = joinRoom(room, { playerId: 'p2', sessionId: 's2', name: 'Bia' });
   room = startGame(room, 'p1', random);
-  assert.equal(room.players[0].hand.length, 37);
-  assert.equal(room.players[1].hand.length, 37);
+  assert.equal(room.players[0].hand.length, 35);
+  assert.equal(room.players[1].hand.length, 35);
   assert.equal(room.game.deck.length, 2);
-  assert.equal(roomView(room, 'p1').settings.maxInitialCards, 37);
+  assert.equal(roomView(room, 'p1').settings.maxInitialCards, 35);
 });
 
 test('2+* aceita os limites mínimo e máximo, preserva ordem e normaliza para maiúsculas', () => {

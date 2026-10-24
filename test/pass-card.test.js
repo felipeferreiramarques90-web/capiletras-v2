@@ -31,13 +31,13 @@ test('Passar letra tem oito cartas no padrão de 76 e recalcula limites', () => 
   assert.equal(DECK_SIZE, 76);
   assert.equal(createDeck().length, 76);
   assert.equal(new Set(createDeck().map((card) => card.id)).size, 76);
-  assert.deepEqual([2, 3, 4, 5, 6, 7, 8].map((players) => maxInitialCards(players)), [37, 25, 18, 15, 12, 10, 9]);
+  assert.deepEqual([2, 3, 4, 5, 6, 7, 8].map((players) => maxInitialCards(players)), [35, 25, 18, 15, 12, 10, 9]);
 });
 
 test('Passar letra é válida como primeira jogada, passa a vez e não consome Bloqueio', () => {
   const original = fixture({ blockedLetter: 'K' });
   const room = play(original, 'pass-0');
-  assert.equal(isCardPlayable(original.players[0].hand[0], original.game), true);
+  assert.equal(isCardPlayable(original.players[0].hand[0], original.game, 'p1', original.players[0].hand.length), true);
   assert.equal(room.game.word, '');
   assert.equal(room.game.blockedLetter, 'K');
   assert.equal(room.game.turnPlayerId, 'p2');
@@ -176,10 +176,9 @@ test('jogador forçado usa Passar letra e retorna débito acrescido ao autor do 
   assert.equal(room.game.turnPlayerId, 'p3');
 });
 
-test('vitória com Passar letra e com pagamento da última carta', () => {
-  const passWin = play(fixture({ hands: [['pass-0'], ['letra-C']] }), 'pass-0');
-  assert.equal(passWin.phase, 'finished');
-  assert.equal(passWin.game.winnerId, 'p1');
+test('Passar letra não pode ser a última; pagamento da última carta de letra pode vencer', () => {
+  const singlePass = fixture({ hands: [['pass-0'], ['letra-C']] });
+  assert.throws(() => play(singlePass, 'pass-0'), /Compre uma carta/);
   const payWin = resolvePendingVictory(play(fixture({ hands: [['letra-K'], ['letra-C']], debt: 2 }), 'letra-K', undefined, undefined, 'XY'), 10_000);
   assert.equal(payWin.phase, 'finished');
   assert.equal(payWin.game.word, 'XYK');

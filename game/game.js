@@ -1,7 +1,7 @@
-import { ALPHABET, CARD_TYPES, CONFIGURABLE_CARD_TYPES, DEFAULT_DECK_COMPOSITION, PUBLIC_CONFIG, RULES, deckSize, maxInitialCards } from './config.js';
-import { deckStartIssue, roomComposition, validateComposition } from './deck.js';
+import { ALPHABET, CARD_TYPES, CONFIGURABLE_CARD_TYPES, DEFAULT_DECK_COMPOSITION, PUBLIC_CONFIG, RULES, compositionForPlayers, deckSize, maxInitialCards } from './config.js';
+import { deckStartIssue, roomComposition, lobbyComposition, effectiveRoomComposition, participantCount, roomHandLimit, validateComposition } from './deck.js';
 import { GameError } from './errors.js';
-import { beginPendingVictory, finishVictory } from './victory.js';
+import { beginPendingVictory } from './victory.js';
 
 export { GameError } from './errors.js';
 const requireRule = (condition, message) => { if (!condition) throw new GameError(message); };
@@ -21,8 +21,9 @@ const cleanName = (value) => {
 };
 
 // Não acessa relógio, rede ou armazenamento; aleatoriedade e horário são injetados.
-export function createDeck(composition = DEFAULT_DECK_COMPOSITION) {
+export function createDeck(composition = DEFAULT_DECK_COMPOSITION, participants) {
   validateComposition(composition);
+  composition = compositionForPlayers(composition, participants);
   return Object.entries(CARD_TYPES).flatMap(([type, rule]) => Array.from({ length: CONFIGURABLE_CARD_TYPES.includes(type) ? composition[type] : rule.quantity }, (_, i) => {
     if (type !== 'letter') return { id: `${type}-${i}`, type };
     const letter = rule.letters[i % rule.letters.length];
@@ -65,7 +66,7 @@ function swordEligible(game, id) {
 export function canPlaySword(room, id) {
   const player = room.players.find((p) => p.id === id && p.connected && !p.left);
   return Boolean(room.phase === 'playing' && player && connected(room).length >= RULES.minPlayers
-    && swordEligible(room.game, id) && player.hand.some((card) => card.type === 'sword'));
+    && swordEligible(room.game, id) && player.hand.some((card) => card.type === 'sword' && isCardPlayable(card, room.game, id, player.hand.length)));
 }
 
 export function playableLetters(card, game, id = game?.turnPlayerId) {
@@ -79,15 +80,20 @@ export function playableLetters(card, game, id = game?.turnPlayerId) {
     && (effect !== 'replace' || owesLetters || letter !== game.word.at(-1))).join('');
 }
 
-export function isCardPlayable(card, game, id = game?.turnPlayerId) {
-  if (!game || !CARD_TYPES[card.type]) return false;
+export function isLastCardRestricted(card, handSize) {
+  return Boolean(CARD_TYPES[card.type]?.cannotBeLast && handSize < RULES.minHandForRestrictedCards);
+}
+
+// O tamanho real da mão participa da validação, tanto para humanos quanto bots.
+export function isCardPlayable(card, game, id = game?.turnPlayerId, handSize = 0) {
+  if (!game || !CARD_TYPES[card.type] || isLastCardRestricted(card, handSize)) return false;
   const effect = CARD_TYPES[card.type].effect;
   if (effect === 'pass') return true;
   return effect === 'replay' ? game.lastPlayerId !== null : playableLetters(card, game, id).length > 0;
 }
 
 export function hasPlayableCard(player, game) {
-  return player.hand.some((card) => isCardPlayable(card, game, player.id));
+  return player.hand.some((card) => isCardPlayable(card, game, player.id, player.hand.length));
 }
 
 export function canSkipTurn(room, id) {
@@ -123,6 +129,7 @@ export function joinRoom(original, { playerId, sessionId, name }) {
   requireRule(room.players.length < room.settings.playerCount, 'A sala está cheia.');
   room.players.push({ id: playerId, sessionId, name: cleanName(name), connected: true, left: false, hand: [] });
   room.emptySince = null;
+  adjustLobbyHand(room);
   room.notice = `${room.players.at(-1).name} entrou na sala.`;
   return room;
 }
@@ -136,7 +143,7 @@ export function updateSettings(original, id, settings) {
   requireRule(Number.isInteger(playerCount) && playerCount >= RULES.minPlayers && playerCount <= RULES.maxPlayers,
     'Escolha entre 2 e 8 jogadores.');
   requireRule(playerCount >= room.players.length, 'Há mais jogadores na sala do que o limite escolhido.');
-  const maximum = maxInitialCards(playerCount, roomComposition(room));
+  const maximum = roomHandLimit(room, playerCount);
   requireRule(Number.isInteger(initialCards) && initialCards >= RULES.minHand
     && (initialCards <= maximum || playerCount !== room.settings.playerCount),
     `Escolha de ${RULES.minHand} a ${maximum} cartas para essa quantidade de jogadores.`);
@@ -152,13 +159,24 @@ function recordHandAdjustment(room, adjusted) {
   } : null;
 }
 
+// Recebe somente cópias locais já criadas pelos reducers de sala/bots.
+export function adjustLobbyHand(room) {
+  if (room.phase !== 'lobby') return room;
+  const maximum = roomHandLimit(room);
+  if (room.settings.initialCards > maximum) {
+    room.settings.initialCards = maximum;
+    recordHandAdjustment(room, true);
+  }
+  return room;
+}
+
 export function updateDeckComposition(original, id, composition) {
   requireHost(original, id);
   requireRule(original.phase === 'lobby', 'A partida já começou.');
   validateComposition(composition);
   const room = clone(original);
   room.settings.deckComposition = { ...composition };
-  const maximum = maxInitialCards(room.settings.playerCount, composition);
+  const maximum = roomHandLimit(room);
   const adjusted = room.settings.initialCards > maximum;
   room.settings.initialCards = Math.min(room.settings.initialCards, maximum);
   recordHandAdjustment(room, adjusted);
@@ -177,11 +195,12 @@ export function startGame(original, id, random) {
   requireRule(room.players.some((p) => !p.isBot), 'A partida precisa de pelo menos um jogador humano.');
   requireRule(room.players.length === room.settings.playerCount && room.players.every((p) => p.connected),
     `Aguarde os ${room.settings.playerCount} jogadores ficarem conectados ou ajuste a sala.`);
-  const deck = shuffle(createDeck(roomComposition(room)), random);
+  const deckComposition = lobbyComposition(room);
+  const deck = shuffle(createDeck(deckComposition), random);
   for (const player of room.players) player.hand = deck.splice(0, room.settings.initialCards);
   room.phase = 'playing';
   room.game = {
-    deck, discard: [], word: '', turnPlayerId: room.players[0].id, drawsThisTurn: 0,
+    deck, deckComposition, discard: [], word: '', turnPlayerId: room.players[0].id, drawsThisTurn: 0,
     lastPlayerId: null, winnerId: null, pendingVictory: null, turnNumber: 1,
     blockedLetter: null, protectedPlayerId: null, extraTurns: [], version: 0,
     letterDebt: { count: 0, playerId: null },
@@ -276,13 +295,16 @@ export function drawCard(original, id, random) {
 export function playCard(original, id, cardId, choice, blockedChoice, accumulatedLetters, expectedVersion = original.game?.version, now = 0) {
   const room = clone(original);
   const player = requireGameAction(room, id);
-  requireRule(Number.isInteger(expectedVersion) && expectedVersion === room.game.version, 'A mesa mudou. Escolha sua carta novamente.');
   const index = player.hand.findIndex((card) => card.id === cardId);
   requireRule(index >= 0, 'Essa carta não está na sua mão.');
   const card = player.hand[index];
   const effect = CARD_TYPES[card.type]?.effect;
-  if (effect !== 'interrupt') requireRule(room.game.turnPlayerId === id, 'Aguarde a sua vez.');
-  requireRule(isCardPlayable(card, room.game, id), 'Essa carta não pode ser jogada agora.');
+  if (effect !== 'interrupt') {
+    requireRule(Number.isInteger(expectedVersion) && expectedVersion === room.game.version, 'A mesa mudou. Escolha sua carta novamente.');
+    requireRule(room.game.turnPlayerId === id, 'Aguarde a sua vez.');
+  }
+  requireRule(!isLastCardRestricted(card, player.hand.length), 'Compre uma carta para poder jogar esta');
+  requireRule(isCardPlayable(card, room.game, id, player.hand.length), 'Essa carta não pode ser jogada agora.');
   const usesLetters = effect !== 'replay' && effect !== 'pass';
   const owed = debtForPlayer(room.game, id);
   let paidLetters = '';
@@ -355,7 +377,6 @@ export function playCard(original, id, cardId, choice, blockedChoice, accumulate
   if (paidLetters) room.notice = `${player.name} pagou ${owed} letra${owed === 1 ? '' : 's'} acumulada${owed === 1 ? '' : 's'} (${paidLetters}). ${room.notice}`;
   room.game.version++;
   if (lastCard) {
-    if (card.type === 'life' || effect === 'pass' || effect === 'replay') return finishVictory(room, id);
     return beginPendingVictory(room, id, now);
   } else if (effect === 'replay') {
     room.game.extraTurns.push(id);
@@ -414,6 +435,7 @@ export function disconnectPlayer(original, id, now, leave = false) {
   const humans = active.filter((p) => !p.isBot);
   if (id === room.hostId && humans.length) room.hostId = humans[0].id;
   if (!humans.length && room.emptySince === null) room.emptySince = now;
+  adjustLobbyHand(room);
   resumeTurn(room);
   if (room.game) room.game.version++;
   return room;
@@ -431,6 +453,7 @@ export function returnToLobby(original, id) {
   room.game = null;
   room.players = room.players.filter((p) => !p.left && p.connected);
   for (const player of room.players) player.hand = [];
+  adjustLobbyHand(room);
   room.notice = 'De volta à sala. Prontos para outra?';
   return room;
 }
@@ -442,6 +465,7 @@ export function removeFromLobby(original, hostId, playerId) {
   const player = playerById(room, playerId);
   requireRule(!player.connected, 'Só é possível liberar a vaga de um jogador desconectado.');
   room.players = room.players.filter((p) => p.id !== playerId);
+  adjustLobbyHand(room);
   room.notice = `A vaga de ${player.name} foi liberada.`;
   return room;
 }
@@ -460,10 +484,10 @@ export function roomView(room, viewerId) {
   const challenge = game?.challenge;
   return {
     code: room.code, phase: room.phase, hostId: room.hostId, meId: viewerId,
-    settings: { ...room.settings, deckComposition: { ...roomComposition(room) }, maxInitialCards: maxInitialCards(room.settings.playerCount, roomComposition(room)) },
+    settings: { ...room.settings, deckComposition: { ...roomComposition(room) }, maxInitialCards: room.phase === 'lobby' ? roomHandLimit(room) : maxInitialCards(room.settings.playerCount, effectiveRoomComposition(room), null) },
     settingsAdjustment: viewerId === room.hostId ? room.settingsAdjustment ?? null : null,
-    startIssue: deckStartIssue(room),
-    deckSize: deckSize(roomComposition(room)), config: PUBLIC_CONFIG, notice: room.notice,
+    startIssue: room.phase === 'playing' ? null : deckStartIssue(room),
+    deckSize: deckSize(effectiveRoomComposition(room)), swordUnavailable: room.phase === 'lobby' && participantCount(room) === PUBLIC_CONFIG.deckRules.swordUnavailablePlayers, config: PUBLIC_CONFIG, notice: room.notice,
     players: room.players.filter((p) => !p.left || room.phase !== 'lobby').map((p) => ({
       id: p.id, name: p.name, isBot: Boolean(p.isBot), connected: p.connected, left: p.left, cardCount: p.hand.length,
     })),
@@ -492,7 +516,7 @@ export function roomView(room, viewerId) {
       } : null,
       challengeResult: game.challengeResult ? structuredClone(game.challengeResult) : null,
       letterDebt: structuredClone(game.letterDebt),
-      playableCardIds: viewer.hand.filter((card) => isCardPlayable(card, game, viewerId)).map((card) => card.id),
+      playableCardIds: viewer.hand.filter((card) => isCardPlayable(card, game, viewerId, viewer.hand.length)).map((card) => card.id),
       allowedLettersByCard: Object.fromEntries(viewer.hand.map((card) => [card.id, playableLetters(card, game, viewerId)])),
       deckCount: game.deck.length, discardCount: game.discard.length, availableCount: available,
       paused: connected(room).length < RULES.minPlayers || !room.players.some((p) => p.id === game.turnPlayerId && p.connected && !p.left),

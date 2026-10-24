@@ -172,17 +172,11 @@ for (const [id, letter, blocked] of [['letra-A'], ['wild-0', 'B'], ['vowel-0', '
   });
 }
 
-for (const [id, letter] of [['life-0', 'E'], ['pass-0'], ['double-0']]) test(`última ${id} vence antes de qualquer efeito de turno`, () => {
+for (const [id, letter] of [['life-0', 'E'], ['pass-0'], ['double-0']]) test(`última ${id} é rejeitada sem dar vitória`, () => {
   const original = fixture([[id], ['letra-C'], ['letra-D']]);
-  const room = play(original, id, letter);
-  assert.equal(room.phase, 'finished');
-  assert.equal(room.game.winnerId, 'p1');
-  assert.equal(room.game.pendingVictory, null);
-  assert.equal(room.game.letterDebt.count, 0);
-  assert.equal(room.game.turnNumber, original.game.turnNumber);
-  assert.deepEqual(room.game.extraTurns, []);
-  assert.equal(room.game.word, id === 'life-0' ? 'CAE' : 'CA');
-  if (id === 'double-0') assert.doesNotMatch(room.notice, /joga de novo/);
+  unchanged(original, () => play(original, id, letter), /Compre uma carta/);
+  assert.equal(original.phase, 'playing');
+  assert.equal(original.game.pendingVictory, null);
 });
 
 test('última carta paga débito, mantém ordem das letras e pode ser duvidada', () => {

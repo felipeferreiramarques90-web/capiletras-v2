@@ -5,7 +5,7 @@ import {
   createDeck, createRoom, joinRoom, updateSettings, startGame, drawCard, playCard,
   skipTurn, disconnectPlayer, returnToLobby, removeFromLobby, roomView, allowedLetters, playableLetters, isCardPlayable, shouldDeleteRoom,
 } from '../game/game.js';
-import { CARD_TYPES, DECK_SIZE, RULES, maxInitialCards } from '../game/config.js';
+import { CARD_TYPES, DECK_SIZE, RULES, deckSize, maxInitialCards } from '../game/config.js';
 import { MemoryStorage } from '../storage/memory.js';
 
 const random = () => 0.375;
@@ -13,12 +13,12 @@ function lobby(count = 2, hand = RULES.defaultHand) {
   let room = createRoom({ code: 'ABC234', playerId: 'p1', sessionId: 's1', name: 'Ana', now: 1000 });
   room = updateSettings(room, 'p1', { playerCount: count, initialCards: hand });
   for (let i = 2; i <= count; i++) room = joinRoom(room, { playerId: `p${i}`, sessionId: `s${i}`, name: `Pessoa ${i}` });
-  return room;
+  return updateSettings(room, 'p1', { playerCount: count, initialCards: hand });
 }
 const playing = (count = 2, hand = RULES.defaultHand) => startGame(lobby(count, hand), 'p1', random);
 const firstPlay = (room, id = room.game.turnPlayerId) => {
   const hand = room.players.find((p) => p.id === id).hand;
-  const card = hand.find((c) => !['double', 'pass'].includes(c.type) && !CARD_TYPES[c.type].protectsFromChallenge && isCardPlayable(c, room.game)) || hand.find((c) => isCardPlayable(c, room.game));
+  const card = hand.find((c) => !['double', 'pass'].includes(c.type) && !CARD_TYPES[c.type].protectsFromChallenge && isCardPlayable(c, room.game, id, hand.length)) || hand.find((c) => isCardPlayable(c, room.game, id, hand.length));
   if (!card) return room.game.drawsThisTurn === 0 && room.game.deck.length + room.game.discard.length > 0
     ? firstPlay(drawCard(room, id, random), id) : skipTurn(room, id, random);
   const usesLetters = !['double', 'pass'].includes(card.type);
@@ -46,9 +46,9 @@ test('limites de 2 a 8 jogadores e distribuição máxima sempre reservam compra
     const maximum = maxInitialCards(count);
     const room = playing(count, maximum);
     assert.ok(room.players.every((p) => p.hand.length === maximum));
-    assert.equal(room.game.deck.length, DECK_SIZE - count * maximum);
+    assert.equal(room.game.deck.length, deckSize(room.settings.deckComposition, count) - count * maximum);
     assert.ok(room.game.deck.length >= 1);
-    assert.equal(new Set(allCards(room).map((c) => c.id)).size, DECK_SIZE);
+    assert.equal(new Set(allCards(room).map((c) => c.id)).size, deckSize(room.settings.deckComposition, count));
   }
   for (const playerCount of [1, 9, 2.5, '2', null]) {
     assert.throws(() => updateSettings(lobby(), 'p1', { playerCount, initialCards: 3 }));
@@ -216,7 +216,7 @@ test('partida completa preserva todas as cartas do baralho padrão e produz venc
   while (room.phase === 'playing' && turns++ < 150) {
     room = resolvePendingVictory(firstPlay(room), 10_000);
     assert.equal(allCards(room).length, DECK_SIZE);
-    assert.equal(new Set(allCards(room).map((c) => c.id)).size, DECK_SIZE);
+    assert.equal(new Set(allCards(room).map((c) => c.id)).size, deckSize(room.settings.deckComposition, room.settings.playerCount));
   }
   assert.equal(room.phase, 'finished');
   assert.equal(room.players.find((p) => p.id === room.game.winnerId).hand.length, 0);

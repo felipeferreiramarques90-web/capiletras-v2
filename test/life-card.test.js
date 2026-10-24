@@ -30,7 +30,7 @@ test('Vida é opcional: zero no padrão de 76 cartas e disponível por composiç
   assert.equal(createDeck().filter((card) => card.type === 'life').length, 0);
   const customized = createDeck(compositionForHands([['life-0', 'life-1']]));
   assert.equal(customized.filter((card) => card.type === 'life').length, 2);
-  assert.deepEqual([2, 3, 4, 5, 6, 7, 8].map((players) => maxInitialCards(players)), [37, 25, 18, 15, 12, 10, 9]);
+  assert.deepEqual([2, 3, 4, 5, 6, 7, 8].map((players) => maxInitialCards(players)), [35, 25, 18, 15, 12, 10, 9]);
 });
 
 test('Vida adiciona uma vogal, inclusive com visor vazio, e publica o aviso', () => {
@@ -50,7 +50,7 @@ test('Vida permanece jogável com qualquer Bloqueio, desabilita sua letra e o co
   for (const blockedLetter of 'ABCDEFGHIJKLMNOPQRSTUVWXYZ') {
     const room = fixture({ blockedLetter });
     const card = room.players[0].hand[0];
-    assert.equal(isCardPlayable(card, room.game), true);
+    assert.equal(isCardPlayable(card, room.game, 'p1', room.players[0].hand.length), true);
     assert.ok(roomView(room, 'p1').game.playableCardIds.includes(card.id));
     assert.ok(!roomView(room, 'p1').game.allowedLettersByCard[card.id].includes(blockedLetter));
     const before = structuredClone(room);
@@ -166,13 +166,13 @@ test('quando a vez volta normalmente, Não consigo jogar está disponível sem c
   assert.equal(canSkipTurn(room, 'p1'), false, 'novo turno exige nova compra');
 });
 
-test('Vida como última carta vence normalmente', () => {
-  const room = playLife(fixture({ hands: [['life-0'], ['letra-B', 'letra-C']] }));
-  assert.equal(room.phase, 'finished');
-  assert.equal(room.game.winnerId, 'p1');
-  assert.equal(room.players[0].hand.length, 0);
-  assert.equal(canSkipTurn(room, 'p1'), false);
-  assert.throws(() => skipTurn(room, 'p1', random), /andamento/);
+test('Vida como carta única exige compra e não dá vitória', () => {
+  const room = fixture({ hands: [['life-0'], ['letra-B', 'letra-C']] });
+  const before = structuredClone(room);
+  assert.throws(() => playLife(room), /Compre uma carta/);
+  assert.deepEqual(room, before);
+  assert.equal(room.phase, 'playing');
+  assert.equal(roomView(room, 'p1').game.playableCardIds.includes('life-0'), false);
 });
 
 test('a proteção é JSON serializável, sobrevive à reconexão e não expõe mãos', () => {

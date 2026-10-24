@@ -27,11 +27,11 @@ test('padrão deriva das constantes: 76 cartas, 30 fixas e Vida desativada', () 
 
 test('montagem personalizada conserva letras/restritivas, IDs únicos e todas as cartas ao distribuir', () => {
   const composition = { wild: 3, life: 0, pass: 2, swap: 7, block: 1, double: 4, multi: 9, sword: 2 };
-  const deck = createDeck(composition);
-  assert.equal(deck.length, deckSize(composition));
+  const deck = createDeck(composition, 2);
+  assert.equal(deck.length, deckSize(composition, 2));
   assert.equal(new Set(deck.map((c) => c.id)).size, deck.length);
   const counts = countTypes(deck);
-  for (const [type, rule] of Object.entries(CARD_TYPES)) assert.equal(counts[type], composition[type] ?? rule.quantity);
+  for (const [type, rule] of Object.entries(CARD_TYPES)) assert.equal(counts[type], type === 'sword' ? 0 : composition[type] ?? rule.quantity);
   const room = startGame(updateDeckComposition(lobby(), 'h', composition), 'h', random);
   assert.deepEqual(countTypes(allCards(room)), counts);
   assert.equal(roomView(room, 'h').deckSize, deck.length);
@@ -119,8 +119,8 @@ test('composição persiste no jogar de novo, retorno à sala e serialização J
   assert.deepEqual(replay.settings.deckComposition, allZero);
   assert.deepEqual(JSON.parse(JSON.stringify(replay)), replay);
   const old = lobby(); delete old.settings.deckComposition;
-  assert.equal(roomView(old, 'h').deckSize, DECK_SIZE);
-  assert.equal(allCards(startGame(old, 'h', random)).length, DECK_SIZE);
+  assert.equal(roomView(old, 'h').deckSize, deckSize(undefined, 2));
+  assert.equal(allCards(startGame(old, 'h', random)).length, deckSize(undefined, 2));
 });
 
 for (const type of [...CONFIGURABLE_CARD_TYPES, 'todos']) {

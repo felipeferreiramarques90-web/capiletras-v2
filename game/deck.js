@@ -1,4 +1,4 @@
-import { CONFIGURABLE_CARD_TYPES, DEFAULT_DECK_COMPOSITION, DECK_RULES, RULES, deckSize, maxInitialCards } from './config.js';
+import { CONFIGURABLE_CARD_TYPES, DEFAULT_DECK_COMPOSITION, DECK_RULES, RULES, compositionForPlayers, deckSize, maxInitialCards } from './config.js';
 import { GameError } from './errors.js';
 
 // Apenas dados JSON. Salas antigas, sem composição salva, usam o padrão atual.
@@ -8,6 +8,13 @@ export const roomComposition = (room) => {
   // Salas salvas antes da espada preservam o baralho que já haviam escolhido.
   return Object.hasOwn(composition, 'sword') ? composition : { ...composition, sword: 0 };
 };
+
+export const participantCount = (room) => room.players.filter((p) => !p.left).length;
+export const lobbyComposition = (room) => compositionForPlayers(roomComposition(room), participantCount(room));
+// A composição efetiva é congelada ao iniciar; saídas não mexem no baralho em uso.
+export const effectiveRoomComposition = (room) => room.game && room.phase !== 'lobby'
+  ? room.game.deckComposition ?? roomComposition(room) : lobbyComposition(room);
+export const roomHandLimit = (room, players = room.settings.playerCount) => maxInitialCards(players, roomComposition(room), participantCount(room));
 
 export function validateComposition(composition) {
   if (!composition || typeof composition !== 'object' || Array.isArray(composition)
@@ -28,7 +35,7 @@ export function deckStartIssue(room) {
   const composition = roomComposition(room);
   try { validateComposition(composition); } catch (error) { return error.message; }
   if (!Number.isInteger(room.settings.initialCards) || room.settings.initialCards < RULES.minHand
-    || room.settings.initialCards > maxInitialCards(room.settings.playerCount, composition)) {
+    || room.settings.initialCards > roomHandLimit(room)) {
     return 'Cartas insuficientes para a mão inicial e a reserva de compra. Ajuste a configuração.';
   }
   return null;

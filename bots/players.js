@@ -1,4 +1,4 @@
-import { GameError, updateSettings } from '../game/game.js';
+import { GameError, updateSettings, adjustLobbyHand } from '../game/game.js';
 import { RULES } from '../game/config.js';
 import { BOT_NAMES } from './config.js';
 
@@ -16,8 +16,8 @@ export function addBot(original, hostId, botId) {
   const occupied = new Set(room.players.map((p) => p.name.toLocaleLowerCase('pt-BR')));
   const name = BOT_NAMES.find((name) => !occupied.has(name.toLocaleLowerCase('pt-BR')));
   const count = Math.max(room.settings.playerCount, room.players.length + 1);
-  room = updateSettings(room, hostId, { playerCount: count, initialCards: room.settings.initialCards });
   room.players.push({ id: botId, sessionId: null, name, isBot: true, connected: true, left: false, hand: [] });
+  room = updateSettings(room, hostId, { playerCount: count, initialCards: room.settings.initialCards });
   room.notice = `${name} 🤖 entrou na sala.`;
   return room;
 }
@@ -29,6 +29,7 @@ export function removeBot(original, hostId, botId) {
   const wasFull = room.settings.playerCount === room.players.length;
   room.players = room.players.filter((p) => p.id !== botId);
   if (wasFull) room.settings.playerCount = Math.max(RULES.minPlayers, room.players.length);
+  adjustLobbyHand(room);
   room.notice = `${bot.name} 🤖 foi removido da sala.`;
   return room;
 }
