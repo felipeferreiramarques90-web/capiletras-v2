@@ -43,12 +43,13 @@ No lobby, abra **Baralho**. Só o anfitrião edita as quantidades pelos botões 
 | Bloqueio ➕🚫 | 6 |
 | 2x | 6 |
 | 2+* | 4 |
+| Jogar na vez do outro ⚔️ | 4 |
 
-As **26 letras e quatro restritivas** são fixas (30 cartas). Cada tipo configurável aceita inteiros de **0 a 30**, com limite de **150 cartas no total**. Todos podem ser zerados; nesse caso o baralho tem 30 cartas. O padrão é **72 cartas** (30 fixas + 42 configuráveis). A Vida começa em **0** e continua disponível para adicionar pelo controle do lobby. Quantidades inválidas são rejeitadas pelo servidor sem modificar a sala; o início fica indisponível com o motivo indicado.
+As **26 letras e quatro restritivas** são fixas (30 cartas). Cada tipo configurável aceita inteiros de **0 a 30**, com limite de **150 cartas no total**. Todos podem ser zerados; nesse caso o baralho tem 30 cartas. O padrão é **76 cartas** (30 fixas + 46 configuráveis). A Vida começa em **0** e continua disponível para adicionar pelo controle do lobby. Quantidades inválidas são rejeitadas pelo servidor sem modificar a sala; o início fica indisponível com o motivo indicado.
 
 A mão inicial padrão é de **7 cartas**, definida em `RULES.defaultHand`. Mudar a composição ou o número de jogadores recalcula `floor((total - 1) / jogadores)` como máximo de cartas iniciais. Se a mão escolhida ultrapassar esse valor, ela é reduzida automaticamente, com aviso ao anfitrião. O início também valida a distribuição e a reserva de compra. A composição é travada durante a partida e preservada em **Jogar de novo** e no retorno à sala.
 
-Padrões e limites ficam em **`game/config.js`**: `CONFIGURABLE_CARD_TYPES`, `DEFAULT_DECK_COMPOSITION` (derivado de `CARD_TYPES`), `DECK_RULES`, `deckSize()` e `maxInitialCards()`. As validações puras ficam em **`game/deck.js`**; a composição JSON fica em **`room.settings.deckComposition`** e é salva pela mesma interface de storage. Salas antigas sem esse campo usam o padrão. O servidor monta o baralho a partir dela, sem mudar as regras das cartas, o reembaralhamento, a votação ou a política dos bots.
+Padrões e limites ficam em **`game/config.js`**: `CONFIGURABLE_CARD_TYPES`, `DEFAULT_DECK_COMPOSITION` (derivado de `CARD_TYPES`), `DECK_RULES`, `deckSize()` e `maxInitialCards()`. As validações puras ficam em **`game/deck.js`**; a composição JSON fica em **`room.settings.deckComposition`** e é salva pela mesma interface de storage. Salas antigas sem esse campo usam o padrão. Composições salvas antes da espada mantêm as demais quantidades e usam espada em 0 até o anfitrião editar ou restaurar o padrão. O servidor monta o baralho a partir dela, sem mudar as regras das cartas, o reembaralhamento, a votação ou a política dos bots.
 
 Na mesa, **Comprar** e **Duvidar da palavra** ficam lado a lado. A mão mantém os tamanhos das cartas e uma faixa própria, sem rolagem vertical da página; mãos grandes e adversários excedentes rolam horizontalmente. Em telas baixas, o cabeçalho decorativo cede espaço ao jogo e a área do visor pode rolar internamente para mostrar palavras/avisos longos. O botão **Não consigo jogar** aparece junto da mão sem deslocar as cartas ou o centro.
 
@@ -69,12 +70,13 @@ Configuração em **`bots/config.js`**:
 | `BOT_NAMES` | Lista de nomes automáticos. |
 | `actionMinMs` / `actionMaxMs` | 1.000 / 3.000 ms antes de jogar, comprar, completar ou decidir duvidar. |
 | `responseMinMs` / `responseMaxMs` | 500 / 1.500 ms para votar ou aceitar a palavra. |
+| `CHANCE_BOT_ESPADA` | 0,20; usada por `BOT_RULES.swordChance` fora da vez. |
 | `CHANCE_BOT_DUVIDAR` / `CHANCE_BOT_DUVIDAR_ULTIMA_CARTA` | 0,35 / 0,75; usados por `BOT_RULES.challengeChance` / `finalChallengeChance`. |
 | `maxAttemptsPerTurn` | 3 tentativas antes da ação de segurança. |
 | `maxPaymentCandidates`, `maxContinuations`, `maxSearchNodes` | Limites de busca: 96, 48 e 20.000. |
 | `minWordLength` / `recentDrawBluffPenalty` | Mínimo de 3 letras no dicionário / preferência por cartas antigas em blefes. |
 
-O cérebro puro fica em **`bots/brain.js`**, com RNG injetável para testes. **`bots/actions.js`** despacha as intenções para as mesmas funções puras de jogada, compra, desafio e votação usadas pelos humanos. Os timers ficam em **`network/bots.js`**, usam a mesma fila por sala dos sockets e descartam ações cuja versão ficou antiga. O limite de tentativas recorre às opções legais de segurança, sem passar a vez fora das regras. Salas restauradas refazem os agendamentos; o JSON guarda apenas `isBot`, dados normais do jogador, `game.letterPlayNumber` e `game.botDecisions`, que impedem novos sorteios na mesma jogada. Nenhum timer, função ou referência ao dicionário entra no estado.
+O cérebro puro fica em **`bots/brain.js`**, com RNG injetável para testes. **`bots/actions.js`** despacha as intenções para as mesmas funções puras de jogada, compra, desafio e votação usadas pelos humanos. Os timers ficam em **`network/bots.js`**, usam a mesma fila por sala dos sockets e descartam ações cuja versão ficou antiga. O limite de tentativas recorre às opções legais de segurança, sem passar a vez fora das regras. Salas restauradas refazem os agendamentos; o JSON guarda apenas `isBot`, dados normais do jogador, `game.letterPlayNumber`, `game.botDecisions`, `game.playNumber` e `game.botSwordDecisions`, que impedem novos sorteios na mesma jogada. Nenhum timer, função ou referência ao dicionário entra no estado.
 
 ### Fonte e licença do dicionário
 
@@ -101,12 +103,12 @@ A paleta e os tamanhos ficam nas variáveis de **`public/styles.css`**, no `:roo
 | `--carta-verso`, `--carta-verso-borda`, `--capivara-*` | Marrom `#69412c`, borda bege e cores da ilustração do verso. |
 | `--carta-largura`, `--carta-altura`, `--carta-fonte-*`, `--verso-*` | Frentes de **92 × 127 px** no desktop e **70 × 100 px** no celular, como antes; tamanhos das letras, símbolos e versos. |
 
-As letras fixas, o coringa e as restritivas têm `+` no canto; as restritivas mostram “vogal”, “consoante”, “a-m” e “n-z”. O Bloqueio mostra 🚫 no centro e `+` no canto. Cartas desabilitadas ficam esmaecidas e sem brilho; hover e seleção mantêm o comportamento. A arte fica nos componentes de renderização em `public/app.js`, separada da configuração de regras do servidor. O tema não altera regras nem a arte das cartas. A composição padrão tem **72 cartas**, e as quantidades escolhidas pelo anfitrião valem para a sala.
+As letras fixas, o coringa e as restritivas têm `+` no canto; as restritivas mostram “vogal”, “consoante”, “a-m” e “n-z”. O Bloqueio mostra 🚫 no centro e `+` no canto. Cartas desabilitadas ficam esmaecidas e sem brilho; hover e seleção mantêm o comportamento. A arte fica nos componentes de renderização em `public/app.js`, separada da configuração de regras do servidor. O tema não altera regras nem a arte das cartas. A composição padrão tem **76 cartas**, e as quantidades escolhidas pelo anfitrião valem para a sala.
 
 ## Como jogar
 
-- O baralho **padrão** tem **72 cartas**: **26 letras fixas, 4 restritivas, 12 coringas, 6 Trocas, 6 Bloqueios, 6 cartas 2x, 4 cartas `2+*` e 8 cartas Passar letra**. Vida tem quantidade padrão **0**. O anfitrião pode personalizar os sete tipos especiais no lobby; as letras e as restritivas são fixas.
-- O padrão de cartas iniciais é **7** e o mínimo é 3. O máximo é `floor((tamanhoDoBaralho - reservaDeCompra) / jogadores)`. A reserva padrão é 1: com o baralho padrão, são até **35 cartas para 2 jogadores** ou **8 para 8**. O total é calculado a partir da composição salva na sala, somada às cartas fixas; a interface recebe os limites e os padrões de `game/config.js`.
+- O baralho **padrão** tem **76 cartas**: **26 letras fixas, 4 restritivas, 12 coringas, 6 Trocas, 6 Bloqueios, 6 cartas 2x, 4 cartas `2+*`, 8 cartas Passar letra e 4 cartas Jogar na vez do outro**. Vida tem quantidade padrão **0**. O anfitrião pode personalizar os oito tipos especiais no lobby; as letras e as restritivas são fixas.
+- O padrão de cartas iniciais é **7** e o mínimo é 3. O máximo é `floor((tamanhoDoBaralho - reservaDeCompra) / jogadores)`. A reserva padrão é 1: com o baralho padrão, são até **37 cartas para 2 jogadores** ou **9 para 8**. O total é calculado a partir da composição salva na sala, somada às cartas fixas; a interface recebe os limites e os padrões de `game/config.js`.
 - Na sua vez, você pode comprar **no máximo uma carta**, opcionalmente. Comprar não passa a vez: baixe uma carta, inclusive a recém-comprada. Sem comprar, também pode jogar diretamente.
 - Cartas fixas acrescentam sua letra. Nas demais, um seletor habilita somente as letras válidas. As escolhas vão de A a Z, sem acentos; Y é tratado como consoante.
 - **Não consigo jogar** só fica disponível para quem está na vez, tem cartas e não consegue jogar nenhuma delas. Passar letra e Vida sempre são jogáveis. Antes de usar o botão, é obrigatório comprar a carta opcional deste turno. A exceção é quando baralho e descarte estão vazios: sem carta jogável, pode passar sem comprar. Se a carta comprada for jogável, o botão permanece desabilitado. O contador de compras zera em todo novo turno, inclusive no turno forçado e no retorno do 2x. O servidor rejeita o clique antecipado sem alterar o estado. Ele não fica disponível durante desafio ou vitória pendente.
@@ -131,7 +133,22 @@ O aviso de ação mais recente aparece **logo abaixo do visor**, substituindo a 
 | 2x | 6 | Branca, 2x em vermelho | Não muda o visor. Quem baixou a carta imediatamente anterior joga novamente; depois, o autor do 2x recebe um novo turno com nova compra opcional. Só então a ordem normal continua. Não vale antes da primeira jogada. |
 | 2+* | 4 | Verde neon, bomba vermelha e 2+* no canto | Digite duas ou mais letras para acrescentar à palavra. Só a primeira respeita o Bloqueio ativo. |
 | Vida | 0 | Rosa, ❤️ | Só vogais: escolha A, E, I, O ou U e adicione ao visor. Depois, o autor fica protegido contra desafios. |
+| Jogar na vez do outro | 4 | Preta, espada vertical em gradiente e + | Coringa apenas fora da vez; adiciona letra sem mudar turno nem compra. |
 | Passar letra | 8 | Preta, seta → em gradiente | Não usa letra: passa a vez e transfere ao próximo o débito anterior acrescido de uma letra. Sempre jogável, inclusive como primeira carta. |
+
+### Jogar na vez do outro ⚔️
+
+A espada é um coringa **exclusivo de fora da própria vez**. Escolha A–Z no modal: a letra entra no fim do visor, respeitando e consumindo o Bloqueio. O aviso é **“Fulano jogou na vez de Beltrano ⚔️”**. O dono da espada vira o último jogador a baixar carta e o autor da última letra, portanto é o desafiado em uma dúvida seguinte.
+
+A vez, o contador de compra e a pilha de retornos de 2x **não mudam**. Se havia uma escolha de carta aberta, o cliente fecha os modais e avisa que a mesa mudou; a carta continua na mão. Cada envio inclui a versão da mesa: entre pedidos concorrentes (duas espadas ou espada e carta da vez), só o primeiro válido é aplicado.
+
+A carta fica indisponível na própria vez (inclusive forçada), para quem baixou a última carta, com qualquer débito pendente, durante desafio/vitória pendente ou após o fim. Um outro jogador precisa baixar uma carta antes de o mesmo autor poder usar outra espada. Reset do desafio e **Não consigo jogar** limpam o último jogador; depois deles, qualquer participante fora da vez pode usar a carta. Na própria vez, ter só espadas não impede **Não consigo jogar**, seguindo a compra prévia habitual.
+
+Uma espada no meio de um 2x mantém o alvo forçado e o retorno. Um 2x jogado depois dela chama o dono da espada, salvo se outra carta foi jogada nesse intervalo. A espada encerra a proteção da Vida. Não cria nem paga débito. Como última carta, abre a janela normal de dúvida de 10 segundos; se for recusada, o autor compra a penalidade e quem já estava na vez continua nela.
+
+São **4 por padrão**, configuráveis de 0 a 30 como os demais tipos; as outras quantidades não mudam. A frente preta tem `+`, espada vertical em **SVG inline original** com gradiente dourado/laranja/magenta e legenda “jogue na vez do outro”. As variáveis `--sword-card-*`, `--sword-gold`, `--sword-orange`, `--sword-magenta`, `--sword-art-height` e `--sword-caption-font` ficam em `public/styles.css`.
+
+Bots esperam o atraso normal de 1–3 segundos e sorteiam `CHANCE_BOT_ESPADA = 0.2` **uma única vez por bot e por carta baixada**, incluindo 2x e Passar letra. Só usam a espada com uma letra permitida que mantenha prefixo válido do dicionário. `game.playNumber` conta essas jogadas e `game.botSwordDecisions` registra a decisão privada por bot; ambos são JSON, persistidos sem timers nem dicionário. Comprar, receber estado e reconectar não geram novo sorteio. A versão antiga cancela a ação agendada e faz o bot replanejar.
 
 ### Letras acumuladas: Passar letra
 
@@ -163,7 +180,7 @@ Um **2x logo depois da Vida** encerra a proteção e força o autor a jogar de n
 
 A marca `game.protectedPlayerId` é JSON serializável e salva junto da partida. O servidor rejeita o desafio contra o protegido sem alterar a sala; o cliente apenas apresenta o estado. Quantidade e regra ficam em `CARD_TYPES.life`, em `game/config.js`. O rosa e o contraste do coração são ajustáveis em `public/styles.css`, nas variáveis `--life-card-background`, `--life-card-border` e `--life-card-ink`.
 
-O bloqueio fica visível no centro da mesa. **Sem débito**, cartas fixas da letra bloqueada e essa letra em todos os seletores ficam desabilitadas. Comprar, desconectar ou jogar **2x ou Passar letra não consome nem cancela o bloqueio**. Ele permanece durante toda a cadeia e vale para qualquer jogador, inclusive quem o criou se for forçado a jogar novamente. A carta 2x não usa letra e continua jogável sob bloqueio, respeitando a exigência de já existir uma jogada anterior. Só uma carta efetivamente jogada que **adiciona ou substitui letra** (letra fixa, coringa, restritiva, Troca, Bloqueio, 2+* ou Vida) consome a restrição. Sem pagamento de débito, a letra adicionada por um novo Bloqueio ainda respeita o bloqueio anterior, e a nova restrição o substitui. Com pagamento, apenas a primeira acumulada respeita a restrição anterior. Não consigo jogar e o PERDI do desafio cancelam o bloqueio. A escolha de qual letra bloquear pode ser qualquer A–Z, mesmo a que estava bloqueada.
+O bloqueio fica visível no centro da mesa. **Sem débito**, cartas fixas da letra bloqueada e essa letra em todos os seletores ficam desabilitadas. Comprar, desconectar ou jogar **2x ou Passar letra não consome nem cancela o bloqueio**. Ele permanece durante toda a cadeia e vale para qualquer jogador, inclusive quem o criou se for forçado a jogar novamente. A carta 2x não usa letra e continua jogável sob bloqueio, respeitando a exigência de já existir uma jogada anterior. Só uma carta efetivamente jogada que **adiciona ou substitui letra** (letra fixa, coringa, restritiva, Troca, Bloqueio, 2+*, Vida ou espada) consome a restrição. Sem pagamento de débito, a letra adicionada por um novo Bloqueio ainda respeita o bloqueio anterior, e a nova restrição o substitui. Com pagamento, apenas a primeira acumulada respeita a restrição anterior. Não consigo jogar e o PERDI do desafio cancelam o bloqueio. A escolha de qual letra bloquear pode ser qualquer A–Z, mesmo a que estava bloqueada.
 
 O 2x pode formar uma cadeia. Exemplo com a ordem normal Ana → Bia → Caio:
 
@@ -172,7 +189,7 @@ Ana joga → Bia joga 2x → Ana joga 2x → Bia joga
          → Ana joga → Bia joga → Caio joga normalmente
 ```
 
-Cada seta inicia um novo turno com o contador de compra zerado. Os retornos ficam numa pilha serializável (`game.extraTurns`). Se um participante envolvido desconectar, seu turno é pulado conforme a política de conexão existente. **Não consigo jogar** apaga o histórico da última carta e impede 2x até uma nova carta; o PERDI do desafio mantém o histórico. Baixar a última carta com 2x também vence imediatamente.
+Cada seta inicia um novo turno com o contador de compra zerado. Os retornos ficam numa pilha serializável (`game.extraTurns`). Se um participante envolvido desconectar, seu turno é pulado conforme a política de conexão existente. **Não consigo jogar** apaga o histórico da última carta e impede 2x até uma nova carta; o reset do desafio também limpa esse histórico, liberando a espada fora da vez e exigindo uma nova carta antes de 2x. Baixar a última carta com 2x também vence imediatamente.
 
 As cartas injogáveis ficam esmaecidas e desabilitadas, e as opções são recalculadas quando mão, visor, bloqueio, débito ou vez mudam. O servidor valida as mesmas condições. Cada clique de **Não consigo jogar** inclui a versão da mesa: um clique repetido sobre o estado anterior é rejeitado sem duplicar a penalidade.
 
@@ -182,7 +199,7 @@ O botão fica no centro da mesa e qualquer participante conectado pode usá-lo, 
 
 **Só é permitido iniciar um desafio sem débito de letras acumuladas.** Enquanto alguém deve uma ou mais letras de Passar letra, o botão fica desabilitado para todos, com o motivo **“Há letras acumuladas pendentes”**. O servidor também valida a restrição e responde somente a quem tentou: **“Não dá para duvidar: Fulano ainda deve N letras”**, sem salvar nem publicar um novo estado. O **2x transfere o débito**, mantendo o impedimento. Pagar todas as letras em uma jogada ou zerá-las em uma penalidade zera o débito e recalcula o botão para todos. As regras anteriores continuam valendo: após zerar o visor, por exemplo, o visor vazio impede o desafio até alguém adicionar uma nova letra.
 
-O desafiado é **quem adicionou ou substituiu a última letra do visor**, incluindo pagamento de letras acumuladas. **2x e Passar letra não mudam esse autor**. Esse histórico fica em `game.lastLetterPlayerId`, separado do último jogador que baixou uma carta, usado pelo 2x.
+O desafiado é **quem adicionou ou substituiu a última letra do visor**, incluindo pagamento de letras acumuladas. **2x e Passar letra não mudam esse autor**. Esse histórico fica em `game.lastLetterPlayerId`, separado do último jogador que baixou uma carta, usado pelo 2x e pela trava de uso consecutivo da espada.
 
 Ao iniciar, as escolhas de cartas em andamento são canceladas, sem retirar cartas das mãos. Todos veem o desafio; jogadas, compras e o botão Não consigo jogar ficam suspensos. O servidor também rejeita jogadas enviadas com uma versão antiga da mesa, inclusive se chegarem depois do reset.
 
@@ -192,7 +209,7 @@ Ao iniciar, as escolhas de cartas em andamento são canceladas, sem retirar cart
 
 Se a palavra for **aceita**, o desafiante compra até **4 cartas**. Se for **recusada**, o servidor aplica **PERDI imediatamente** ao desafiado. Se ele desconectar ou sair durante qualquer etapa, o PERDI também é automático imediatamente. Não há prazo adicional de 10 segundos. Em qualquer penalidade, o descarte pode ser reembaralhado e compram-se apenas as cartas disponíveis, como nas regras existentes. O PERDI manual do modal pertence exclusivamente ao desafiado e só está disponível durante a fase de completar, antes do OK; o botão da mesa tem outras regras.
 
-**Desafios comuns fazem reset total da mesa:** zeram palavra, débito, Bloqueio, proteção da Vida e o histórico de quem adicionou letra. Mantêm a vez, a compra opcional e os retornos de 2x. Não existe janela de PERDI para o último jogador; o botão da mesa só depende da mão sem carta jogável de quem está na vez. Depois do reset não há palavra para desafiar. **A exceção é a palavra aceita durante vitória pendente:** confirma a vitória e preserva a palavra completa na tela final. Se a vitória pendente for cancelada, há reset total e a jogada termina, passando a vez.
+**Desafios comuns fazem reset total da mesa:** zeram palavra, débito, Bloqueio, proteção da Vida e os históricos de quem adicionou letra e de quem baixou a última carta. Mantêm a vez, a compra opcional e os retornos de 2x. Não existe janela de PERDI para o último jogador; o botão da mesa só depende da mão sem carta jogável de quem está na vez. Depois do reset não há palavra para desafiar. **A exceção é a palavra aceita durante vitória pendente:** confirma a vitória e preserva a palavra completa na tela final. Se a vitória pendente for cancelada, há reset total e a jogada termina, passando a vez; se era a última espada jogada fora da vez, a vez em curso é preservada.
 
 Os modais se ajustam ao espaço visível no celular e mantêm os botões fora da área de rolagem. **Não têm botão X e não podem ser fechados por clique fora, Esc ou voltar do celular**: só o servidor encerra a fase. Não existe mais voto por fechar o modal. Atualizar a página ou reconectar recupera a fase, o prazo restante, a prévia e o voto já registrado. Os modais de jogar cartas continuam permitindo cancelar. Se o jogador da vez desconectar durante o desafio, a resolução preserva sua vez; a mesa pode aguardar a reconexão ou o anfitrião pode encerrar a partida pausada.
 
@@ -202,11 +219,11 @@ A rede verifica os prazos antes das ações e em uma varredura periódica, inclu
 
 ## Última carta e vitória pendente
 
-Ao baixar a última carta fixa, coringa, restritiva, Troca, Bloqueio ou `2+*`, a jogada é aplicada por inteiro, incluindo pagamento de letras acumuladas. A carta vai para o descarte e a mão fica vazia, mas a partida aguarda **10 segundos**. Todos veem o contador **“Fulano baixou a última carta. Vitória em Xs, a menos que alguém duvide”**. Jogadas, compras e Não consigo jogar ficam travados.
+Ao baixar a última carta fixa, coringa, restritiva, Troca, Bloqueio, `2+*` ou espada, a jogada é aplicada por inteiro, incluindo pagamento de letras acumuladas. A carta vai para o descarte e a mão fica vazia, mas a partida aguarda **10 segundos**. Todos veem o contador **“Fulano baixou a última carta. Vitória em Xs, a menos que alguém duvide”**. Jogadas, compras e Não consigo jogar ficam travados.
 
 Cada outro jogador pode usar **Aceito a palavra** uma única vez. Desconectados contam como aceitos; se todos aceitarem, a vitória é confirmada antecipadamente. Sem desafio até o fim do prazo, o jogador vence. A palavra final é preservada na tela de vitória e o servidor rejeita ações posteriores de jogo e novos desafios.
 
-Qualquer outro participante pode duvidar durante a janela, respeitando as restrições atuais (visor preenchido, débito zerado, autor sem proteção da Vida e nenhum desafio em andamento). O desafio substitui a janela: o prazo original não confirma vitória enquanto o desafio ocorre. Se a palavra for aceita, o desafiante compra até 4 cartas e o autor da última carta **vence**, com a palavra completa no resultado final. Se for recusada ou houver PERDI manual/automático do desafiado, ele compra até 4 cartas, a vitória é cancelada e a mesa é zerada (palavra, débito, Bloqueio, proteção e autor da última letra). A carta jogada não volta à mão; a jogada termina e a vez passa, respeitando retornos de 2x já pendentes.
+Qualquer outro participante pode duvidar durante a janela, respeitando as restrições atuais (visor preenchido, débito zerado, autor sem proteção da Vida e nenhum desafio em andamento). O desafio substitui a janela: o prazo original não confirma vitória enquanto o desafio ocorre. Se a palavra for aceita, o desafiante compra até 4 cartas e o autor da última carta **vence**, com a palavra completa no resultado final. Se for recusada ou houver PERDI manual/automático do desafiado, ele compra até 4 cartas, a vitória é cancelada e a mesa é zerada (palavra, débito, Bloqueio, proteção e autor da última letra). A carta jogada não volta à mão; a jogada termina e a vez passa, respeitando retornos de 2x já pendentes. Se a última carta foi uma espada fora da vez, a vez e a compra de quem já estava jogando são mantidas.
 
 **Vida, Passar letra e 2x como última carta vencem imediatamente.** A Vida acrescenta sua vogal e protege o autor. Passar letra não cria débito novo; 2x não inicia turno forçado. A vitória é checada antes de qualquer encaminhamento de turno.
 
