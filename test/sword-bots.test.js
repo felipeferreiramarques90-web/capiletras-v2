@@ -58,7 +58,7 @@ test('sorteio uma vez por bot/jogada, não repete após compra; bots independent
   const action = decide(room,() => { rolls++; return 0; });
   assert.equal(action.type,'sword'); assert.equal(action.letter,'A');
   room = apply(room,action);
-  assert.ok(dictionary.isWord(room.game.word)); assert.equal(rolls,2);
+  assert.ok(dictionary.isWord(room.game.word)); assert.equal(rolls,3,'nova ação sorteia chance da espada e modo de letras uma vez cada');
   assert.deepEqual(JSON.parse(JSON.stringify(room)),room);
   assert.equal(JSON.stringify(room).includes('dictionary'),false);
 });

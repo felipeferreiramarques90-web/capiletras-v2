@@ -154,7 +154,7 @@ test('bots compram se tiverem somente uma carta restrita, independentemente do p
   for (const type of ['life','pass','double','sword']) {
     const room=fixture([[`${type}-0`],['letra-B','letra-C'],['letra-D','letra-E']],{word:'CASA'});
     const view=roomView(room,'p1');
-    assert.equal(chooseTurnAction(view,dictionary).type,'draw');
+    assert.equal(chooseTurnAction(view,dictionary,{ rng }).type,'draw');
     assert.equal(decideBotAction(view,dictionary,rng).type,'draw');
   }
 });

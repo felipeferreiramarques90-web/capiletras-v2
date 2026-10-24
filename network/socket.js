@@ -7,7 +7,7 @@ import { CHALLENGE_RULES } from '../game/config.js';
 import { startChallenge, previewChallenge, confirmChallenge, voteChallenge, loseChallenge, resolveChallenge } from '../game/challenge.js';
 import { acceptVictory, resolvePendingVictory } from '../game/victory.js';
 import { addBot, removeBot } from '../bots/players.js';
-import { defaultDictionary } from '../bots/load-dictionary.js';
+import { defaultDictionary, defaultCommonDictionary } from '../bots/load-dictionary.js';
 import { createBotScheduler } from './bots.js';
 import { clientView } from './client-view.js';
 
@@ -48,6 +48,7 @@ export function registerSockets(io, storage, { cleanupIntervalMs = 60_000, rando
 
   const bots = createBotScheduler({ storage, locked, settle, save, nowSource,
     dictionary: botOptions.dictionary || defaultDictionary(), rng: botOptions.rng || randomSource,
+    commonDictionary: botOptions.commonDictionary || (botOptions.dictionary ? botOptions.dictionary : defaultCommonDictionary()),
     timings: botOptions.timings, chooseAction: botOptions.chooseAction });
 
   async function deleteRoom(room, { notify = true } = {}) {

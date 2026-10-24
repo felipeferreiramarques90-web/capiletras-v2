@@ -97,7 +97,7 @@ test('bot nunca vira anfitrião ou desconectado; salas sem humanos são removív
 for (const [cardId, word] of [['letra-S','CA'], ['wild-0','CA'], ['vowel-0','CAS'], ['consonant-0','CA'], ['first-0','BA'], ['last-0','CA'], ['life-0','CAS'], ['swap-0','CAX'], ['block-0','CA'], ['multi-0','CA']]) {
   test(`cérebro escolhe ${cardId} por prefixo, validado pela lógica humana`, () => {
     const room = fixture([cardId, 'letra-Z'], { word });
-    const action = chooseTurnAction(view(room), dictionary);
+    const action = chooseTurnAction(view(room), dictionary, { rng });
     assert.equal(action.type, 'play'); assert.equal(action.cardId, cardId);
     const next = apply(room, action);
     assert.equal(dictionary.hasPrefix(next.game.word), true, next.game.word);
@@ -110,12 +110,12 @@ for (const [cardId, word] of [['letra-S','CA'], ['wild-0','CA'], ['vowel-0','CAS
 for (const cardId of ['pass-0', 'double-0']) {
   test(`${cardId} defensivo após a compra quando nenhuma letra preserva prefixo`, () => {
     const room = fixture([cardId, 'letra-Z'], { word: 'ZZZ' });
-    assert.equal(chooseTurnAction(view(room), dictionary).type, 'draw');
+    assert.equal(chooseTurnAction(view(room), dictionary, { rng }).type, 'draw');
     room.game.drawsThisTurn = 1;
-    const action = chooseTurnAction(view(room),dictionary); assert.equal(action.cardId, cardId);
+    const action = chooseTurnAction(view(room),dictionary, { rng }); assert.equal(action.cardId, cardId);
     assert.doesNotThrow(() => apply(room, action));
     const valid = fixture([cardId,'letra-Z'],{word:'CASA'});
-    assert.equal(chooseTurnAction(view(valid),dictionary).cardId,cardId,'defesa mantém um prefixo válido sem comprar');
+    assert.equal(chooseTurnAction(view(valid),dictionary, { rng }).cardId,cardId,'defesa mantém um prefixo válido sem comprar');
   });
 }
 
@@ -146,7 +146,7 @@ test('Troca com débito e visor vazio escolhe pagamento livre e substituição d
 for (const [cardId, owed, blocked] of [['wild-0',2,'A'],['vowel-0',2,'A'],['consonant-0',3,'S'],['first-0',2,'A'],['last-0',3,'S'],['life-0',2,'A'],['block-0',2,'A'],['multi-0',1,'L']]) {
   test(`${cardId} paga ${owed} letras e respeita o Bloqueio apenas no início do pagamento`, () => {
     const room=fixture([cardId,'letra-Z'],{word:'B',owed,blockedLetter:blocked});
-    const action=chooseTurnAction(view(room),dictionary);
+    const action=chooseTurnAction(view(room),dictionary, { rng });
     assert.equal(action.type,'play');assert.equal(action.cardId,cardId);
     assert.equal(action.accumulatedLetters.length,owed);assert.notEqual(action.accumulatedLetters[0],blocked);
     assert.equal(dictionary.hasPrefix(apply(room,action).game.word),true);
@@ -155,7 +155,7 @@ for (const [cardId, owed, blocked] of [['wild-0',2,'A'],['vowel-0',2,'A'],['cons
 
 test('evita ficar recomprando e jogando a mesma Vida em blefes sem saída',()=>{
   const room=fixture(['letra-Z','life-0'],{word:'ZZZ',drawsThisTurn:1});
-  const action=chooseTurnAction(view(room),dictionary);
+  const action=chooseTurnAction(view(room),dictionary, { rng });
   assert.equal(action.cardId,'letra-Z');
   assert.doesNotThrow(()=>apply(room,action));
 });
@@ -170,7 +170,7 @@ test('última carta prefere palavra completa; segurança compra ou usa Não cons
   blocked.game.drawsThisTurn = 0; blocked.game.deck = []; blocked.game.discard = [];
   assert.equal(decide(blocked).type, 'skip');
   const safe = fixture(['letra-Z','pass-0'], { word: 'CASA', drawsThisTurn: 1 });
-  assert.equal(chooseTurnAction(view(safe), dictionary, { safety: true }).cardId, 'pass-0');
+  assert.equal(chooseTurnAction(view(safe), dictionary, { safety: true, rng }).cardId, 'pass-0');
 });
 
 test('dúvida: abaixo/acima da chance, um sorteio por bot/jogada, bots independentes', () => {
@@ -219,13 +219,13 @@ test('jogada real com letra renova o sorteio; compra, Passar letra e 2x não ren
   }
 });
 
-test('bot desafiado completa, mostra prévia e confirma; palavra completa usa zero letras; blefe usa PERDI', () => {
+test('bot desafiado sorteia continuação, confirma a prévia e usa PERDI sem palavra', () => {
   for (const word of ['CA','CASA','ZZZ']) {
     let room=fixture(undefined,{word,lastLetterPlayerId:'b1',turnPlayerId:'h'});
     room=startChallenge(room,'h',now);
     let action=decide(room);
     if(word==='ZZZ') {assert.equal(action.type,'lose'); assert.equal(apply(room,action).game.challenge,null);continue;}
-    if(word==='CA'){assert.equal(action.type,'preview');room=apply(room,action);action=decide(room);}
+    if(action.type==='preview'){room=apply(room,action);action=decide(room);}
     assert.equal(action.type,'confirm');
     room=apply(room,action);
     assert.equal(room.game.challenge.phase,'votando');
@@ -301,7 +301,7 @@ test('simulação: um humano e três bots terminam muitas partidas sem travar, c
       } else if(!ch&&room.game.pendingVictory?.voterIds.includes('h')&&!room.game.pendingVictory.acceptedIds.includes('h')) {
         room=acceptVictory(room,'h',room.game.pendingVictory.id,clock);
       } else if(!ch&&!room.game.pendingVictory&&room.game.turnPlayerId==='h') {
-        const action=chooseTurnAction(roomView(room,'h'),dictionary);
+        const action=chooseTurnAction(roomView(room,'h'),dictionary,{ rng: random });
         assert.ok(action); room=executeHuman(room,action,clock,random);
       }
       for(const id of ['b1','b2','b3']) {

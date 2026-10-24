@@ -38,6 +38,18 @@ function intent(view, card, letters, accumulatedLetters = '') {
   return { type: 'play', cardId: card.id, letter: letters, accumulatedLetters, word };
 }
 
+const pick = (options, rng) => options.length === 1 ? options[0] : options[Math.floor(rng() * options.length)];
+
+// Exatamente um sorteio de modo por decisão de letras. O fallback não sorteia
+// outro modo, e os dois léxicos permanecem argumentos locais, fora do estado.
+function letterOptions(dictionary, commonDictionary, rng, collect) {
+  const erudite = rng() < BOT_RULES.eruditeChance;
+  const selected = erudite ? dictionary : commonDictionary;
+  const options = collect(selected);
+  return options.length || selected === dictionary ? { options, dictionary: selected }
+    : { options: collect(dictionary), dictionary };
+}
+
 function candidatesFor(view, card, dictionary) {
   const game = view.game, rule = view.config.cardTypes[card.type], owed = debt(view);
   if (rule.effect === 'pass' || rule.effect === 'replay') return [];
@@ -45,16 +57,16 @@ function candidatesFor(view, card, dictionary) {
   // Com débito, Troca troca a última acumulada. Procuramos o resultado desejado
   // no trie e usamos uma letra livre diferente no pagamento, antes da substituição.
   if (owed && rule.effect === 'replace') {
-    return dictionary.extensions(game.word, owed, { limit: BOT_RULES.maxPaymentCandidates,
+    return dictionary.allExtensions(game.word, owed, {
       excludedFirst: owed > 1 ? game.blockedLetter : null }).flatMap((suffix) => {
       const letter = suffix.at(-1);
       if (!choices.includes(letter)) return [];
-      const alternate = [...ALPHABET].find((l) => l !== letter && (owed > 1 || l !== game.blockedLetter));
-      return [intent(view, card, letter, suffix.slice(0, -1) + alternate)];
+      return [...ALPHABET].filter((l) => l !== letter && (owed > 1 || l !== game.blockedLetter))
+        .map((alternate) => intent(view, card, letter, suffix.slice(0, -1) + alternate));
     });
   }
-  const payments = owed ? dictionary.extensions(game.word, owed, {
-    limit: BOT_RULES.maxPaymentCandidates, excludedFirst: game.blockedLetter,
+  const payments = owed ? dictionary.allExtensions(game.word, owed, {
+    excludedFirst: game.blockedLetter,
   }) : [''];
   const result = [];
   for (const payment of payments) {
@@ -62,9 +74,8 @@ function candidatesFor(view, card, dictionary) {
     if (rule.effect === 'appendMany') {
       const options = { minLetters: rule.minLetters, maxLetters: rule.maxLetters,
         excludedFirst: owed ? null : game.blockedLetter };
-      const suffixes = dictionary.continuations(base, options);
-      suffixes.push(...dictionary.extensions(base, rule.minLetters, options));
-      for (const letters of new Set(suffixes)) result.push(intent(view, card, letters, payment));
+      // Uma opção por palavra completa, sem cortar candidatas por ordem da trie.
+      for (const letters of dictionary.allContinuations(base, options)) result.push(intent(view, card, letters, payment));
     } else {
       for (const letter of choices) {
         const action = intent(view, card, letter, payment);
@@ -75,15 +86,16 @@ function candidatesFor(view, card, dictionary) {
   return result;
 }
 
-function fallbackFor(view, card) {
+function fallbackFor(view, card, rng) {
   const game = view.game, effect = view.config.cardTypes[card.type].effect;
   if (effect === 'pass' || effect === 'replay') return intent(view, card, '');
   const owed = debt(view);
-  const freeLetter = [...ALPHABET].find((letter) => letter !== game.blockedLetter);
-  const payment = owed ? freeLetter.repeat(owed) : '';
+  const free = [...ALPHABET].filter((letter) => letter !== game.blockedLetter);
+  const payment = Array.from({ length: owed }, (_, i) => pick(i === 0 ? free : [...ALPHABET], rng)).join('');
   const choices = game.allowedLettersByCard[card.id];
-  const letter = [...choices].find((l) => effect !== 'replace' || l !== (game.word + payment).at(-1));
-  const letters = effect === 'appendMany' ? letter.repeat(view.config.cardTypes[card.type].minLetters) : letter;
+  const letter = pick([...choices].filter((l) => effect !== 'replace' || l !== (game.word + payment).at(-1)), rng);
+  const letters = effect === 'appendMany' ? letter + Array.from({ length: view.config.cardTypes[card.type].minLetters - 1 },
+    () => pick([...ALPHABET], rng)).join('') : letter;
   return intent(view, card, letters, payment);
 }
 
@@ -91,41 +103,51 @@ function finishPlay(action, view, dictionary) {
   const card = view.hand.find((c) => c.id === action.cardId);
   const result = { ...action };
   if (view.config.cardTypes[card.type].effect === 'block') {
+    // O alvo defensivo do Bloqueio mantém a estratégia anterior no léxico
+    // completo; o modo comum/erudito muda somente a letra que entra no visor.
     result.blockedLetter = dictionary.nextLetters(action.word)[0] || dictionary.nextLetters('')[0] || 'E';
   }
   delete result.word;
   return result;
 }
 
-export function chooseTurnAction(view, dictionary, { safety = false } = {}) {
+export function chooseTurnAction(view, dictionary, { safety = false, rng, commonDictionary = dictionary } = {}) {
   const game = view.game;
   const cards = view.hand.filter((card) => game.playableCardIds.includes(card.id));
-  const letters = safety ? [] : cards.flatMap((card) => candidatesFor(view, card, dictionary));
+  const selected = letterOptions(dictionary, commonDictionary, rng,
+    (lexicon) => cards.flatMap((card) => candidatesFor(view, card, lexicon)));
+  const letters = selected.options;
   // Sem uma boa carta de letra, as defesas também preservam um prefixo já válido.
   // Nesse caso não é necessário comprar antes de usá-las.
   const defenses = !safety && dictionary.hasPrefix(game.word)
     ? cards.filter((card) => ['pass', 'replay'].includes(view.config.cardTypes[card.type].effect)).map((card) => intent(view, card, '')) : [];
-  const valid = letters.length ? letters : defenses;
+  let valid = letters.length ? letters : defenses;
+  // Mantém a preferência já existente por completar a palavra na última carta.
+  if (view.hand.length === 1) {
+    const complete = valid.filter((action) => dictionary.isWord(action.word));
+    if (complete.length) valid = complete;
+  }
+  if (valid.length) return finishPlay(pick(valid, rng), view, dictionary);
   const score = (action) => {
     const card = view.hand.find((c) => c.id === action.cardId);
     // Em blefes, prefira gastar cartas antigas. Recomprar e baixar sempre a mesma
     // Vida reciclada pode manter o visor protegido e impedir progresso indefinidamente.
-    const justDrawn = !safety && !valid.length && game.drawsThisTurn > 0 && action.cardId === view.hand.at(-1)?.id;
-    return (view.hand.length === 1 && dictionary.isWord(action.word) ? 1_000 : 0)
-      + (dictionary.hasPrefix(action.word) ? 100 : 0) + ({ life: 30, pass: 25, double: 20, multi: 12, block: 8, letter: 5 }[card.type] || 0)
+    const justDrawn = !safety && game.drawsThisTurn > 0 && card.id === view.hand.at(-1)?.id;
+    return (dictionary.hasPrefix(action.word) ? 100 : 0)
+      + ({ life: 30, pass: 25, double: 20, multi: 12, block: 8, letter: 5 }[card.type] || 0)
       - (justDrawn ? BOT_RULES.recentDrawBluffPenalty : 0);
   };
-  if (!safety && !valid.length && game.canDraw) return { type: 'draw' };
+  if (!safety && game.canDraw) return { type: 'draw' };
   if (cards.length) {
-    const options = valid.length ? valid : cards.map((card) => fallbackFor(view, card));
-    options.sort((a, b) => score(b) - score(a));
-    return finishPlay(options[0], view, dictionary);
+    const options = cards.map((card) => fallbackFor(view, card, rng));
+    const best = Math.max(...options.map(score));
+    return finishPlay(pick(options.filter((action) => score(action) === best), rng), view, dictionary);
   }
   if (game.canDraw) return { type: 'draw' };
   return game.canSkipTurn ? { type: 'skip' } : null;
 }
 
-export function decideBotAction(view, dictionary, rng, { safety = false } = {}) {
+export function decideBotAction(view, dictionary, rng, { safety = false, commonDictionary = dictionary } = {}) {
   const task = botTask(view, dictionary);
   if (!task) return null;
   const challenge = view.game.challenge;
@@ -135,18 +157,24 @@ export function decideBotAction(view, dictionary, rng, { safety = false } = {}) 
     return { type: 'vote', challengeId: challenge.id, vote: human || dictionary.isWord(view.game.word) ? 'sim' : 'nao' };
   }
   if (task.kind === 'complete') {
-    const [letters] = dictionary.continuations(challenge.baseWord, {
-      minLetters: CHALLENGE_RULES.minLetters, maxLetters: CHALLENGE_RULES.maxLetters, limit: 1,
-    });
+    // Uma prévia já escolhida é confirmada sem refazer o sorteio ao receber o
+    // próprio broadcast. Isso também garante OK dentro do prazo do desafio.
+    if (challenge.addedLetters && dictionary.isWord(challenge.baseWord + challenge.addedLetters)) {
+      return { type: 'confirm', challengeId: challenge.id, letters: challenge.addedLetters };
+    }
+    const selected = letterOptions(dictionary, commonDictionary, rng, (lexicon) => lexicon.allContinuations(challenge.baseWord, {
+      minLetters: CHALLENGE_RULES.minLetters, maxLetters: CHALLENGE_RULES.maxLetters,
+    }));
+    const letters = selected.options.length ? pick(selected.options, rng) : undefined;
     if (letters === undefined) return { type: 'lose', challengeId: challenge.id };
     return { type: challenge.addedLetters === letters ? 'confirm' : 'preview', challengeId: challenge.id, letters };
   }
   if (task.kind === 'sword') {
     const chosen = rng() < BOT_RULES.swordChance;
-    const options = view.hand.filter((card) => card.type === 'sword' && view.game.playableCardIds.includes(card.id))
-      .flatMap((card) => candidatesFor(view, card, dictionary));
-    options.sort((a, b) => Number(dictionary.isWord(b.word)) - Number(dictionary.isWord(a.word)));
-    return chosen && options.length ? { ...finishPlay(options[0], view, dictionary), type: 'sword', playNumber: view.game.playNumber }
+    const selected = chosen ? letterOptions(dictionary, commonDictionary, rng, (lexicon) => view.hand
+      .filter((card) => card.type === 'sword' && view.game.playableCardIds.includes(card.id))
+      .flatMap((card) => candidatesFor(view, card, lexicon))) : { options: [] };
+    return selected.options.length ? { ...finishPlay(pick(selected.options, rng), view, selected.dictionary), type: 'sword', playNumber: view.game.playNumber }
       : { type: 'sword-decision', playNumber: view.game.playNumber };
   }
   if (task.kind === 'accept') return { type: 'accept', pendingId: view.game.pendingVictory.id };
@@ -154,5 +182,5 @@ export function decideBotAction(view, dictionary, rng, { safety = false } = {}) 
     const chance = view.game.pendingVictory ? BOT_RULES.finalChallengeChance : BOT_RULES.challengeChance;
     return { type: rng() < chance ? 'challenge' : 'decision', letterPlayNumber: view.game.letterPlayNumber };
   }
-  return chooseTurnAction(view, dictionary, { safety });
+  return chooseTurnAction(view, dictionary, { safety, rng, commonDictionary });
 }

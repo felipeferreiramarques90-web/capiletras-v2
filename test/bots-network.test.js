@@ -65,6 +65,17 @@ test('rede: três bots independentes jogam por funções normais e salvam cada a
  assert.deepEqual(saved,JSON.parse(JSON.stringify(saved)));
 });
 
+test('rede: lista comum é injetada no cérebro sem entrar no estado salvo ou enviado',async t=>{
+ const full=createDictionary(['CASA','CANTO']),common=createDictionary(['CANTO']);
+ const f=await setup(t,{dictionary:full,commonDictionary:common});await f.start(1);
+ const room=await f.seed([['letra-X','letra-Z'],['wild-0','letra-Y']]);
+ await waitFor(async()=>(await f.storage.getRoom(f.code)).game.turnPlayerId===room.players[0].id);
+ const saved=await f.storage.getRoom(f.code);
+ assert.equal(saved.game.word,'CAN');
+ assert.ok(!/dictionary|commonDictionary|erudite/.test(JSON.stringify(saved)));
+ assert.ok(!/dictionary|commonDictionary|erudite/.test(JSON.stringify(f.human.view)));
+});
+
 test('rede: sala preserva queda de conexão, pausa bots e retoma a vaga; sair remove mesmo com bots',async t=>{
  const f=await setup(t);await f.start();
  const ids=f.human.view.players.filter(p=>p.isBot).map(p=>p.id);
