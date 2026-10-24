@@ -1,6 +1,6 @@
 import { GameError, updateSettings, adjustLobbyHand } from '../game/game.js';
 import { RULES } from '../game/config.js';
-import { BOT_NAMES } from './config.js';
+import { BOT_NAME_PREFIX } from './config.js';
 
 function lobbyHost(room, id) {
   if (room.phase !== 'lobby') throw new GameError('Só é possível gerenciar bots no lobby.');
@@ -14,7 +14,9 @@ export function addBot(original, hostId, botId) {
   if (typeof botId !== 'string' || !botId || original.players.some((p) => p.id === botId)) throw new GameError('Identificação de bot inválida ou já utilizada.');
   let room = structuredClone(original);
   const occupied = new Set(room.players.map((p) => p.name.toLocaleLowerCase('pt-BR')));
-  const name = BOT_NAMES.find((name) => !occupied.has(name.toLocaleLowerCase('pt-BR')));
+  let number = 1;
+  while (occupied.has(`${BOT_NAME_PREFIX} ${number}`.toLocaleLowerCase('pt-BR'))) number++;
+  const name = `${BOT_NAME_PREFIX} ${number}`;
   const count = Math.max(room.settings.playerCount, room.players.length + 1);
   room.players.push({ id: botId, sessionId: null, name, isBot: true, connected: true, left: false, hand: [] });
   room = updateSettings(room, hostId, { playerCount: count, initialCards: room.settings.initialCards });

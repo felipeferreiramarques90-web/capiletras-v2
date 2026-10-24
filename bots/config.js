@@ -16,7 +16,4 @@ export const BOT_RULES = Object.freeze({
   minWordLength: 3,
   recentDrawBluffPenalty: 50,
 });
-export const BOT_NAMES = Object.freeze([
-  'Bot Capivara', 'Bot Zagueiro', 'Bot Goleiro', 'Bot Artilheiro',
-  'Bot Craque', 'Bot Lateral', 'Bot Volante', 'Bot Camisa Dez',
-]);
+export const BOT_NAME_PREFIX = 'Bot';
