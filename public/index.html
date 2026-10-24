@@ -9,7 +9,7 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/styles.css">
     <script src="/socket.io/socket.io.js" defer></script>
-    <script src="/app.js" defer></script>
+    <script type="module" src="/app.js"></script>
   </head>
   <body>
     <header class="site-header">
@@ -19,6 +19,7 @@
         <button type="button" class="text-button" id="open-rules">Como jogar <span aria-hidden="true">→</span></button>
       </div>
     </header>
+    <div class="sound-controls" aria-label="Som do jogo"><button type="button" id="sound-toggle" aria-label="Silenciar som">🔊</button><details><summary aria-label="Ajustar volume">♫</summary><label>Volume geral <input type="range" id="sound-volume" min="0" max="1" step="0.01" aria-label="Volume geral"></label></details></div>
     <main id="app" aria-label="Jogo Capiletras"></main>
     <footer class="site-footer"><span>FEITO PARA JUNTAR GENTE.</span><span id="deck-summary">Um baralho. Infinitas possibilidades.</span></footer>
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>

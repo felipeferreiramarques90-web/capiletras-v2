@@ -27,7 +27,7 @@ test('um humano adiciona/remove três bots no celular, joga e confirma a vitóri
  assert.match(await page.locator('.lobby-bot-notice').textContent(),/entrou na sala/);
  await page.locator('[data-action="start"]').click();await page.locator('.hand-cards').waitFor();
  assert.equal(app.io.sockets.sockets.size,1,'só o humano possui socket');
- assert.equal(await page.locator('.opponent .bot-icon').count(),3);
+ assert.equal(await page.locator('.opponent .bot-avatar').count(),3);
  const [room]=await storage.listRooms();const cards=createDeck();const hands=[['letra-X','letra-Z'],['letra-A'],['letra-B','letra-C'],['letra-D','letra-E']];
  room.players.forEach((p,i)=>p.hand=hands[i].map(id=>cards.find(c=>c.id===id)));
  Object.assign(room.game,{word:'CAS',lastPlayerId:room.players[0].id,lastLetterPlayerId:room.players[0].id,letterPlayNumber:1,

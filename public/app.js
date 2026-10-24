@@ -1,7 +1,21 @@
+import { initials, avatarColor, AVATAR_UI } from './avatars.js';
+import { createSound } from './audio/sound.js';
 /* O cliente apresenta a mesa e envia intenções. Todas as regras são validadas pelo servidor. */
 (() => {
   const $ = (selector) => document.querySelector(selector);
   const app = $('#app');
+  const sound = createSound({ clock: () => Date.now() + serverClockOffset });
+  const soundToggle = $('#sound-toggle'), soundVolume = $('#sound-volume');
+  function soundControls() { const prefs = sound.preferences(); soundToggle.textContent = prefs.muted ? '🔇' : '🔊'; soundToggle.setAttribute('aria-label', prefs.muted ? 'Ativar som' : 'Silenciar som'); soundToggle.setAttribute('aria-pressed', String(prefs.muted)); soundVolume.value = prefs.volume; }
+  soundControls();
+  document.addEventListener('pointerdown', () => { void sound.gesture(); }, { capture: true });
+  document.addEventListener('keydown', () => { void sound.gesture(); }, { capture: true });
+  document.addEventListener('click', (event) => { if (event.target.closest('button')) sound.effect('click'); }, { capture: true });
+  soundToggle.addEventListener('click', () => { sound.setMuted(!sound.preferences().muted); soundControls(); });
+  soundVolume.addEventListener('input', () => sound.setVolume(Number(soundVolume.value)));
+  document.addEventListener('visibilitychange', () => { void sound.visibility(document.hidden); });
+  const modalStates = new Map();
+  new MutationObserver(() => { const parent = [...document.querySelectorAll('dialog[open]')].at(-1) || document.body; const controls = $('.sound-controls'); if (controls.parentElement !== parent) parent.append(controls); for (const dialog of document.querySelectorAll('dialog')) { const open = dialog.open; if (open !== (modalStates.get(dialog) || false)) sound.effect(open ? 'open' : 'close'); modalStates.set(dialog, open); } }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['open'] });
   const storage = {
     get(key) { try { return localStorage.getItem(`capiletras:${key}`); } catch { return null; } },
     set(key, value) { try { localStorage.setItem(`capiletras:${key}`, value); } catch { /* Sessão atual continua funcionando. */ } },
@@ -43,7 +57,7 @@
   const canAct = () => socket.connected && !busy;
   const isHost = () => room?.meId === room?.hostId;
   const playerName = (player) => `${player?.isBot ? '<span class="bot-icon" aria-label="Bot">🤖</span> ' : ''}${escape(player?.name)}`;
-  const avatar = (player, index) => `<span class="avatar color-${index % 4}" aria-hidden="true">${player.isBot ? '🤖' : escape(player.name.slice(0, 1).toUpperCase())}</span>`;
+  const avatar = (player) => `<span class="avatar ${player.isBot ? 'bot-avatar' : ''}" data-avatar-color="${avatarColor(player.id)}" aria-hidden="true">${player.isBot ? '🤖' : escape(initials(player.name))}</span>`;
 
   // Ilustração original, reutilizada apenas na apresentação dos versos.
   const capybaraSvg = () => `<svg class="capybara" viewBox="0 0 120 120" aria-hidden="true" focusable="false">
@@ -152,6 +166,7 @@
       if (room?.code !== state.code) deckExpanded = false;
       lastAdjustment = null;
     }
+    sound.update(state);
     captureNotice(room, state);
     room = state;
     if (state.swordUnavailable && deckDraft) deckDraft.sword = state.settings.deckComposition.sword;
@@ -192,12 +207,16 @@
   });
 
   function render() {
+    sound.update(room);
     if (!room || room.phase !== 'playing') clearNotices();
     updateDeckSummary();
     if (!room) app.innerHTML = home();
     else if (room.phase === 'lobby') app.innerHTML = lobby();
     else if (room.phase === 'finished') app.innerHTML = victory();
     else app.innerHTML = table();
+    for (const item of app.querySelectorAll('[data-avatar-color]')) item.style.backgroundColor = item.dataset.avatarColor;
+    const opponents = app.querySelector('.opponents');
+    if (opponents) opponents.style.setProperty('--opponent-count', opponents.dataset.count);
     renderChallenge();
     updateVictoryClock();
   }
@@ -296,7 +315,7 @@
     const meIndex = room.players.findIndex((p) => p.id === room.meId);
     const ordered = [...room.players.slice(meIndex + 1), ...room.players.slice(0, meIndex)];
     return `<section class="game-layout">${roomBar('PALAVRAS SE CONSTROEM EM BOA COMPANHIA')}
-      <div class="opponents">${ordered.map((p) => { const i = room.players.findIndex((item) => item.id === p.id); return `<div class="opponent ${p.id === game.turnPlayerId ? 'active' : ''} ${!p.connected ? 'offline-player' : ''}">${avatar(p, i)}<div><strong>${playerName(p)}</strong><span>${p.left ? 'Saiu da sala' : !p.connected ? 'Reconectando…' : `${p.cardCount} carta${p.cardCount === 1 ? '' : 's'}`}</span></div><span class="mini-cards card-back" aria-hidden="true">${capybaraSvg()}</span></div>`; }).join('')}</div>
+      <div class="opponents" data-count="${ordered.length}">${ordered.map((p) => `<div class="opponent ${p.id === game.turnPlayerId ? 'active' : ''} ${!p.connected ? 'offline-player' : ''}"><button type="button" class="avatar-target" data-avatar-name="${escape(p.name)}" aria-label="${escape(p.name)}, ${p.cardCount} cartas${!p.connected ? ', desconectado' : ''}">${avatar(p)}${!p.connected ? '<span class="avatar-offline" aria-label="Desconectado">·</span>' : ''}</button><small class="avatar-count">${p.cardCount}</small></div>`).join('')}</div>
       ${game.paused && !game.challenge && !game.pendingVictory && isHost() ? `<div class="paused-actions"><button class="text-button" data-action="end" ${disabled(!canAct())}>Encerrar partida e voltar à sala →</button></div>` : ''}
       <section class="table-felt" aria-label="Centro da mesa">${game.pendingVictory && !game.challenge ? `<section class="pending-victory" aria-label="Vitória pendente"><p id="victory-countdown" role="status"></p>${game.pendingVictory.playerId !== room.meId ? `<button class="button primary" data-action="accept-victory" ${disabled(!canAct() || !game.pendingVictory.canAccept)}>Aceito a palavra</button>` : '<small>Aguardando os outros jogadores.</small>'}</section>` : ''}
         <div class="table-center"><div class="word-area">${wordHeading(current)}<div class="word-display ${game.word ? '' : 'word-empty'}" aria-label="Palavra atual: ${escape(game.word || 'vazia')}">${game.word ? escape(game.word) : 'A primeira letra é com você.'}</div><p class="table-notice" role="status">${escape(activeNotice || room.notice)}</p>${game.blockedLetter ? `<div class="block-badge" role="status">➕🚫 Letra bloqueada: <strong>${game.blockedLetter}</strong><span>até a próxima jogada com letra</span></div>` : ''}${game.letterDebt.count ? `<div class="debt-badge" role="status"><span aria-hidden="true">→</span> ${escape(room.players.find((p) => p.id === game.letterDebt.playerId)?.name)} deve ${game.letterDebt.count} letra${game.letterDebt.count === 1 ? '' : 's'}</div>` : ''}${game.extraTurns.length ? `<p class="extra-turn-notice">2x ativo · retorno para ${escape(room.players.find((p) => p.id === game.extraTurns.at(-1))?.name)}</p>` : ''}</div></div>
@@ -745,5 +764,14 @@
   $('#open-rules').addEventListener('click', () => $('#rules-dialog').showModal());
   $('#close-rules').addEventListener('click', () => $('#rules-dialog').close());
   for (const dialog of document.querySelectorAll('dialog:not(#challenge-dialog)')) dialog.addEventListener('click', (event) => { if (event.target === dialog) { const rect = dialog.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) { if (dialog.id === 'rules-dialog') dialog.close(); else closeLetters(); } } });
+  let avatarTipTimer;
+  const avatarTip = document.createElement('div'); avatarTip.className = 'avatar-tooltip'; avatarTip.hidden = true; avatarTip.setAttribute('role','status'); document.body.append(avatarTip);
+  function showAvatarName(event) {
+    const target = event.target.closest('[data-avatar-name]'); if (!target) return;
+    clearTimeout(avatarTipTimer); avatarTip.textContent = target.dataset.avatarName; avatarTip.hidden = false;
+    const bounds = target.getBoundingClientRect(); avatarTip.style.left = `${Math.max(80,Math.min(innerWidth-80,bounds.x+bounds.width/2))}px`; avatarTip.style.top = `${bounds.bottom+6}px`;
+    avatarTipTimer = setTimeout(() => { avatarTip.hidden = true; }, AVATAR_UI.tooltipMs);
+  }
+  document.addEventListener('click', showAvatarName); document.addEventListener('pointerover', showAvatarName); document.addEventListener('focusin', showAvatarName);
   render();
 })();

@@ -616,3 +616,24 @@ body:has(.game-layout) .site-footer { display: none; }
 .card-touch-target > .playing-card { pointer-events: none; }
 
 .quantity-controls button:disabled, .quantity-controls input:disabled { opacity: .45; cursor: not-allowed; }
+
+/* Avatares compactos: todos os adversários cabem numa única linha. */
+.game-layout .opponents { display: flex; flex-wrap: nowrap; overflow: visible; gap: clamp(3px, 1vw, 12px); align-items: center; }
+.game-layout .opponent { flex: 0 1 64px; min-width: 0; max-width: 64px; display: flex; flex-direction: column; gap: 2px; padding: 3px; background: transparent; border-color: transparent; }
+.game-layout .opponent.active { border-color: var(--destaque); box-shadow: 0 0 0 2px var(--destaque-brilho); }
+.game-layout .avatar-target { position: relative; display: flex; justify-content: center; border: 0; background: transparent; padding: 0; width: 100%; min-width: 0; cursor: pointer; }
+.game-layout .opponent .avatar { width: clamp(24px, calc((100vw - 72px) / var(--opponent-count) - 12px), 44px); height: auto; aspect-ratio: 1; font-size: clamp(10px, calc((100vw - 72px) / var(--opponent-count) / 2.8), 19px); font-weight: 800; }
+.game-layout .avatar-count { font-size: 12px; line-height: 1.2; color: var(--ink); font-weight: 800; }
+.game-layout .offline-player .avatar { opacity: .4; }
+.avatar-offline { position: absolute; right: 0; bottom: 0; background: #892c29; color: white; border-radius: 50%; width: 12px; height: 12px; line-height: 8px; font-size: 24px; }
+.avatar-tooltip { position: fixed; transform: translateX(-50%); z-index: 1500; max-width: min(280px, 85vw); padding: 7px 12px; background: #112f25; color: #fff; border: 1px solid #c8e6ba; border-radius: 9px; overflow-wrap: anywhere; box-shadow: 0 4px 14px #0005; font-size: 14px; pointer-events: none; }
+.player-info strong { overflow-wrap: anywhere; }
+.sound-controls { position: fixed; right: 6px; bottom: 6px; z-index: 1600; display: flex; align-items: center; background: #123a2df0; border: 1px solid #bdd5ac; border-radius: 20px; color: white; padding: 2px; }
+.sound-controls button, .sound-controls summary { display: grid; place-items: center; cursor: pointer; min-width: 36px; min-height: 36px; border: 0; background: transparent; color: inherit; border-radius: 50%; font-size: 18px; }
+.sound-controls details label { position: absolute; bottom: 44px; right: 0; width: 170px; padding: 12px; border-radius: 12px; background: #123a2d; font-size: 13px; box-shadow: 0 3px 15px #0005; }
+.sound-controls input { width: 100%; }
+dialog .sound-controls { position: absolute; top: 6px; right: 48px; bottom: auto; }
+dialog .sound-controls details label { top: 42px; bottom: auto; }
+
+.avatar { color: white; }
+.game-layout .opponent.active .avatar { box-shadow: 0 0 0 2px var(--destaque), 0 0 10px var(--destaque-brilho); }
