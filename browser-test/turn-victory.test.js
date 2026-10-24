@@ -9,7 +9,7 @@ test('Não consigo jogar: nome, visibilidade, compra opcional e perda da vez no 
   assert.equal(await a.locator('[data-action="skip"]').isEnabled(), true);
   assert.equal(await b.locator('[data-action="skip"]').count(), 0);
   await a.locator('[data-action="skip"]').click();
-  await b.locator('.turn-bar').filter({ hasText: 'É a sua vez' }).waitFor();
+  await b.locator('.word-turn-label').filter({ hasText: 'É a vez de: Bia' }).waitFor();
   assert.equal((await current()).players[0].hand.length, 5);
   assert.equal((await current()).game.word, '');
   assert.equal(await b.locator('#loss-help').count(), 0);
@@ -56,7 +56,7 @@ for (const outcome of ['prazo', 'aceite', 'aceita no desafio', 'recusada no desa
       assert.equal(await b.locator('.word-turn-label').textContent(), 'É a vez de: Ana');
       await b.locator(`[data-vote="${outcome.startsWith('aceita') ? 'sim' : 'nao'}"]`).click();
       if (outcome.startsWith('recusada')) {
-        await b.locator('.turn-bar').filter({ hasText: 'É a sua vez' }).waitFor();
+        await b.locator('.word-turn-label').filter({ hasText: 'É a vez de: Bia' }).waitFor();
         assert.equal((await current()).players[0].hand.length, 4);
         assert.equal((await current()).game.word, '');
         assert.equal((await current()).game.pendingVictory, null);

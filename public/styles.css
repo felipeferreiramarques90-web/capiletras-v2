@@ -245,9 +245,6 @@ fieldset:disabled input, fieldset:disabled select { opacity: .65; }
 .opponent div > span { display: block; font-size: calc(var(--fonte-base) * 0.625); color: var(--texto-secundario); margin-top: 3px; }
 .mini-cards { color: var(--texto-secundario); margin-left: auto; padding-left: 8px; font-size: calc(var(--fonte-base) * 1.5); }
 .offline-player { opacity: .5; }
-.turn-bar { display: flex; gap: 9px; align-items: center; padding: 10px 2px; color: var(--texto-secundario); font-size: calc(var(--fonte-base) * 0.75); }
-.turn-bar.your-turn { color: var(--green); font-weight: var(--peso-destaque); }
-.turn-number { margin-left: auto; font-size: calc(var(--fonte-base) * 0.5); letter-spacing: 1.2px; white-space: nowrap; font-weight: var(--peso-texto); }
 .paused-actions { text-align: right; padding: 0 0 12px; }
 .paused-actions .text-button { font-size: calc(var(--fonte-base) * 0.6875); color: var(--red); }
 .table-felt { background: repeating-linear-gradient(90deg, var(--campo-verde) 0 var(--campo-listra), var(--campo-faixa) var(--campo-listra) calc(var(--campo-listra) * 2)); isolation: isolate; border-radius: 22px; padding: 22px 30px 15px; color: var(--texto-sobre-campo); position: relative; border: 5px solid var(--painel-borda); outline: 1px solid var(--painel-borda); }
@@ -284,10 +281,8 @@ fieldset:disabled input, fieldset:disabled select { opacity: .65; }
 .word-area > .table-notice { text-align: center; color: var(--texto-campo-suave); font-size: calc(var(--fonte-base) * .75); min-height: 1.6em; max-height: 4.8em; overflow-y: auto; overflow-wrap: anywhere; line-height: 1.6; margin-top: 13px; }
 .hand-section { padding: 28px 0 0; }
 .hand-heading { position: relative; display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
-.hand-heading .eyebrow { color: var(--texto-secundario); font-size: calc(var(--fonte-base) * 0.5); }
 .hand-heading h2 { font-size: calc(var(--fonte-base) * 1.375); margin-top: 4px; letter-spacing: -.6px; }
 .hand-heading h2 > span { font-size: calc(var(--fonte-base) * 0.625); color: var(--texto-secundario); letter-spacing: 0; margin-left: 6px; font-weight: var(--peso-texto); }
-.hand-heading > p { font-size: calc(var(--fonte-base) * 0.625); color: var(--texto-secundario); text-align: right; line-height: 1.6; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .hand-cards { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; padding-top: 8px; }
 .playing-card { --card-bg: var(--carta-neon); --card-ink: var(--carta-verde-escuro); --card-border: var(--carta-borda); position: relative; background: var(--card-bg); color: var(--card-ink); width: var(--carta-largura); height: var(--carta-altura); border: 1px solid var(--card-border); border-radius: var(--carta-raio); box-shadow: 0 4px 10px var(--sombra-suave); padding: var(--carta-padding); display: inline-flex; flex-direction: column; justify-content: space-between; align-items: center; transition: transform .18s, box-shadow .18s; flex-shrink: 0; }
 .playing-card:hover:not(:disabled) { transform: translateY(-9px) rotate(-2deg); box-shadow: 0 10px 18px var(--sombra-forte); }
@@ -317,7 +312,6 @@ fieldset:disabled input, fieldset:disabled select { opacity: .65; }
 .block-badge strong { font-size: calc(var(--fonte-base) * 1.25); }
 .block-badge > span { font-size: calc(var(--fonte-base) * 0.5625); }
 .word-area > .extra-turn-notice { color: var(--destaque); font-weight: var(--peso-destaque); }
-.hand-note { font-size: calc(var(--fonte-base) * 0.5625); color: var(--texto-secundario); text-align: center; line-height: 1.6; margin-top: 16px; }
 .victory-panel { text-align: center; border: 1px solid var(--line); background: var(--cream); border-radius: 20px; padding: 40px 20px; }
 .victory-star { color: var(--campo-verde); font-size: calc(var(--fonte-base) * 5.9375); line-height: 1.1; margin-bottom: 20px; }
 .victory-panel h1 { font-family: var(--fonte-interface); font-size: var(--titulo-vitoria); margin: 14px 0; overflow-wrap: anywhere; }
@@ -434,9 +428,6 @@ dialog .muted { font-size: calc(var(--fonte-base) * 0.75); }
   .opponent strong { font-size: calc(var(--fonte-base) * 0.625); }
   .opponent div > span { font-size: calc(var(--fonte-base) * 0.5); }
   .mini-cards { font-size: calc(var(--fonte-base) * 1.1875); padding-left: 2px; }
-  .turn-bar { font-size: calc(var(--fonte-base) * 0.625); gap: 6px; padding-bottom: 11px; align-items: start; }
-  .turn-bar .status-dot { margin-top: 4px; }
-  .turn-number { font-size: calc(var(--fonte-base) * 0.4375); padding-top: 2px; }
   .table-felt { border-radius: 18px; border-width: 3px; padding: 20px 15px 16px; }
   .table-center { grid-template-columns: 1fr; gap: 20px; padding: 16px 0 12px; }
   .word-area { grid-column: 1 / -1; grid-row: 1; }
@@ -451,10 +442,8 @@ dialog .muted { font-size: calc(var(--fonte-base) * 0.75); }
   .hand-section { padding-top: 23px; }
   .hand-heading { align-items: start; gap: 10px; margin-bottom: 15px; }
   .hand-heading h2 { font-size: calc(var(--fonte-base) * 1.25); }
-  .hand-heading > p { max-width: 125px; font-size: calc(var(--fonte-base) * 0.5625); padding-top: 7px; }
   .hand-heading h2 > span { font-size: calc(var(--fonte-base) * 0.5625); }
   .hand-cards { gap: 7px; }
-  .hand-note { font-size: calc(var(--fonte-base) * 0.5); }
   dialog { padding: 22px; }
   .letter-grid { gap: 5px; }
   .letter-option { min-height: 37px; font-size: calc(var(--fonte-base) * 1.0625); }
@@ -503,9 +492,7 @@ dialog .muted { font-size: calc(var(--fonte-base) * 0.75); }
 [data-card-theme] .multi-preview-box > .eyebrow, [data-card-theme] .multi-preview { color: var(--seletor-texto); }
 [data-card-theme] .multi-preview { font-weight: var(--peso-titulo); }
 
-/* Usa a área da dica já existente da mão, sem inserir uma linha nem um espaço
-   reservado. Aparecer/sumir não altera as caixas da mesa, do cabeçalho ou das cartas. */
-.hand-heading:has(.hand-skip-button) > p { visibility: hidden; }
+/* O botão sobre o cabeçalho da mão não desloca a mesa nem as cartas ao aparecer. */
 .hand-skip-button { position: absolute; top: 0; right: 0; width: max-content; max-width: calc(100% - 135px); min-height: 48px; padding: 12px; gap: 8px; justify-content: center; font-size: calc(var(--fonte-base) * .8125); letter-spacing: 0; box-shadow: 0 3px 12px var(--sombra-forte); z-index: 1; }
 .voting-dialog .dialog-heading, .voting-dialog .multi-preview-box > .eyebrow { display: none; }
 .voting-dialog .challenge-actions:has(#challenge-vote-actions[hidden]) { display: none; }
@@ -513,19 +500,18 @@ dialog .muted { font-size: calc(var(--fonte-base) * 0.75); }
 
 /* Mesa compacta: a mão tem uma faixa própria e nunca depende da altura dos avisos.
    Em janelas baixas, somente o centro rola; a página e as cartas ficam estáveis. */
-body:has(.game-layout) { height: 100dvh; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
+body:has(.game-layout) { height: 100dvh; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
 body:has(.game-layout) .site-header { width: 100%; padding-top: 10px; padding-bottom: 10px; }
-body:has(.game-layout) .site-footer { width: 100%; padding-top: 6px; padding-bottom: 6px; }
+body:has(.game-layout) .site-footer { display: none; }
 #app:has(.game-layout) { grid-row: 2; min-height: 0; width: 100%; }
-.game-layout { height: 100%; min-height: 0; padding-top: 8px; padding-bottom: 6px; display: grid; grid-template-rows: auto auto auto minmax(0, 1fr) auto; gap: 6px; }
+.game-layout { height: 100%; min-height: 0; padding-top: 8px; padding-bottom: 6px; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; gap: 6px; }
 .game-layout .room-bar { margin: 0; }
 .game-layout .room-bar > div > .eyebrow { display: none; }
 .game-layout .room-code-row h1 { font-size: 1.35rem; }
 .game-layout .room-code-row h1 > span { font-size: 1.25rem; }
 .game-layout .opponents { flex-wrap: nowrap; justify-content: safe center; width: 100%; overflow-x: auto; margin: 0; padding-bottom: 3px; }
 .game-layout .opponent { flex-shrink: 0; }
-.game-layout .turn-bar { padding: 3px 2px; min-width: 0; }
-.game-layout:has(.paused-actions) { grid-template-rows: auto auto auto auto minmax(0, 1fr) auto; }
+.game-layout:has(.paused-actions) { grid-template-rows: auto auto auto minmax(0, 1fr) auto; }
 .game-layout .paused-actions { padding: 0; }
 .game-layout .table-felt { height: 100%; min-height: 0; max-height: 330px; align-self: center; width: 100%; padding: 10px 18px; overflow-y: auto; }
 .table-center { display: block; padding: 0; }
@@ -543,9 +529,8 @@ body:has(.game-layout) .site-footer { width: 100%; padding-top: 6px; padding-bot
 .game-layout .word-area .block-badge, .game-layout .word-area .debt-badge { padding: 4px 8px; margin-top: 4px; }
 .game-layout .word-area .extra-turn-notice { margin-top: 4px; }
 .game-layout .hand-section { min-width: 0; padding-top: 4px; }
-.game-layout .hand-heading { margin-bottom: 6px; min-height: 52px; }
+.game-layout .hand-heading { margin-bottom: 6px; min-height: 52px; align-items: center; }
 .game-layout .hand-cards { flex-wrap: nowrap; justify-content: safe center; overflow-x: auto; padding: 10px 4px 6px; }
-.game-layout .hand-note { margin-top: 4px; }
 @media (max-width: 650px) {
   .game-layout .room-code-row h1 { font-size: 1.1rem; }
   .game-layout .room-code-row h1 > span { font-size: 1rem; }
@@ -557,25 +542,22 @@ body:has(.game-layout) .site-footer { width: 100%; padding-top: 6px; padding-bot
   .table-controls .challenge-button { font-size: .75rem; padding: 8px; }
   .table-controls .draw-pile > small { font-size: .6rem; }
   .game-layout .hand-heading { min-height: 52px; }
-  .game-layout .hand-note { font-size: .5rem; }
 }
 @media (max-height: 500px) {
   body:has(.game-layout) { grid-template-rows: 0 minmax(0, 1fr) 0; }
   body:has(.game-layout) .site-header, body:has(.game-layout) .site-footer { display: none; }
-  .game-layout { padding-top: 3px; padding-bottom: 3px; gap: 5px 12px; grid-template-columns: 180px minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto; }
+  .game-layout { padding-top: 3px; padding-bottom: 3px; gap: 5px 12px; grid-template-columns: 180px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; }
   .game-layout .room-bar { grid-column: 1; grid-row: 1; flex-direction: column; align-items: start; gap: 0; }
   .game-layout .room-code-row h1, .game-layout .room-code-row h1 > span { font-size: .9rem; }
   .game-layout .leave-button { font-size: .6rem; }
   .game-layout .opponents { grid-column: 2; grid-row: 1; }
-  .game-layout .turn-bar { grid-column: 1 / -1; grid-row: 2; }
-  .game-layout .table-felt { grid-column: 1 / -1; grid-row: 3; }
-  .game-layout .hand-section { grid-column: 1 / -1; grid-row: 4; }
-  .game-layout:has(.paused-actions) { grid-template-rows: auto auto auto minmax(0, 1fr) auto; }
-  .game-layout .paused-actions { grid-column: 1 / -1; grid-row: 3; }
-  .game-layout:has(.paused-actions) .table-felt { grid-row: 4; }
-  .game-layout:has(.paused-actions) .hand-section { grid-row: 5; }
+  .game-layout .table-felt { grid-column: 1 / -1; grid-row: 2; }
+  .game-layout .hand-section { grid-column: 1 / -1; grid-row: 3; }
+  .game-layout:has(.paused-actions) { grid-template-rows: auto auto minmax(0, 1fr) auto; }
+  .game-layout .paused-actions { grid-column: 1 / -1; grid-row: 2; }
+  .game-layout:has(.paused-actions) .table-felt { grid-row: 3; }
+  .game-layout:has(.paused-actions) .hand-section { grid-row: 4; }
   .game-layout .hand-heading { min-height: 44px; align-items: center; }
-  .game-layout .hand-heading .eyebrow, .game-layout .hand-note { display: none; }
   .game-layout .hand-heading h2 { margin-top: 0; }
   .game-layout .table-felt { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); align-items: start; column-gap: 12px; padding: 4px 10px; }
   .game-layout .table-center { height: 100%; min-height: 0; overflow-y: auto; }
@@ -590,6 +572,5 @@ body:has(.game-layout) .site-footer { width: 100%; padding-top: 6px; padding-bot
 @media (min-height: 501px) and (max-height: 650px) {
   body:has(.game-layout) { grid-template-rows: 0 minmax(0, 1fr) 0; }
   body:has(.game-layout) .site-header, body:has(.game-layout) .site-footer { display: none; }
-  .game-layout .hand-note { display: none; }
   .game-layout .hand-heading { min-height: 48px; }
 }

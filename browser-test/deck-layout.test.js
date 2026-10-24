@@ -42,6 +42,19 @@ for (const count of [2, 8]) test(`mesa com ${count} jogadores: controles lado a 
   const { page, storage, code, publish } = await setup(t, count);
   await page.locator('[data-action=start]').click(); await page.locator('.hand-cards').waitFor();
   const baseline = await storage.getRoom(code);
+  assert.equal(baseline.settings.initialCards, 7);
+  assert.ok(baseline.players.every((p) => p.hand.length === 7));
+  assert.equal(await page.locator('.hand-heading h2').innerText(), 'Sua mão 7 cartas');
+  assert.equal(await page.locator('.turn-bar, .turn-number, .hand-note, .hand-heading .eyebrow, .hand-heading > p').count(), 0);
+  assert.equal(await page.locator('.site-footer').isVisible(), false);
+  assert.doesNotMatch(await page.locator('body').innerText(), /SUAS POSSIBILIDADES|Compre até|Clique em uma carta para jogar|FEITO PARA JUNTAR|Infinitas possibilidades|TURNO \d/);
+  for (const [width, height] of [[375,667],[1440,900]]) {
+    await page.setViewportSize({ width, height });
+    const hand = await page.locator('.hand-cards').boundingBox();
+    assert.ok(hand.y + hand.height <= height);
+    assert.ok(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight));
+    await page.screenshot({ path: `/tmp/capiletras-clean-table-${count}-${width}x${height}.png` });
+  }
   const deck = createDeck(baseline.settings.deckComposition);
   const used = ['letra-K', 'swap-0', 'double-0'];
   baseline.players[0].hand = used.map((id) => deck.find((c) => c.id === id));
@@ -82,11 +95,24 @@ test('lobby: composição editável só pelo anfitrião, total ao vivo, limites,
   const { page, context, storage, code, clients, url } = await setup(t);
   await page.locator('.deck-settings summary').click();
   await page.locator('#deck-wild').waitFor({ state: 'visible' });
-  assert.equal(await page.locator('#deck-total').innerText(), '84 cartas');
+  assert.equal(await page.locator('#deck-total').innerText(), '72 cartas');
+  assert.equal(await page.locator('#initial-cards').inputValue(), '7');
+  assert.equal(await page.locator('#deck-life').inputValue(), '0');
+  for (const [width, height] of [[375,667],[1440,900]]) {
+    await page.setViewportSize({ width, height });
+    await page.screenshot({ path: `/tmp/capiletras-default-lobby-${width}x${height}.png`, fullPage: true });
+  }
+  await page.setViewportSize({ width: 375, height: 667 });
+  await page.locator('[data-deck-type=life][data-deck-step="1"]').click();
+  await waitFor(async () => (await storage.getRoom(code)).settings.deckComposition.life === 1);
+  await page.locator('[data-action=reset-deck]').click();
+  await waitFor(async () => (await page.locator('#deck-life').inputValue()) === '0');
+  assert.equal((await storage.getRoom(code)).settings.initialCards, 7);
+
   await page.locator('[data-deck-type=wild][data-deck-step="1"]').click();
   await waitFor(async () => (await storage.getRoom(code)).settings.deckComposition.wild === 13);
-  await page.locator('#deck-total').filter({ hasText: '85 cartas' }).waitFor();
-  await waitFor(() => clients[0].view?.deckSize === 85);
+  await page.locator('#deck-total').filter({ hasText: '73 cartas' }).waitFor();
+  await waitFor(() => clients[0].view?.deckSize === 73);
   assert.equal(clients[0].view.settings.deckComposition.wild, 13);
   await page.locator('#deck-wild').fill('31'); await page.locator('#deck-wild').blur();
   assert.equal(await page.locator('[data-action=start]').isDisabled(), true);
@@ -95,10 +121,10 @@ test('lobby: composição editável só pelo anfitrião, total ao vivo, limites,
   await page.locator('[data-action=reset-deck]').click();
   await page.locator('#deck-wild').filter({ visible: true }).waitFor();
   await waitFor(async () => (await page.locator('#deck-wild').inputValue()) === '12');
-  await page.locator('#initial-cards').fill('42');
+  await page.locator('#initial-cards').fill('36');
   assert.equal(await page.locator('[data-action=start]').isDisabled(), true);
   assert.match(await page.locator('#start-help').innerText(), /reservar cartas/);
-  await page.locator('#initial-cards').fill('5');
+  await page.locator('#initial-cards').fill('7');
   // Mesmo dentro do limite individual, uma soma acima do máximo não é salva.
   for (const type of ['wild', 'life', 'pass', 'swap']) {
     await page.locator(`#deck-${type}`).fill('30'); await page.locator(`#deck-${type}`).blur();
@@ -115,7 +141,7 @@ test('lobby: composição editável só pelo anfitrião, total ao vivo, limites,
   await other.goto(url); await other.locator('.deck-settings summary').click();
   assert.equal(await other.locator('input[data-deck-type]').count(), 0);
   assert.equal(await other.locator('[data-action=reset-deck]').count(), 0);
-  await page.locator('#initial-cards').fill('40'); await page.locator('#settings-form button').click();
+  await page.locator('#initial-cards').fill('35'); await page.locator('#settings-form button').click();
   for (const type of clients[0].view.config.configurableCardTypes) {
     await page.locator(`#deck-${type}`).fill('0'); await page.locator(`#deck-${type}`).blur();
     await waitFor(async () => (await storage.getRoom(code)).settings.deckComposition[type] === 0);
