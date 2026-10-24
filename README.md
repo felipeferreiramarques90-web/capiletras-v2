@@ -59,7 +59,9 @@ No lobby, o anfitrião pode usar **Adicionar bot** quantas vezes quiser, até o 
 
 É possível jogar com **1 humano e até 7 bots**, em um único nível de dificuldade. Bots não têm socket, ficam conectados no estado e nunca assumem o papel de anfitrião. Quando todos os humanos usam **Sair da sala**, a sala é removida e os agendamentos são cancelados. Uma queda de conexão reserva a vaga humana para reconexão: sem humanos conectados, os bots pausam; ao reconectar, retomam. Salas abandonadas continuam sujeitas à expiração.
 
-O bot recebe somente a **própria mão e a visão pública**, exatamente como um cliente. Procura jogadas que preservem um prefixo do dicionário, respeitando as opções calculadas pelo servidor, Bloqueio, Troca, vogais da Vida, `2+*` e pagamento de letras acumuladas. Prioriza uma palavra completa ao baixar a última carta. Sem continuação, compra se puder; depois usa uma defesa ou blefa. Para evitar ciclos de recompra da mesma carta, o blefe prefere gastar cartas antigas. **Não consigo jogar** só é usado quando a validação normal o permite.
+O bot recebe somente a **própria mão e a visão pública**, exatamente como um cliente. Para escolher letras, sorteia o modo **comum (90%)** ou **erudito (10%)**, uma vez por decisão. O comum considera só prefixos da lista comum; sem opção, recorre ao completo, sem sortear o modo novamente. Depois de aplicar Bloqueio e restrições, monta todas as opções e sorteia uniformemente, sem favorecer ordem alfabética, inserção na trie, frequência ou repetição de letras. Isso vale para cartas simples, Vida, Troca, Bloqueio, pagamento de débito e espada. Para `2+*` e completar um desafio, sorteia uma palavra candidata e usa o trecho que falta, dentro do limite de 16 letras. A prévia escolhida no desafio é confirmada sem novo sorteio.
+
+O dicionário **completo continua sendo o único usado para julgar** prefixos, palavras e votos contra bots; a lista comum só orienta a escolha de letras. O bot mantém a preferência por palavra completa ao baixar a última carta. Sem continuação nos dois léxicos, compra se puder; depois usa uma defesa ou blefa. Para evitar ciclos de recompra da mesma carta, o blefe prefere gastar cartas antigas. **Não consigo jogar** só é usado quando a validação normal o permite. Chances e regras de dúvida, votação e uso da espada permanecem iguais.
 
 Os bots podem duvidar tanto de humanos quanto de outros bots, **somente quando o visor não é prefixo válido** e o desafio está permitido. Cada bot sorteia uma única vez por jogada que coloca letra: **35% no jogo normal** e **75% durante vitória pendente**. Um sorteio desfavorável na janela final deixa o bot aguardando; ele não aceita uma palavra suspeita. Com prefixo válido, aceita a vitória pendente e nunca duvida. Na votação, **todos os bots aceitam a palavra de um humano depois do OK**, inclusive o bot desafiante; contra outro bot, votam conforme a palavra completa no dicionário. Como desafiado, o bot mostra uma continuação real de até 16 letras e confirma, ou usa PERDI se não encontrar uma palavra.
 
@@ -73,9 +75,11 @@ Configuração em **`bots/config.js`**:
 | `deadlineMarginMs` | 250 ms de margem: o agendamento respeita o prazo absoluto restante ao restaurar/retomar desafios. |
 | `responseMinMs` / `responseMaxMs` | 500 / 1.500 ms para votar ou aceitar a palavra. |
 | `CHANCE_BOT_ESPADA` | 0,20; usada por `BOT_RULES.swordChance` fora da vez. |
+| `CHANCE_BOT_ERUDITO` | 0,10; usada por `BOT_RULES.eruditeChance` uma vez por decisão de letras. |
+| `commonMinFrequency` | 1.000 ocorrências na fonte para entrar na lista comum; não pondera escolhas. |
 | `CHANCE_BOT_DUVIDAR` / `CHANCE_BOT_DUVIDAR_ULTIMA_CARTA` | 0,35 / 0,75; usados por `BOT_RULES.challengeChance` / `finalChallengeChance`. |
 | `maxAttemptsPerTurn` | 3 tentativas antes da ação de segurança. |
-| `maxPaymentCandidates`, `maxContinuations`, `maxSearchNodes` | Limites de busca: 96, 48 e 20.000. |
+| `maxContinuations`, `maxSearchNodes` | 48 e 20.000 nas consultas limitadas. As buscas `allContinuations` / `allExtensions` da escolha de letras são completas, sem esses cortes, para não enviesar sorteios. |
 | `minWordLength` / `recentDrawBluffPenalty` | Mínimo de 3 letras no dicionário / preferência por cartas antigas em blefes. |
 
 O cérebro puro fica em **`bots/brain.js`**, com RNG injetável para testes. **`bots/actions.js`** despacha as intenções para as mesmas funções puras de jogada, compra, desafio e votação usadas pelos humanos. Os timers ficam em **`network/bots.js`**, usam a mesma fila por sala dos sockets e descartam ações cuja versão ficou antiga. O limite de tentativas recorre às opções legais de segurança, sem passar a vez fora das regras. Salas restauradas refazem os agendamentos; o JSON guarda apenas `isBot`, dados normais do jogador, `game.letterPlayNumber`, `game.botDecisions`, `game.playNumber` e `game.botSwordDecisions`, que impedem novos sorteios na mesma jogada. Nenhum timer, função ou referência ao dicionário entra no estado.
@@ -84,7 +88,11 @@ O cérebro puro fica em **`bots/brain.js`**, com RNG injetável para testes. **`
 
 Incluímos **317.673 palavras** normalizadas do corpus [fserb/pt-br](https://github.com/fserb/pt-br), de Fernando Serboncini, sob **licença MIT**. Foram combinados o léxico e as **conjugações verbais** do snapshot `93ba2a6f3b2f85262fba72df09d448c6bb2fa50a`. As entradas ficam em maiúsculas, sem acentos nem cedilha, apenas A–Z; palavras de menos de três letras ou com espaços/hífens são descartadas, assim como duplicatas. A atribuição, os links de origem e o hash estão em **`bots/data/SOURCE.md`**; a licença integral acompanha os dados em **`bots/data/LICENSE-MIT.txt`**.
 
-O servidor carrega **`bots/data/pt-BR.txt`** uma vez na inicialização, em um trie compacto de vetores tipados, só em memória. Não precisa de rede nem de serviço externo. O dicionário é um recurso de decisão dos bots: **não muda a regra de votação nem impõe validação automática às palavras dos humanos**.
+O servidor carrega **`bots/data/pt-BR.txt`** uma vez na inicialização, em um trie compacto de vetores tipados, só em memória. Esse é o **dicionário completo**, mantido para todas as decisões sobre existência de palavra ou prefixo: duvidar, aceitar vitória pendente e votar quando Y é bot. Uma palavra ausente da lista comum continua válida para essas decisões se existir no completo.
+
+A **lista comum** usa [FrequencyWords, de Hermit Dave](https://github.com/hermitdave/FrequencyWords), português brasileiro do corpus **OpenSubtitles2018 / OPUS**, sob **CC BY-SA 4.0**. A cópia original de 50.000 entradas com contagens fica em `bots/data/pt-BR-frequency.txt`. Na inicialização, `bots/load-dictionary.js` filtra entradas com pelo menos `BOT_RULES.commonMinFrequency` ocorrências, normaliza como o completo, remove duplicatas e mantém a interseção com ele: **11.304 palavras** com a configuração atual. Os pesos só filtram palavras raras; não são usados nos sorteios. Fonte, snapshot, atribuição e transformações estão em **`bots/data/SOURCE-COMMON.md`**; a licença integral está em **`bots/data/LICENSE-CC-BY-SA-4.0.txt`**.
+
+Os dois tries ficam só em memória; nenhum dicionário, peso ou modo sorteado entra no estado salvo das salas. Não é necessário acesso à rede na inicialização. Os dicionários são recursos dos bots: **não mudam a regra de votação nem impõem validação automática às palavras dos humanos**.
 
 ## Tema visual: campo de futebol
 
@@ -269,7 +277,8 @@ bots/brain.js        Decisões dos bots com visão privada e RNG injetável
 bots/actions.js      Despacho para as mesmas validações puras dos humanos
 bots/players.js      Inclusão e remoção de bots no lobby
 bots/dictionary.js   Trie e buscas por prefixo, palavra e continuação
-bots/data/           Corpus pt-BR normalizado, fonte e licença MIT
+bots/load-dictionary.js Carregamento dos léxicos completo e comum, só em memória
+bots/data/           Léxico completo (MIT), frequências pt-BR (CC BY-SA 4.0) e atribuições
 storage/memory.js    Interface assíncrona de armazenamento, implementada em memória
 network/socket.js    Eventos Socket.IO, identificação, filas por sala e limpeza
 network/client-view.js Filtro de privacidade dos votos e avisos enviados ao cliente
