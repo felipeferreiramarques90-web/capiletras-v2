@@ -69,12 +69,33 @@ export function createDictionary(entries) {
     }
     return result;
   }
+  // A escolha aleatória precisa do conjunto inteiro: cortar por limite ou por
+  // ordem da trie favoreceria palavras curtas, alfabéticas ou inseridas primeiro.
+  function all(prefix, minLetters, maxLetters, excludedFirst, prefixes = false) {
+    const root = locate(prefix), result = [];
+    if (root < 0 || minLetters < 0 || maxLetters < minLetters) return result;
+    const stack = [[root, '']];
+    while (stack.length) {
+      const [node, suffix] = stack.pop();
+      if (suffix.length >= minLetters && (prefixes || data.terminal[node])) result.push(suffix);
+      if (suffix.length >= maxLetters) continue;
+      for (let next = data.first[node]; next; next = data.sibling[next]) {
+        const letter = String.fromCharCode(data.labels[next]);
+        if (!suffix && letter === excludedFirst) continue;
+        stack.push([next, suffix + letter]);
+      }
+    }
+    return result;
+  }
   return Object.freeze({ size: words.size,
     hasPrefix: (prefix) => { const node = locate(prefix); return node >= 0 && data.counts[node] > 0; },
     isWord: (word) => { const node = locate(word); return node >= 0 && Boolean(data.terminal[node]); },
     continuations: (prefix, options = {}) => search(prefix, { ...options,
       maxLetters: Math.min(options.maxLetters ?? CHALLENGE_RULES.maxLetters, CHALLENGE_RULES.maxLetters) }),
     extensions: (prefix, length, options = {}) => search(prefix, { ...options, minLetters: length, maxLetters: length, prefixes: true }),
+    allContinuations: (prefix, { minLetters = 0, maxLetters = CHALLENGE_RULES.maxLetters, excludedFirst = null } = {}) =>
+      all(prefix, minLetters, Math.min(maxLetters, CHALLENGE_RULES.maxLetters), excludedFirst),
+    allExtensions: (prefix, length, { excludedFirst = null } = {}) => all(prefix, length, length, excludedFirst, true),
     nextLetters: (prefix) => { const node = locate(prefix); return node < 0 ? [] : children(node).map((i) => String.fromCharCode(data.labels[i])); },
   });
 }
