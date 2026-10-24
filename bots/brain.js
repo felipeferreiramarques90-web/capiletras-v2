@@ -108,16 +108,14 @@ export function chooseTurnAction(view, dictionary, { safety = false } = {}) {
   const valid = letters.length ? letters : defenses;
   const score = (action) => {
     const card = view.hand.find((c) => c.id === action.cardId);
-    const instantWin = view.hand.length === 1 && ['life', 'pass', 'double'].includes(card.type);
     // Em blefes, prefira gastar cartas antigas. Recomprar e baixar sempre a mesma
     // Vida reciclada pode manter o visor protegido e impedir progresso indefinidamente.
     const justDrawn = !safety && !valid.length && game.drawsThisTurn > 0 && action.cardId === view.hand.at(-1)?.id;
-    return (instantWin ? 10_000 : 0) + (view.hand.length === 1 && dictionary.isWord(action.word) ? 1_000 : 0)
+    return (view.hand.length === 1 && dictionary.isWord(action.word) ? 1_000 : 0)
       + (dictionary.hasPrefix(action.word) ? 100 : 0) + ({ life: 30, pass: 25, double: 20, multi: 12, block: 8, letter: 5 }[card.type] || 0)
       - (justDrawn ? BOT_RULES.recentDrawBluffPenalty : 0);
   };
-  const instant = view.hand.length === 1 && cards.some((c) => ['life', 'pass', 'double'].includes(c.type));
-  if (!safety && !valid.length && !instant && game.canDraw) return { type: 'draw' };
+  if (!safety && !valid.length && game.canDraw) return { type: 'draw' };
   if (cards.length) {
     const options = valid.length ? valid : cards.map((card) => fallbackFor(view, card));
     options.sort((a, b) => score(b) - score(a));

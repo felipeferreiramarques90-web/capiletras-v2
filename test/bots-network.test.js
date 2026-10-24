@@ -113,7 +113,7 @@ test('rede: restauração refaz agendamento de bots sem timers ou dicionário no
 
 test('rede: sorteios independentes persistem e não se repetem em broadcasts ou restauração',async t=>{
  let calls=0;
- const chooseAction=(...args)=>{calls++;return decideBotAction(...args);};
+ const chooseAction=(view,...args)=>{if(view.game.word==='ZZZ')calls++;return decideBotAction(view,...args);};
  const f=await setup(t,{chooseAction});await f.start();
  await f.seed([['letra-A','letra-B'],['wild-0','letra-Z'],['wild-1','letra-X'],['wild-2','letra-Y']],{word:'ZZZ',turnPlayerId:f.human.view.meId});
  await waitFor(async()=>Object.keys((await f.storage.getRoom(f.code)).game.botDecisions).length===3);

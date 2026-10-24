@@ -3,6 +3,18 @@ import { BOT_RULES } from '../bots/config.js';
 import { botTask, decideBotAction } from '../bots/brain.js';
 import { applyBotAction } from '../bots/actions.js';
 
+// Escolha pura do atraso, com RNG e relógio injetáveis para os testes.
+export function botDelayMs(task, game, rng, timing = BOT_RULES, now = 0) {
+  const response = task.kind === 'vote' || task.kind === 'accept';
+  const finalDoubt = task.kind === 'doubt' && Boolean(game.pendingVictory);
+  const min = response ? timing.responseMinMs : finalDoubt ? timing.finalDoubtMinMs : timing.actionMinMs;
+  const max = response ? timing.responseMaxMs : finalDoubt ? timing.finalDoubtMaxMs : timing.actionMaxMs;
+  const delay = min + Math.floor(rng() * (max - min + 1));
+  const deadline = task.kind === 'complete' ? game.challenge?.completionDeadline
+    : task.kind === 'vote' ? game.challenge?.voteDeadline : (finalDoubt || task.kind === 'accept') ? game.pendingVictory?.deadline : null;
+  return deadline ? Math.max(0, Math.min(delay, deadline - now - timing.deadlineMarginMs)) : delay;
+}
+
 // Timers e tentativas ficam só na camada de execução. Cada sala usa a mesma fila
 // de leitura/validação/salvamento que as ações humanas; nunca há duas escritas paralelas.
 export function createBotScheduler({ storage, locked, settle, save, dictionary, rng, nowSource,
@@ -28,9 +40,6 @@ export function createBotScheduler({ storage, locked, settle, save, dictionary, 
       const existing = timers.get(key);
       if (existing?.version === room.game.version && existing.task === task.key) continue;
       if (existing) clearTimeout(existing.timer);
-      const response = task.kind === 'vote' || task.kind === 'accept';
-      const min = response ? timing.responseMinMs : timing.actionMinMs;
-      const max = response ? timing.responseMaxMs : timing.actionMaxMs;
       const item = { code: room.code, version: room.game.version, task: task.key };
       item.timer = setTimeout(() => {
         if (timers.get(key) !== item || stopped) return;
@@ -58,7 +67,7 @@ export function createBotScheduler({ storage, locked, settle, save, dictionary, 
             schedule(current);
           }
         }).catch((error) => console.error('Falha ao executar bot:', error));
-      }, min + Math.floor(rng() * (max - min + 1)));
+      }, botDelayMs(task, room.game, rng, timing, nowSource()));
       item.timer.unref();
       timers.set(key, item);
     }
