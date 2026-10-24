@@ -4,8 +4,8 @@ import { setup, waitFor } from './helpers.js';
 
 for (const [card,dialog] of [['wild-0','#letter-dialog'],['block-0','#letter-dialog'],['multi-0','#multi-dialog']]) {
   test(`espada interrompe ${card}: fecha modal, preserva carta/compra e mantém indicador da vez`, async (t) => {
-    const { a,b,seed,current } = await setup(t);
-    const before = await seed([[card,'letra-A'],['sword-0','sword-1','letra-B']],{debt:0,word:'CA',blockedLetter:'S',drawsThisTurn:1});
+    const { a,b,seed,current } = await setup(t,{players:3});
+    const before = await seed([[card,'letra-A'],['sword-0','sword-1','letra-B'],['letra-C','letra-D']],{debt:0,word:'CA',blockedLetter:'S',drawsThisTurn:1});
     assert.equal(await b.locator('[data-card=sword-0]').isEnabled(),true);
     await a.locator(`[data-card="${card}"]`).click(); await a.locator(dialog).waitFor();
     await b.locator('[data-card=sword-0]').click(); await b.locator('#letter-dialog').waitFor();
@@ -28,8 +28,8 @@ for (const [card,dialog] of [['wild-0','#letter-dialog'],['block-0','#letter-dia
 }
 
 test('espada: SVG original, contraste e legenda cabem no celular/desktop; modal antigo também é cancelado', async (t) => {
-  const { a,b,seed } = await setup(t);
-  await seed([['letra-A','letra-B'],['sword-0','pass-0','letra-C']],{debt:0,word:'CA',blockedLetter:null});
+  const { a,b,seed } = await setup(t,{players:3});
+  await seed([['letra-A','letra-B'],['sword-0','pass-0','letra-C'],['letra-D','letra-E']],{debt:0,word:'CA',blockedLetter:null});
   for (const [width,height] of [[375,667],[1440,900]]) {
     await b.setViewportSize({width,height});
     const sword = b.locator('[data-card=sword-0]'), pass = b.locator('[data-card=pass-0]');
@@ -48,20 +48,20 @@ test('espada: SVG original, contraste e legenda cabem no celular/desktop; modal 
   await b.locator('[data-card=sword-0]').click(); await b.locator('#letter-dialog').waitFor();
   await a.locator('[data-card=letra-A]').click();
   await b.locator('#letter-dialog').waitFor({state:'hidden'});
-  await b.locator('#toast').filter({hasText:'A mesa mudou'}).waitFor();
-  assert.equal(await b.locator('[data-card=sword-0]').isDisabled(),true,'Agora é a vez de Bia.');
+  assert.equal(await b.locator('[data-card=sword-0]').isDisabled(),true,'Agora é a vez de Bia; a espada continua na mão.');
 });
 
-test('última espada fora da vez abre vitória pendente para todos e conserva o dono da vez', async (t) => {
-  const {a,b,seed,current} = await setup(t);
-  await seed([['letra-A','letra-B'],['sword-0']],{debt:0,word:'CAS',blockedLetter:null});
+test('espada única mostra dica ao toque, sem modal nem vitória; com duas cartas pode jogar fora da vez', async (t) => {
+  const {a,b,seed,current} = await setup(t,{players:3});
+  await seed([['letra-A','letra-B'],['sword-0'],['letra-C','letra-D']],{debt:0,word:'CAS',blockedLetter:null});
+  assert.equal(await b.locator('[data-card=sword-0]').isDisabled(),true);
+  await b.locator('[data-restricted-card=sword-0]').click();
+  await b.locator('#toast').filter({hasText:'Compre uma carta para poder jogar esta'}).waitFor();
+  assert.equal(await b.locator('#letter-dialog').isVisible(),false);
+  assert.equal((await current()).game.pendingVictory,null);
+  await seed([['letra-A','letra-B'],['sword-0','letra-E'],['letra-C','letra-D']],{debt:0,word:'CAS',blockedLetter:null});
   await b.locator('[data-card=sword-0]').click(); await b.locator('[data-letter=A]').click();
-  for (const page of [a,b]) {
-    await page.locator('#victory-countdown').filter({hasText:'Bia baixou a última carta'}).waitFor();
-    assert.equal(await page.locator('.word-turn-label').textContent(),'É a vez de: Ana');
-  }
-  await a.locator('[data-action=accept-victory]').click();
-  await b.locator('.victory-panel').waitFor();
-  assert.equal((await current()).game.winnerId,(await current()).players[1].id);
-  assert.equal(await b.locator('.final-word > strong').innerText(),'CASA');
+  await a.locator('.word-display').filter({hasText:'CASA'}).waitFor();
+  assert.equal((await current()).game.pendingVictory,null);
+  assert.equal((await current()).game.turnPlayerId,(await current()).players[0].id);
 });

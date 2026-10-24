@@ -41,6 +41,13 @@
   --pass-arrow-middle: #f3da71;
   --pass-arrow-end: #ff8fc0;
   --pass-arrow-gradient: linear-gradient(90deg, var(--pass-arrow-start), var(--pass-arrow-middle), var(--pass-arrow-end));
+  --double-background: #151320;
+  --double-border: #7860a0;
+  --double-ink: #f6efff;
+  --double-cyan: #43eeff;
+  --double-violet: #aa70ff;
+  --double-pink: #ff65ce;
+  --double-glow: #a870ff55;
   --sword-card-background: #14151d;
   --sword-card-border: #986333;
   --sword-card-ink: #ffe6a6;
@@ -201,7 +208,7 @@ input::placeholder { color: var(--texto-secundario); font-size: calc(var(--fonte
 .deck-settings summary span { float: right; font-size: .8rem; font-weight: var(--peso-texto); }
 .deck-quantities { display: grid; gap: 10px; margin: 16px 0; }
 .deck-quantity { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.deck-quantity label { margin: 0; font-size: .85rem; overflow-wrap: anywhere; }
+.deck-quantity label { display: block; min-width: 0; flex: 1; margin: 0; font-size: .85rem; overflow-wrap: anywhere; }
 .deck-quantity label > span { display: inline-block; min-width: 25px; }
 .quantity-controls { display: flex; align-items: center; flex-shrink: 0; }
 .quantity-controls .icon-button { width: 44px; min-height: 44px; }
@@ -304,12 +311,12 @@ fieldset:disabled input, fieldset:disabled select { opacity: .65; }
 .playing-card.card-face-consonant > strong { font-size: var(--carta-fonte-longa); letter-spacing: -.5px; }
 .playing-card.card-blue { --card-bg: var(--carta-azul-neon); --card-ink: var(--carta-azul-escuro); --card-border: var(--carta-azul-escuro); }
 .playing-card.card-red { --card-bg: var(--block-card-background); --card-ink: var(--block-card-ink); --card-border: var(--block-card-border); }
-.playing-card.card-orange { --card-bg: var(--carta-branca); --card-ink: var(--carta-vermelho); --card-border: var(--carta-vermelho); }
+.playing-card.card-double { --card-bg: var(--double-background); --card-ink: var(--double-ink); --card-border: var(--double-border); }
 .playing-card.card-purple { --card-ink: var(--carta-vermelho); --card-border: var(--carta-vermelho); }
 .playing-card.card-pink { --card-bg: var(--life-card-background); --card-ink: var(--life-card-ink); --card-border: var(--life-card-border); }
 .playing-card.card-face-swap > strong, .playing-card.card-face-block > strong { font-size: var(--carta-fonte-simbolo); }
 .playing-card.card-face-life > strong { font-size: var(--carta-fonte-vida); }
-.playing-card.card-face-double > strong { font-size: var(--carta-fonte-2x); }
+.playing-card.card-face-double > strong { display: flex; justify-content: center; }
 .playing-card.card-face-double .card-corner { visibility: hidden; }
 .playing-card.card-face-multi > strong { display: flex; justify-content: center; }
 .card-bomb { width: var(--carta-bomba); height: var(--carta-bomba); }
@@ -594,3 +601,18 @@ body:has(.game-layout) .site-footer { display: none; }
 [data-card-theme="sword"] { --seletor-fundo: var(--sword-card-background); --seletor-texto: var(--sword-card-ink); --seletor-borda: var(--sword-card-border); }
 [data-card-theme="sword"] h2 { color: var(--texto); }
 @media (max-width: 650px) { :root { --sword-art-height: 50px; --sword-caption-font: 7px; } }
+
+.card-double-art { width: 100%; height: calc(var(--carta-fonte-2x) * 1.5); overflow: visible; }
+.card-double-art text { font-family: var(--fonte-interface); font-size: 56px; font-weight: var(--peso-titulo); letter-spacing: -3px; fill: var(--double-ink); stroke-width: 4; paint-order: stroke fill; filter: drop-shadow(0 0 3px var(--double-glow)); }
+.double-cyan { stop-color: var(--double-cyan); }
+.double-violet { stop-color: var(--double-violet); }
+.double-pink { stop-color: var(--double-pink); }
+.playing-card:disabled .card-double-art text { filter: none; }
+.deck-card-symbol.theme-double { background: var(--double-background); border-radius: 4px; width: 28px; height: 24px; vertical-align: middle; }
+.deck-card-symbol.theme-double .card-double-art { height: 24px; }
+.deck-unavailable { display: block; line-height: 1.35; font-size: .65rem; font-weight: var(--peso-texto); color: var(--texto-secundario); margin-top: 4px; }
+.letter-live-preview { overflow-wrap: anywhere; max-height: 5em; overflow-y: auto; font-weight: var(--peso-destaque); color: var(--texto); }
+.card-touch-target { display: inline-flex; position: relative; flex-shrink: 0; width: var(--carta-largura); height: var(--carta-altura); cursor: pointer; }
+.card-touch-target > .playing-card { pointer-events: none; }
+
+.quantity-controls button:disabled, .quantity-controls input:disabled { opacity: .45; cursor: not-allowed; }

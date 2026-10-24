@@ -26,6 +26,7 @@
       <div class="dialog-heading"><span class="eyebrow">SUA CARTA, SUA ESCOLHA</span><button type="button" class="icon-button" id="close-letter" aria-label="Fechar escolha de letra">×</button></div>
       <h2 id="letter-title">Escolha uma letra</h2>
       <p id="letter-hint" class="muted"></p>
+      <p id="letter-live-preview" class="letter-live-preview" aria-live="polite" hidden></p>
       <div id="letter-grid" class="letter-grid"></div>
       <section id="block-picker" hidden aria-labelledby="block-picker-title">
         <h3 id="block-picker-title">2. Letra a bloquear</h3>
@@ -94,7 +95,7 @@
       <div class="dialog-heading"><span class="eyebrow">O COMBINADO DA MESA</span><button type="button" class="icon-button" id="close-rules" aria-label="Fechar regras">×</button></div>
       <h2 id="rules-title">Uma letra por vez.</h2>
       <ol class="rules-list">
-        <li><strong>Entre na roda.</strong> Reúna de 2 a 8 pessoas. O anfitrião escolhe quantas cartas cada um recebe.</li>
+        <li><strong>Entre na roda.</strong> Reúna de 2 a 8 pessoas. O anfitrião escolhe quantas cartas cada um recebe. Em partidas com dois participantes, a espada fica fora do baralho.</li>
         <li><strong>Construa a palavra.</strong> Na sua vez, baixe uma carta e acrescente uma letra ao centro da mesa.</li>
         <li><strong>Precisou? Compre.</strong> Você pode comprar uma única carta por turno e depois precisa jogar.</li>
         <li><strong>Escolha com liberdade.</strong> O coringa verde vale de A a Z. As cartas especiais indicam quais letras você pode escolher.</li>
@@ -102,12 +103,12 @@
         <li><strong>Bloqueio ➕🚫.</strong> Adicione uma letra e escolha outra para bloquear até a próxima jogada com letra. O bloqueio vale para todos e continua durante cadeias de 2x.</li>
         <li><strong>Mais uma com 2x.</strong> Quem jogou antes de você joga de novo; depois, a vez volta para você com uma nova compra opcional. Pode haver 2x em cadeia. Não vale na primeira jogada.</li>
         <li><strong>Várias letras com 2+*.</strong> Digite pelo menos duas letras para adicionar ao visor. Sob bloqueio, só a primeira não pode ser a letra bloqueada; as demais podem repeti-la. A jogada consome o bloqueio.</li>
-        <li><strong>Vida ❤️ — só vogais.</strong> Escolha A, E, I, O ou U. Respeita e consome o Bloqueio. Protege seu autor contra desafios até outra carta ser jogada ou a vez voltar. Não interfere no botão Não consigo jogar. Como última carta, vence imediatamente.</li>
+        <li><strong>Vida ❤️ — só vogais.</strong> Escolha A, E, I, O ou U. Respeita e consome o Bloqueio. Protege seu autor contra desafios até outra carta ser jogada ou a vez voltar. Não interfere no botão Não consigo jogar. Não pode ser a única carta na mão.</li>
         <li><strong>Passar letra →.</strong> Passe a vez sem colocar letra: o próximo deve uma letra a mais. Antes de jogar uma carta com letra, digite todas as acumuladas e só depois escolha a letra da carta. O 2x transfere o débito; as penalidades zeram o débito. Só a primeira letra acumulada respeita o Bloqueio.</li>
-        <li><strong>Jogar na vez do outro ⚔️.</strong> Fora da sua vez, escolha A–Z para adicionar letra sem mudar a vez ou a compra de quem está jogando. Respeita e consome o Bloqueio. Não pode usar se foi o último a jogar, com débito, durante desafio ou vitória pendente. Quem usa vira o autor da palavra para a dúvida. Uma escolha de carta aberta é cancelada e a carta continua na mão. Como última carta, abre a janela de vitória pendente.</li>
+        <li><strong>Jogar na vez do outro ⚔️.</strong> Fora da sua vez, escolha A–Z para adicionar letra sem mudar a vez ou a compra de quem está jogando. Respeita e consome o Bloqueio. Não pode usar se foi o último a jogar, com débito, durante desafio ou vitória pendente. Várias espadas válidas entram em ordem; só a última define o autor da palavra e o alvo de 2x. O modal acompanha o visor atualizado. Quem usa vira o autor da palavra para a dúvida. Uma escolha de carta aberta é cancelada e a carta continua na mão. Não pode ser a única carta na mão.</li>
         <li><strong>Duvidar da palavra.</strong> Só é permitido sem letras acumuladas pendentes: quite o débito antes. O 2x só transfere o débito e não libera o desafio. Desafie quem colocou a última letra (2x e Passar letra não contam). A Vida protege seu autor. O desafiado tem 30 segundos para acrescentar até 16 letras livres e usar OK ou PERDI; sem OK no prazo, perde automaticamente. Os demais votam em até 15 segundos: desconectar sem votar ou não responder conta como Sim. A votação termina assim que o resultado for certo. Metade ou mais de Não recusa a palavra. Aceita: o desafiante compra 4 cartas; recusada ou desafiado desconectado: PERDI automático imediato. Os modais só fecham quando o servidor encerra a fase. O desafio comum zera palavra, débito, bloqueio e proteção, mantendo a vez. A última carta segue a regra de vitória pendente.</li>
         <li><strong>Não consigo jogar.</strong> Só quem está na vez, com cartas e nenhuma jogável, pode usar depois de comprar a carta opcional do turno. Se baralho e descarte estiverem vazios, não precisa comprar antes. Compre até 4 cartas, zere palavra, Bloqueio e débito e perca a vez, respeitando os retornos de 2x. Se não houver cartas para comprar, o visor permanece. O histórico da última carta é apagado: 2x exige uma nova jogada. O PERDI do desafio continua separado.</li>
-        <li><strong>Última carta: vitória pendente.</strong> Há 10 segundos para os outros duvidarem ou usarem Aceito a palavra. Unanimidade ou fim do prazo confirma a vitória. Se o desafio aceitar a palavra, vence; se recusar ou o autor usar PERDI, ele compra até 4 cartas, a mesa é zerada e a vez passa (se foi uma espada fora da vez, mantém quem já estava jogando). Vida, Passar letra e 2x como última carta vencem imediatamente.</li>
+        <li><strong>Última carta: vitória pendente.</strong> Há 10 segundos para os outros duvidarem ou usarem Aceito a palavra. Unanimidade ou fim do prazo confirma a vitória. Se o desafio aceitar a palavra, vence; se recusar ou o autor usar PERDI, ele compra até 4 cartas, a mesa é zerada e a vez passa. Toda vitória passa por essa janela: Vida, espada, 2x e Passar letra não podem ser jogadas como carta única; compre antes.</li>
       </ol>
       <div class="rules-tip">A mesa não consulta um dicionário. Combinem entre vocês quando a palavra deixou de ter continuação. Ao acabar a pilha, as cartas jogadas voltam ao baralho.</div>
     </dialog>
