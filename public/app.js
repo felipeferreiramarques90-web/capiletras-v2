@@ -1,9 +1,11 @@
-import { initials, avatarColor, AVATAR_UI } from './avatars.js';
+import { initials, createAvatarPalette, botNumber, AVATAR_UI } from './avatars.js';
 import { createSound } from './audio/sound.js';
 /* O cliente apresenta a mesa e envia intenções. Todas as regras são validadas pelo servidor. */
 (() => {
   const $ = (selector) => document.querySelector(selector);
   const app = $('#app');
+  const avatarPalettes = new Map();
+  let colorFor = createAvatarPalette();
   const sound = createSound({ clock: () => Date.now() + serverClockOffset });
   const soundToggle = $('#sound-toggle'), soundVolume = $('#sound-volume');
   function soundControls() { const prefs = sound.preferences(); soundToggle.textContent = prefs.muted ? '🔇' : '🔊'; soundToggle.setAttribute('aria-label', prefs.muted ? 'Ativar som' : 'Silenciar som'); soundToggle.setAttribute('aria-pressed', String(prefs.muted)); soundVolume.value = prefs.volume; }
@@ -13,9 +15,10 @@ import { createSound } from './audio/sound.js';
   document.addEventListener('click', (event) => { if (event.target.closest('button')) sound.effect('click'); }, { capture: true });
   soundToggle.addEventListener('click', () => { sound.setMuted(!sound.preferences().muted); soundControls(); });
   soundVolume.addEventListener('input', () => sound.setVolume(Number(soundVolume.value)));
+  document.addEventListener('pointerdown', (event) => { if (!event.target.closest('.sound-controls')) $('.sound-controls details').open = false; });
   document.addEventListener('visibilitychange', () => { void sound.visibility(document.hidden); });
   const modalStates = new Map();
-  new MutationObserver(() => { const parent = [...document.querySelectorAll('dialog[open]')].at(-1) || document.body; const controls = $('.sound-controls'); if (controls.parentElement !== parent) parent.append(controls); for (const dialog of document.querySelectorAll('dialog')) { const open = dialog.open; if (open !== (modalStates.get(dialog) || false)) sound.effect(open ? 'open' : 'close'); modalStates.set(dialog, open); } }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['open'] });
+  new MutationObserver(() => { for (const dialog of document.querySelectorAll('dialog')) { const open = dialog.open; if (open !== (modalStates.get(dialog) || false)) sound.effect(open ? 'open' : 'close'); modalStates.set(dialog, open); } }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['open'] });
   const storage = {
     get(key) { try { return localStorage.getItem(`capiletras:${key}`); } catch { return null; } },
     set(key, value) { try { localStorage.setItem(`capiletras:${key}`, value); } catch { /* Sessão atual continua funcionando. */ } },
@@ -57,7 +60,7 @@ import { createSound } from './audio/sound.js';
   const canAct = () => socket.connected && !busy;
   const isHost = () => room?.meId === room?.hostId;
   const playerName = (player) => `${player?.isBot ? '<span class="bot-icon" aria-label="Bot">🤖</span> ' : ''}${escape(player?.name)}`;
-  const avatar = (player) => `<span class="avatar ${player.isBot ? 'bot-avatar' : ''}" data-avatar-color="${avatarColor(player.id)}" aria-hidden="true">${player.isBot ? '🤖' : escape(initials(player.name))}</span>`;
+  const avatar = (player) => `<span class="avatar ${player.isBot ? 'bot-avatar' : ''}" data-avatar-color="${colorFor(player.id)}" aria-hidden="true">${player.isBot ? `<span class="robot-glyph">🤖</span><small class="bot-number">${botNumber(player.name)}</small>` : escape(initials(player.name))}</span>`;
 
   // Ilustração original, reutilizada apenas na apresentação dos versos.
   const capybaraSvg = () => `<svg class="capybara" viewBox="0 0 120 120" aria-hidden="true" focusable="false">
@@ -208,6 +211,15 @@ import { createSound } from './audio/sound.js';
 
   function render() {
     sound.update(room);
+    if (room) {
+      if (!avatarPalettes.has(room.code)) {
+        let seed; try { seed = JSON.parse(storage.get(`avatarPalette:${room.code}`)) || {}; } catch { seed = {}; }
+        avatarPalettes.set(room.code, createAvatarPalette(seed));
+      }
+      colorFor = avatarPalettes.get(room.code);
+      colorFor.sync(room.players.map((player) => player.id));
+      storage.set(`avatarPalette:${room.code}`, JSON.stringify(colorFor.snapshot()));
+    }
     if (!room || room.phase !== 'playing') clearNotices();
     updateDeckSummary();
     if (!room) app.innerHTML = home();
@@ -315,11 +327,11 @@ import { createSound } from './audio/sound.js';
     const meIndex = room.players.findIndex((p) => p.id === room.meId);
     const ordered = [...room.players.slice(meIndex + 1), ...room.players.slice(0, meIndex)];
     return `<section class="game-layout">${roomBar('PALAVRAS SE CONSTROEM EM BOA COMPANHIA')}
-      <div class="opponents" data-count="${ordered.length}">${ordered.map((p) => `<div class="opponent ${p.id === game.turnPlayerId ? 'active' : ''} ${!p.connected ? 'offline-player' : ''}"><button type="button" class="avatar-target" data-avatar-name="${escape(p.name)}" aria-label="${escape(p.name)}, ${p.cardCount} cartas${!p.connected ? ', desconectado' : ''}">${avatar(p)}${!p.connected ? '<span class="avatar-offline" aria-label="Desconectado">·</span>' : ''}</button><small class="avatar-count">${p.cardCount}</small></div>`).join('')}</div>
+      <div class="opponents" data-count="${ordered.length}">${ordered.map((p) => `<div class="opponent ${p.id === game.turnPlayerId ? 'active' : ''} ${!p.connected ? 'offline-player' : ''}"><button type="button" class="avatar-target" data-avatar-name="${escape(p.name)}" aria-label="${escape(p.name)}, ${p.cardCount} cartas${!p.connected ? ', desconectado' : ''}">${avatar(p)}${!p.connected ? '<span class="avatar-offline" aria-label="Desconectado">·</span>' : ''}</button><small class="avatar-count"><svg class="count-cards-icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="2" width="11" height="14" rx="2"/><rect x="7" y="5" width="11" height="14" rx="2"/></svg><span>${p.cardCount}</span></small></div>`).join('')}</div>
       ${game.paused && !game.challenge && !game.pendingVictory && isHost() ? `<div class="paused-actions"><button class="text-button" data-action="end" ${disabled(!canAct())}>Encerrar partida e voltar à sala →</button></div>` : ''}
       <section class="table-felt" aria-label="Centro da mesa">${game.pendingVictory && !game.challenge ? `<section class="pending-victory" aria-label="Vitória pendente"><p id="victory-countdown" role="status"></p>${game.pendingVictory.playerId !== room.meId ? `<button class="button primary" data-action="accept-victory" ${disabled(!canAct() || !game.pendingVictory.canAccept)}>Aceito a palavra</button>` : '<small>Aguardando os outros jogadores.</small>'}</section>` : ''}
-        <div class="table-center"><div class="word-area">${wordHeading(current)}<div class="word-display ${game.word ? '' : 'word-empty'}" aria-label="Palavra atual: ${escape(game.word || 'vazia')}">${game.word ? escape(game.word) : 'A primeira letra é com você.'}</div><p class="table-notice" role="status">${escape(activeNotice || room.notice)}</p>${game.blockedLetter ? `<div class="block-badge" role="status">➕🚫 Letra bloqueada: <strong>${game.blockedLetter}</strong><span>até a próxima jogada com letra</span></div>` : ''}${game.letterDebt.count ? `<div class="debt-badge" role="status"><span aria-hidden="true">→</span> ${escape(room.players.find((p) => p.id === game.letterDebt.playerId)?.name)} deve ${game.letterDebt.count} letra${game.letterDebt.count === 1 ? '' : 's'}</div>` : ''}${game.extraTurns.length ? `<p class="extra-turn-notice">2x ativo · retorno para ${escape(room.players.find((p) => p.id === game.extraTurns.at(-1))?.name)}</p>` : ''}</div></div>
-        <div class="table-controls"><button class="draw-pile ${game.canDraw ? 'available' : ''}" data-action="draw" ${disabled(!game.canDraw || !canAct())} aria-label="Comprar uma carta. ${game.deckCount} cartas na pilha, ${game.discardCount} para reembaralhar."><span class="deck-back card-back" aria-hidden="true">${capybaraSvg()}</span><strong>COMPRAR</strong><small>${game.deckCount} na pilha${game.discardCount ? ` · ${game.discardCount} jogadas` : ''}</small></button><div class="challenge-table-actions"><button class="button challenge-button" data-action="challenge" aria-describedby="challenge-help-debt" ${disabled(!canAct() || Boolean(game.challenge) || game.letterDebt.count > 0)}>Duvidar da palavra <span aria-hidden="true">?</span></button>${game.letterDebt.count > 0 ? '<p id="challenge-help-debt" class="challenge-debt-reason" role="status">Há letras acumuladas pendentes.</p>' : '<span id="challenge-help-debt" hidden></span>'}${game.challenge ? '<button class="text-button" data-action="challenge-view">Acompanhar desafio →</button>' : ''}</div></div>
+        <div class="table-center"><div class="word-area">${wordHeading(current)}<div class="word-display ${game.word ? '' : 'word-empty'}" aria-label="Palavra atual: ${escape(game.word || 'vazia')}">${game.word ? escape(game.word) : 'A primeira letra é com você.'}</div><div class="table-feedback"><p class="table-notice" role="status">${escape(activeNotice || room.notice)}</p><p class="table-state" id="table-state" role="status">${game.letterDebt.count ? `<span class="debt-state">${escape(room.players.find((p) => p.id === game.letterDebt.playerId)?.name)} deve ${game.letterDebt.count} letra${game.letterDebt.count === 1 ? '' : 's'}</span>` : ''}${game.letterDebt.count && game.blockedLetter ? ' · ' : ''}${game.blockedLetter ? `<span class="block-state">Letra bloqueada: ${escape(game.blockedLetter)}</span>` : ''}</p></div>${game.extraTurns.length ? `<p class="extra-turn-notice">2x ativo · retorno para ${escape(room.players.find((p) => p.id === game.extraTurns.at(-1))?.name)}</p>` : ''}</div></div>
+        <div class="table-controls"><button class="draw-pile ${game.canDraw ? 'available' : ''}" data-action="draw" ${disabled(!game.canDraw || !canAct())} aria-label="Comprar uma carta. ${game.deckCount} cartas na pilha, ${game.discardCount} para reembaralhar."><span class="deck-back card-back" aria-hidden="true">${capybaraSvg()}</span><strong>COMPRAR</strong><small>${game.deckCount} na pilha${game.discardCount ? ` · ${game.discardCount} jogadas` : ''}</small></button><div class="challenge-table-actions"><button class="button challenge-button" data-action="challenge" aria-describedby="table-state" ${disabled(!canAct() || Boolean(game.challenge) || game.letterDebt.count > 0)}>Duvidar da palavra <span aria-hidden="true">?</span></button>${game.challenge ? '<button class="text-button" data-action="challenge-view">Acompanhar desafio →</button>' : ''}</div></div>
       </section>
       <section class="hand-section" aria-label="Sua mão"><div class="hand-heading"><h2>Sua mão <span>${room.hand.length} carta${room.hand.length === 1 ? '' : 's'}</span></h2>${game.canSkipTurn && canAct() ? '<button class="button lose-button skip-button hand-skip-button" data-action="skip">Não consigo jogar <span aria-hidden="true">↺</span></button>' : ''}</div>
       <div class="hand-cards">${room.hand.map((card) => cardButton(card, canUseCard(card))).join('')}</div></section>

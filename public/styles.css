@@ -637,3 +637,62 @@ dialog .sound-controls details label { top: 42px; bottom: auto; }
 
 .avatar { color: white; }
 .game-layout .opponent.active .avatar { box-shadow: 0 0 0 2px var(--destaque), 0 0 10px var(--destaque-brilho); }
+
+/* Paleta e apresentação dos jogadores; nenhuma cor depende das regras. */
+:root {
+  --avatar-pastel-0: #f6c9dd; --avatar-pastel-1: #c5e6fa;
+  --avatar-pastel-2: #ddcdf7; --avatar-pastel-3: #f9d9b5;
+  --avatar-pastel-4: #c4ecdc; --avatar-pastel-5: #f8edac;
+  --avatar-pastel-6: #d5ddfb; --avatar-pastel-7: #fac9bc;
+  --avatar-ink: #24382f; --player-box-bg: #fbfcf4; --player-box-border: #b8cdbb;
+  --player-active-border: #258044; --player-active-bg: #e0f1df; --player-active-glow: #3c995735;
+  --sound-bg: #123a2d; --sound-border: #bdd5ac; --sound-ink: #fff;
+}
+.avatar { color: var(--avatar-ink); }
+.avatar.bot-avatar { gap: 1px; }
+.robot-glyph { font-size: .75em; line-height: 1; }
+.bot-number { font-size: .55em; font-weight: 900; line-height: 1; }
+.game-layout .opponent { background: var(--player-box-bg); border: 1px solid var(--player-box-border); border-radius: 9px; }
+.game-layout .opponent.active { border-color: var(--player-active-border); background: var(--player-active-bg); box-shadow: 0 0 0 1px var(--player-active-glow), 0 0 8px var(--player-active-glow); }
+.game-layout .opponent.active .avatar { box-shadow: none; }
+.game-layout .offline-player { opacity: .5; }
+.game-layout .opponent .avatar-count { display: flex; align-items: center; justify-content: center; gap: 2px; font-size: clamp(10px, 2.8vw, 12px); }
+.count-cards-icon { width: 1em; height: 1em; fill: var(--player-box-bg); stroke: currentColor; stroke-width: 1.3; flex: 0 0 auto; }
+.table-feedback { height: 5em; margin-top: 5px; font-size: .75rem; line-height: 1.35; }
+.table-feedback .table-notice { height: 2.7em; margin: 0; overflow: auto; overflow-wrap: anywhere; }
+.table-state { height: 2.3em; margin: 0; overflow: auto; overflow-wrap: anywhere; color: inherit; }
+body:has(.game-layout) { grid-template-rows: auto minmax(0, 1fr); }
+body:has(.game-layout) .site-header { display: flex; }
+.site-header { position: relative; z-index: 100; }
+.header-tools { gap: 12px; }
+.header-tools .sound-controls { position: relative; inset: auto; border: 1px solid var(--sound-border); background: var(--sound-bg); color: var(--sound-ink); flex: 0 0 auto; }
+.sound-controls details label { top: calc(100% + 8px); bottom: auto; background: var(--sound-bg); border: 1px solid var(--sound-border); }
+@media (max-width: 480px) {
+  .site-header, body:has(.game-layout) .site-header { padding: 4px 12px; gap: 8px; }
+  .site-header .brand { font-size: 1rem; gap: 3px; }
+  .site-header .brand-icon { width: 28px; height: 28px; font-size: 24px; }
+  .header-tools { gap: 6px; }
+  .header-tools #connection, #open-rules > span { display: none; }
+  .sound-controls button, .sound-controls summary { min-width: 36px; min-height: 36px; font-size: 17px; }
+}
+@media (max-height: 500px) { .table-feedback { height: 4em; font-size: .65rem; } .table-feedback .table-notice { height: 2em; } .table-state { height: 2em; } }
+@media (min-height: 501px) and (max-height: 650px) {
+  .game-layout .word-display { min-height: 54px; padding: 6px; }
+  .game-layout .table-felt { padding-top: 6px; padding-bottom: 6px; }
+  .table-feedback { height: 4em; font-size: .65rem; line-height: 1.2; }
+  .table-feedback .table-notice, .table-state { height: 2em; }
+}
+@media (max-height: 500px) {
+  body:has(.game-layout) .site-header { padding: 2px 4%; gap: 8px; }
+  .site-header .brand-icon { width: 28px; height: 28px; font-size: 24px; }
+  .header-tools .sound-controls button, .header-tools .sound-controls summary { min-height: 32px; }
+  .game-layout .opponent .avatar { width: 26px; font-size: 13px; }
+  .game-layout .opponent { padding: 2px; gap: 1px; }
+}
+@media (max-height: 500px) {
+  .site-header .brand { font-size: 1.1rem; line-height: 1.2; }
+  .game-layout .table-felt { padding-top: 2px; padding-bottom: 2px; }
+}
+@media (max-height: 500px) {
+  .table-controls .deck-back { width: 30px; height: 40px; }
+}
