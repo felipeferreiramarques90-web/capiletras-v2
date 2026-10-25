@@ -66,8 +66,8 @@ export async function setup(t, { players = 2, ...options } = {}) {
     for (const socket of io.sockets.sockets.values()) socket.emit('room:state', roomView(room, socket.data.playerId));
     await a.locator(`[data-card="${hands[0][0]}"]`).waitFor();
     if (debt) {
-      await a.locator('.debt-badge').filter({ hasText: `Ana deve ${debt} letras` }).waitFor();
-      await b.locator('.debt-badge').filter({ hasText: `Ana deve ${debt} letras` }).waitFor();
+      await a.locator('.debt-state').filter({ hasText: `Ana deve ${debt} letras` }).waitFor();
+      await b.locator('.debt-state').filter({ hasText: `Ana deve ${debt} letras` }).waitFor();
     }
     return room;
   }

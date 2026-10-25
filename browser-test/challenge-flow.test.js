@@ -7,12 +7,12 @@ test('débito desabilita Duvidar para todos; pagamento libera o botão e o desaf
   await seed([['letra-A', 'letra-B'], ['letra-C', 'letra-D']], { word: 'CA', debt: 2 });
   for (const page of [a, b]) {
     assert.equal(await page.locator('[data-action="challenge"]').isDisabled(), true);
-    assert.equal(await page.locator('#challenge-help-debt').innerText(), 'Há letras acumuladas pendentes.');
+    assert.match(await page.locator('.table-state').innerText(), /deve 2 letras/);
   }
   await pay('letra-A', 'AB');
   for (const page of [a, b]) {
     await waitFor(() => page.locator('[data-action="challenge"]').isEnabled());
-    assert.equal(await page.locator('#challenge-help-debt').isHidden(), true);
+    assert.equal(await page.locator('.debt-state').count(), 0);
   }
   assert.equal((await current()).game.letterDebt.count, 0);
   await b.locator('[data-action="challenge"]').click();
@@ -25,9 +25,9 @@ test('2x mantém Duvidar desabilitado até o jogador forçado pagar o débito', 
   await seed([['double-0', 'letra-A'], ['letra-C', 'letra-D']], { word: 'CA', debt: 2, last: true });
   await a.locator('[data-card="double-0"]').click();
   for (const page of [a, b]) {
-    await page.locator('.debt-badge').filter({ hasText: 'Bia deve 2 letras' }).waitFor();
+    await page.locator('.debt-state').filter({ hasText: 'Bia deve 2 letras' }).waitFor();
     assert.equal(await page.locator('[data-action="challenge"]').isDisabled(), true);
-    assert.equal(await page.locator('#challenge-help-debt').isVisible(), true);
+    assert.equal(await page.locator('.debt-state').isVisible(), true);
   }
   assert.equal(await a.locator('[data-action="skip"]').count(), 0);
   assert.equal(await b.locator('[data-action="skip"]').count(), 0);

@@ -42,7 +42,7 @@ test('modais no celular: cancelar qualquer etapa preserva a jogada; pagamento + 
   assert.equal(after.players[0].hand.length, hands[0].length - 1);
   assert.equal(after.game.letterDebt.count, 0);
   assert.equal(after.game.blockedLetter, null);
-  await a.locator('.debt-badge').waitFor({ state: 'hidden' });
+  await a.locator('.debt-state').waitFor({ state: 'hidden' });
   assert.equal(await a.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 });
 
@@ -67,10 +67,10 @@ test('Passar letra: seta em gradiente, cascata e débito visível para todos', a
   assert.equal(await a.locator('[data-card="pass-0"]').evaluate((card) => getComputedStyle(card).backgroundColor), 'rgb(25, 28, 35)');
   assert.match(await a.locator('[data-card="pass-0"] > strong').evaluate((arrow) => getComputedStyle(arrow).backgroundImage), /linear-gradient/);
   await a.locator('[data-card="pass-0"]').click();
-  await b.locator('.debt-badge').filter({ hasText: 'Bia deve 1 letra' }).waitFor();
+  await b.locator('.debt-state').filter({ hasText: 'Bia deve 1 letra' }).waitFor();
   await b.locator('[data-card="pass-1"]').click();
-  await a.locator('.debt-badge').filter({ hasText: 'Ana deve 2 letras' }).waitFor();
-  await b.locator('.debt-badge').filter({ hasText: 'Ana deve 2 letras' }).waitFor();
+  await a.locator('.debt-state').filter({ hasText: 'Ana deve 2 letras' }).waitFor();
+  await b.locator('.debt-state').filter({ hasText: 'Ana deve 2 letras' }).waitFor();
   assert.equal((await current()).game.blockedLetter, 'K');
   assert.equal((await current()).game.word, 'X');
   await a.locator('[data-card="letra-K"]').click();

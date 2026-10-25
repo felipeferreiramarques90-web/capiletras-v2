@@ -175,7 +175,7 @@ test('lobby: espada desabilitada com dois participantes reais, preserva quantida
   await waitFor(async()=>(await storage.getRoom(code)).settings.deckComposition.sword===5);
   await page.locator('[data-remove-bot]').click();
   await waitFor(async()=>(await page.locator('#deck-sword').isDisabled()));
-  assert.equal(await page.locator('#deck-sword').inputValue(),'5');assert.equal(await page.locator('#deck-total').innerText(),'72 cartas');
+  assert.equal(await page.locator('#deck-sword').inputValue(),'5');await page.locator('#deck-total').filter({hasText:'72 cartas'}).waitFor();
   await page.locator('[data-action=reset-deck]').click();
   await waitFor(async()=>(await page.locator('#deck-sword').inputValue())==='4');
   for(const [width,height]of[[375,667],[1440,900]]){
