@@ -1,0 +1,40 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {setup,waitFor} from './helpers.js';
+
+test('campo único protege prefixo, colore partes e envia só as letras acrescentadas',async t=>{
+ const {a,b,seed,current}=await setup(t);
+ await seed([['letra-A','letra-B'],['letra-C','letra-D']],{word:'CA',debt:0});
+ await b.locator('[data-action="challenge"]').click();await a.locator('#challenge-input').waitFor();
+ assert.equal(await a.locator('#challenge-title').innerText(),'Diga sua palavra');
+ assert.equal(await a.locator('#challenge-description').innerText(),'Bia desafia Ana');
+ const title=await a.locator('#challenge-title').boundingBox(),timer=await a.locator('#challenge-timer').boundingBox();
+ assert.ok(timer.x>title.x+title.width && Math.abs(timer.y-title.y)<15);
+ assert.equal(await a.locator('#challenge-input').inputValue(),'CA');assert.equal(await b.locator('#challenge-input').evaluate(el=>el.readOnly),true);
+ assert.equal(await a.locator('#challenge-count,#challenge-help,#challenge-auto-loss,#challenge-progress,#challenge-action-help').count(),0);
+ assert.doesNotMatch(await a.locator('#challenge-dialog').innerText(),/não vota|Palavra completa|Letras a acrescentar|suspensas|automaticamente/);
+ const input=a.locator('#challenge-input');await input.press('Backspace');assert.equal(await input.inputValue(),'CA');
+ await input.press('ControlOrMeta+A');await input.pressSequentially('s');assert.equal(await input.inputValue(),'CAS');
+ await input.evaluate(el=>{el.setSelectionRange(0,1);el.dispatchEvent(new Event('select'));});
+ await input.pressSequentially('a');assert.equal(await input.inputValue(),'CASA');
+ await input.evaluate(el=>el.dispatchEvent(new ClipboardEvent('cut',{bubbles:true,cancelable:true})));assert.equal(await input.inputValue(),'CASA');
+ await input.evaluate(el=>{const data=new DataTransfer();data.setData('text/plain','s 1á!');el.dispatchEvent(new ClipboardEvent('paste',{clipboardData:data,bubbles:true,cancelable:true}));});
+ assert.equal(await input.inputValue(),'CASAS');
+ await input.evaluate(el=>{const data=new DataTransfer();data.setData('text/plain','q-1');el.dispatchEvent(new DragEvent('drop',{dataTransfer:data,bubbles:true,cancelable:true}));});
+ assert.equal(await input.inputValue(),'CASASQ');await input.press('Backspace');
+ await waitFor(async()=>(await current()).game.challenge.addedLetters==='SAS');
+ await b.locator('.challenge-added').filter({hasText:'SAS'}).waitFor();assert.equal(await b.locator('#challenge-input').inputValue(),'CASAS');
+ const colors=await a.locator('#challenge-word').evaluate(el=>[...el.children].map(child=>getComputedStyle(child).color));assert.notEqual(colors[0],colors[1]);
+ // Uma edição nativa/autocorreção que tenta substituir o prefixo é revertida.
+ await input.evaluate(el=>{el.value='X';el.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertReplacementText',data:'X'}));});assert.equal(await input.inputValue(),'CASAS');
+ await input.press('Backspace');await input.press('Backspace');await input.press('Backspace');assert.equal(await input.inputValue(),'CA');
+ await input.pressSequentially('ABCDEFGHIJKLMNOPQRST');assert.equal((await input.inputValue()).length,18);
+ await a.evaluate(()=>{window.originalChallengeNow=Date.now;Date.now=()=>window.originalChallengeNow()+21000;});
+ await a.locator('#challenge-timer.urgent').waitFor();
+ await a.evaluate(()=>{Date.now=window.originalChallengeNow;});
+ await a.setViewportSize({width:375,height:400});await waitFor(async()=>{const rect=await a.locator('#challenge-ok').boundingBox();return rect.y>=0&&rect.y+rect.height<=400;});
+ await a.screenshot({path:'/tmp/challenge-minimal-mobile.png'});
+ await a.setViewportSize({width:1440,height:900});await a.screenshot({path:'/tmp/challenge-minimal-desktop.png'});
+ await a.locator('#challenge-ok').click();await waitFor(async()=>(await current()).game.challenge.phase==='votando');
+ assert.equal((await current()).game.challenge.addedLetters,'ABCDEFGHIJKLMNOP');assert.equal((await current()).game.word,'CAABCDEFGHIJKLMNOP');
+});

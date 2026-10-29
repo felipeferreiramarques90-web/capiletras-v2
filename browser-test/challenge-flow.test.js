@@ -55,7 +55,7 @@ test('desafio cancela a escolha de carta, transmite a prévia e mostra só o res
   assert.equal(await a.locator('[data-action="draw"]').isDisabled(), true);
   assert.equal(await a.locator('[data-action="skip"]').count(), 0);
   await a.locator('#challenge-input').fill('t1óo');
-  assert.equal(await a.locator('#challenge-input').inputValue(), 'TO');
+  assert.equal(await a.locator('#challenge-input').inputValue(), 'CATO');
   await b.locator('#challenge-word').filter({ hasText: 'CATO' }).waitFor();
   assert.equal((await current()).game.blockedLetter, 'K');
   assert.equal((await current()).game.letterDebt.count, 0);
@@ -70,7 +70,7 @@ test('desafio cancela a escolha de carta, transmite a prévia e mostra só o res
   await a.locator('#challenge-ok').click();
   await b.locator('[data-vote="nao"]').waitFor();
   assert.equal(await a.locator('#challenge-vote-actions').isHidden(), true);
-  assert.match(await a.locator('#challenge-description').innerText(), /não vota/);
+  assert.equal(await a.locator('#challenge-description').isHidden(),true);
   await b.locator('[data-vote="sim"]').click();
   await waitFor(async () => Object.keys((await current()).game.challenge.votes).length === 1);
   assert.equal(await c.locator('#challenge-progress').isVisible(), false);
@@ -144,7 +144,7 @@ test('prazos no navegador: OK expira, PERDI automático e ausência de voto cont
   await b.locator('[data-action="challenge"]').click();
   await a.locator('#challenge-input').fill('TO');
   await waitFor(async () => (await current()).game.challenge.addedLetters === 'TO');
-  assert.match(await a.locator('#challenge-auto-loss').innerText(), /Se Ana não apertar OK em [0-9]+s, perde automaticamente/);
+  assert.equal(await a.locator('#challenge-auto-loss').count(),0);
   clock += 30_000;
   await a.locator('#challenge-dialog').waitFor({ state: 'hidden' });
   assert.equal((await current()).players[0].hand.length, before.players[0].hand.length + 4);

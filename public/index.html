@@ -72,24 +72,17 @@
     <dialog id="challenge-dialog" closedby="none" class="text-entry-dialog" aria-labelledby="challenge-title">
       <form id="challenge-form" class="text-entry-form" novalidate>
         <div class="multi-body">
-          <div class="dialog-heading"><span class="eyebrow">A PALAVRA ESTÁ EM JOGO</span></div>
-          <h2 id="challenge-title">Completar a palavra</h2>
-          <p id="challenge-description" class="muted"></p>
-          <p id="challenge-timer" class="challenge-timer" role="timer" aria-label="Tempo restante"></p>
-          <p id="challenge-auto-loss" class="multi-warning"></p>
-          <div class="multi-preview-box"><span class="eyebrow">PALAVRA COMPLETA</span><div id="challenge-word" class="multi-preview" aria-live="polite"></div></div>
-          <div id="challenge-edit">
-            <label for="challenge-input">Letras a acrescentar <output id="challenge-count" for="challenge-input"></output></label>
-            <input id="challenge-input" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="done" aria-describedby="challenge-help">
-            <p id="challenge-help" class="field-hint">Você pode acrescentar nenhuma letra. As letras são livres e não consomem o Bloqueio.</p>
+          <div class="challenge-heading"><h2 id="challenge-title">Diga sua palavra</h2><p id="challenge-timer" role="timer" aria-label="Tempo restante"></p></div>
+          <p id="challenge-description"></p>
+          <div id="challenge-edit" class="challenge-single-field">
+            <div id="challenge-word" class="challenge-field-mirror" aria-hidden="true"></div>
+            <input id="challenge-input" type="text" aria-label="Sua palavra" inputmode="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="done">
           </div>
-          <p id="challenge-progress" class="challenge-progress" aria-live="polite"></p>
         </div>
         <div class="multi-actions challenge-actions">
           <button type="submit" class="button primary" id="challenge-ok">OK</button>
           <button type="button" class="button lose-button" id="challenge-loss">PERDI</button>
           <div id="challenge-vote-actions"><button type="button" class="button primary" data-vote="sim">Sim</button><button type="button" class="button secondary" data-vote="nao">Não</button></div>
-          <p id="challenge-action-help" class="field-hint"></p>
         </div>
       </form>
     </dialog>

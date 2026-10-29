@@ -1,3 +1,4 @@
+import { protectChallengeField, CHALLENGE_UI } from './challenge-field.js';
 import { initials, createAvatarPalette, botNumber, AVATAR_UI } from './avatars.js';
 import { createSound } from './audio/sound.js';
 /* O cliente apresenta a mesa e envia intenções. Todas as regras são validadas pelo servidor. */
@@ -633,23 +634,22 @@ import { createSound } from './audio/sound.js';
     const completing = challenge.phase === 'completando', voting = challenge.phase === 'votando';
     const deadline = completing ? challenge.completionDeadline : challenge.voteDeadline;
     const remaining = Math.max(0, Math.ceil((deadline - challengeNow()) / 1000));
-    $('#challenge-timer').textContent = `${remaining}s · ${completing ? 'para completar' : 'para votar'}`;
-    const challenged = room.players.find((p) => p.id === challenge.challengedId);
-    $('#challenge-auto-loss').hidden = !completing;
-    $('#challenge-auto-loss').textContent = completing ? `Se ${challenged?.name} não apertar OK em ${remaining}s, perde automaticamente.` : '';
+    $('#challenge-timer').textContent = `${remaining}s`;
+    $('#challenge-timer').classList.toggle('urgent', remaining <= CHALLENGE_UI.urgentSeconds);
     const mine = challenge.challengedId === room.meId;
-    $('#challenge-input').readOnly = !mine || !completing || remaining === 0 || !canAct();
+    challengeField.setEditable(mine && completing && remaining > 0 && canAct());
     $('#challenge-ok').disabled = !canAct() || !completing || remaining === 0;
     $('#challenge-loss').disabled = !canAct() || voting || remaining === 0;
     for (const button of document.querySelectorAll('[data-vote]')) button.disabled = !canAct() || !challenge.canVote || remaining === 0;
   }
 
+  const challengeField = protectChallengeField($('#challenge-input'), $('#challenge-word'), queueChallengePreview);
   function refreshChallengePreview() {
     const challenge = room?.game?.challenge;
     if (!challenge) return;
-    const text = challenge.challengedId === room.meId && challenge.phase === 'completando' ? $('#challenge-input').value : challenge.addedLetters;
-    $('#challenge-count').textContent = `${text.length}/${room.config.challenge.maxLetters}`;
-    $('#challenge-word').textContent = challenge.baseWord + text;
+    const mine = challenge.challengedId === room.meId && challenge.phase === 'completando';
+    const added = mine && challengeDialogId === challenge.id ? challengeField.getAdded() : challenge.addedLetters;
+    challengeField.set(challenge.baseWord, added, room.config.challenge.maxLetters, mine && canAct());
   }
 
   function renderChallenge() {
@@ -666,21 +666,15 @@ import { createSound } from './audio/sound.js';
     const completing = challenge.phase === 'completando', voting = challenge.phase === 'votando';
     if (challengeDialogId !== challenge.id) {
       challengeDialogId = challenge.id;
-      $('#challenge-input').value = challenge.addedLetters;
-    } else if (!mine) $('#challenge-input').value = challenge.addedLetters;
+      challengeField.set(challenge.baseWord, challenge.addedLetters, room.config.challenge.maxLetters, mine && completing);
+    } else if (!mine) challengeField.set(challenge.baseWord, challenge.addedLetters, room.config.challenge.maxLetters, mine && completing);
     const nameOf = (id) => room.players.find((p) => p.id === id)?.name || 'Jogador';
-    $('#challenge-title').textContent = completing ? 'Completar a palavra' : 'Aceitar palavra?';
+    $('#challenge-title').textContent = completing ? 'Diga sua palavra' : 'Aceitar palavra?';
     $('#challenge-description').hidden = voting;
-    $('#challenge-description').textContent = `${nameOf(challenge.challengerId)} desafia ${nameOf(challenge.challengedId)} a completar a palavra. ${mine ? 'Você é o desafiado e não vota.' : 'Acompanhe a palavra em tempo real.'}`;
-    $('#challenge-input').maxLength = room.config.challenge.maxLetters;
-    $('#challenge-edit').hidden = !completing;
+    $('#challenge-description').textContent = `${nameOf(challenge.challengerId)} desafia ${nameOf(challenge.challengedId)}`;
     $('#challenge-ok').hidden = !mine || !completing;
     $('#challenge-loss').hidden = !mine || voting;
     $('#challenge-vote-actions').hidden = !voting || mine;
-    $('#challenge-progress').hidden = voting;
-    $('#challenge-progress').textContent = completing ? (mine ? 'Complete a palavra ou use PERDI.' : 'Só o desafiado pode completar ou usar PERDI.') : '';
-    $('#challenge-action-help').hidden = voting;
-    $('#challenge-action-help').textContent = completing ? 'As ações da partida ficam suspensas durante o desafio.' : '';
     $('#challenge-dialog').classList.toggle('voting-dialog', voting);
     for (const button of document.querySelectorAll('[data-vote]')) {
       const ownVote = challenge.ownVote === button.dataset.vote;
@@ -697,27 +691,24 @@ import { createSound } from './audio/sound.js';
     }
   }
 
-  $('#challenge-input').addEventListener('input', () => {
+  function queueChallengePreview(letters) {
     const challenge = room?.game?.challenge;
     if (!challenge || challenge.challengedId !== room.meId || challenge.phase !== 'completando') return;
-    const input = $('#challenge-input');
-    input.value = input.value.replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, room.config.challenge.maxLetters);
-    refreshChallengePreview();
     clearTimeout(challengePreviewTimer);
-    const challengeId = challenge.id, letters = input.value;
+    const challengeId = challenge.id;
     challengePreviewTimer = setTimeout(async () => {
       if (!socket.connected || room?.game?.challenge?.id !== challengeId || room.game.challenge.phase !== 'completando') return;
       try {
         const response = await socket.timeout(10_000).emitWithAck('challenge:preview', { challengeId, letters });
-        if (!response.ok && room?.game?.challenge?.id === challengeId && room.game.challenge.phase === 'completando') toast(response.error);
-      } catch { /* O OK envia o texto completo; uma prévia perdida não confirma a jogada. */ }
+        if (!response.ok && room?.game?.challenge?.id === challengeId) toast(response.error);
+      } catch { /* OK também envia o sufixo completo. */ }
     }, room.config.challenge.previewIntervalMs);
-  });
+  }
   $('#challenge-form').addEventListener('submit', async (event) => {
     event.preventDefault();
     if ($('#challenge-ok').disabled || $('#challenge-ok').hidden) return;
     clearTimeout(challengePreviewTimer);
-    await send('challenge:confirm', { challengeId: room.game.challenge.id, letters: $('#challenge-input').value });
+    await send('challenge:confirm', { challengeId: room.game.challenge.id, letters: challengeField.getAdded() });
   });
   $('#challenge-loss').addEventListener('click', async () => {
     clearTimeout(challengePreviewTimer);

@@ -696,3 +696,17 @@ body:has(.game-layout) .site-header { display: flex; }
 @media (max-height: 500px) {
   .table-controls .deck-back { width: 30px; height: 40px; }
 }
+:root { --challenge-prefix-ink: #6b7a70; --challenge-added-ink: #164b2b; --challenge-alert: #a43a25; }
+.challenge-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.challenge-heading h2 { margin: 0; font-size: clamp(1.3rem, 5vw, 1.8rem); }
+#challenge-timer { margin: 0; flex: 0 0 auto; font-size: .85rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+#challenge-timer.urgent { color: var(--challenge-alert); }
+#challenge-description { margin: 8px 0 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .85rem; }
+.challenge-single-field { position: relative; min-width: 0; }
+#challenge-input, .challenge-field-mirror { font: 800 1.5rem/1.4 var(--fonte-interface); letter-spacing: 1px; padding: 12px; white-space: pre; width: 100%; }
+#challenge-input { position: relative; color: transparent; caret-color: var(--challenge-added-ink); background: transparent; margin: 0; }
+#challenge-input::selection { background: transparent; color: transparent; }
+.challenge-field-mirror { position: absolute; inset: 0; overflow: hidden; border: 1px solid transparent; pointer-events: none; }
+.challenge-prefix { color: var(--challenge-prefix-ink); }
+.challenge-added { color: var(--challenge-added-ink); }
+#challenge-dialog .multi-body { padding-bottom: 22px; }
