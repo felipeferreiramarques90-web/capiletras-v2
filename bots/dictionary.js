@@ -1,5 +1,6 @@
 import { BOT_RULES } from './config.js';
 import { CHALLENGE_RULES } from '../game/config.js';
+import { DICTIONARY } from './dictionary-config.js';
 
 export function normalizeWord(value) {
   const word = value.trim().normalize('NFD').replace(/\p{M}/gu, '').toUpperCase();
@@ -9,33 +10,32 @@ export function normalizeWord(value) {
 // Trie compacto: vetores tipados evitam um objeto/Map para cada letra do corpus.
 // Só existe no processo; nunca é passado ao storage ou à visão de um jogador.
 export function createDictionary(entries) {
-  const labels = [0], first = [0], sibling = [0], terminal = [0], counts = [0];
-  const words = new Set();
-  const child = (node, code) => {
-    for (let i = first[node]; i; i = sibling[i]) if (labels[i] === code) return i;
-    return -1;
-  };
+  let capacity = DICTIONARY.trieInitialCapacity, nodes = 1, wordCount = 0;
+  let labels = new Uint8Array(capacity), first = new Uint32Array(capacity), sibling = new Uint32Array(capacity),
+    terminal = new Uint8Array(capacity), counts = new Uint32Array(capacity);
+  function grow() {
+    capacity = Math.ceil(capacity * DICTIONARY.trieGrowthFactor);
+    const copy = array => { const next = new array.constructor(capacity); next.set(array); return next; };
+    labels = copy(labels); first = copy(first); sibling = copy(sibling); terminal = copy(terminal); counts = copy(counts);
+  }
   for (const entry of entries) {
     const word = normalizeWord(entry);
-    if (!word || words.has(word)) continue;
-    words.add(word);
+    if (!word) continue;
     let node = 0;
-    counts[node]++;
+    const path = [0];
     for (const letter of word) {
       const code = letter.charCodeAt(0);
-      let next = child(node, code);
+      let next = -1;
+      for (let i = first[node]; i; i = sibling[i]) if (labels[i] === code) { next = i; break; }
       if (next < 0) {
-        next = labels.length;
-        labels.push(code); first.push(0); sibling.push(first[node]); terminal.push(0); counts.push(0);
-        first[node] = next;
+        if (nodes === capacity) grow();
+        next = nodes++; labels[next] = code; sibling[next] = first[node]; first[node] = next;
       }
-      node = next;
-      counts[node]++;
+      node = next; path.push(node);
     }
-    terminal[node] = 1;
+    if (!terminal[node]) { terminal[node] = 1; wordCount++; for (const i of path) counts[i]++; }
   }
-  const data = { labels: Uint8Array.from(labels), first: Uint32Array.from(first),
-    sibling: Uint32Array.from(sibling), terminal: Uint8Array.from(terminal), counts: Uint32Array.from(counts) };
+  const data = { labels, first, sibling, terminal, counts };
   const locate = (prefix) => {
     if (typeof prefix !== 'string' || /[^A-Z]/.test(prefix)) return -1;
     let node = 0;
@@ -87,7 +87,7 @@ export function createDictionary(entries) {
     }
     return result;
   }
-  return Object.freeze({ size: words.size,
+  return Object.freeze({ size: wordCount,
     hasPrefix: (prefix) => { const node = locate(prefix); return node >= 0 && data.counts[node] > 0; },
     isWord: (word) => { const node = locate(word); return node >= 0 && Boolean(data.terminal[node]); },
     continuations: (prefix, options = {}) => search(prefix, { ...options,

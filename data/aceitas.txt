@@ -1,0 +1,2 @@
+# Exceções da casa: uma palavra por linha (A–Z), por exemplo uma gíria.
+# Começa vazia. O bloqueio sempre prevalece.

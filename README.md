@@ -84,15 +84,32 @@ Configuração em **`bots/config.js`**:
 
 O cérebro puro fica em **`bots/brain.js`**, com RNG injetável para testes. **`bots/actions.js`** despacha as intenções para as mesmas funções puras de jogada, compra, desafio e votação usadas pelos humanos. Os timers ficam em **`network/bots.js`**, usam a mesma fila por sala dos sockets e descartam ações cuja versão ficou antiga. O limite de tentativas recorre às opções legais de segurança, sem passar a vez fora das regras. Salas restauradas refazem os agendamentos; o JSON guarda apenas `isBot`, dados normais do jogador, `game.letterPlayNumber`, `game.botDecisions`, `game.playNumber` e `game.botSwordDecisions`, que impedem novos sorteios na mesma jogada. Nenhum timer, função ou referência ao dicionário entra no estado.
 
-### Fonte e licença do dicionário
+### Dicionários: critério, fonte e listas da casa
 
-Incluímos **317.673 palavras** normalizadas do corpus [fserb/pt-br](https://github.com/fserb/pt-br), de Fernando Serboncini, sob **licença MIT**. Foram combinados o léxico e as **conjugações verbais** do snapshot `93ba2a6f3b2f85262fba72df09d448c6bb2fa50a`. As entradas ficam em maiúsculas, sem acentos nem cedilha, apenas A–Z; palavras de menos de três letras ou com espaços/hífens são descartadas, assim como duplicatas. A atribuição, os links de origem e o hash estão em **`bots/data/SOURCE.md`**; a licença integral acompanha os dados em **`bots/data/LICENSE-MIT.txt`**.
+O critério é **verbete comum de português brasileiro**, incluindo plurais, femininos e conjugações. Nomes próprios (pessoas, países, cidades, organizações), siglas/acrônimos puros, marcas e palavras com hífen não valem. Estrangeirismos correntes como LASER, PIZZA e SHOPPING valem quando estão na fonte. As verificações automáticas dos bots seguem esse léxico; a votação e o comportamento de aceitar palavras de humanos continuam iguais.
 
-O servidor carrega **`bots/data/pt-BR.txt`** uma vez na inicialização, em um trie compacto de vetores tipados, só em memória. Esse é o **dicionário completo**, mantido para todas as decisões sobre existência de palavra ou prefixo: duvidar, aceitar vitória pendente e votar quando Y é bot. Uma palavra ausente da lista comum continua válida para essas decisões se existir no completo.
+A fonte completa é **Hunspell pt-BR / VERO 3.3.0**, distribuída pelo [LibreOffice](https://github.com/LibreOffice/dictionaries/tree/4f1df64b2e8e14751aa7c2205d170ca016071315/pt_BR), de Raimundo Santos Moura e colaboradores, sob **LGPLv3** (a fonte também declara Mozilla Public License). O cabeçalho do `.aff` informa 3.2; a versão do pacote, em `description.xml`, é 3.3.0. Snapshot: `4f1df64b2e8e14751aa7c2205d170ca016071315`. Geração: **29/10/2026, 03:03:57 UTC**. Fontes originais e licenças estão em `data/hunspell/`; atribuição e detalhes em `data/SOURCE.md`.
 
-A **lista comum** usa [FrequencyWords, de Hermit Dave](https://github.com/hermitdave/FrequencyWords), português brasileiro do corpus **OpenSubtitles2018 / OPUS**, sob **CC BY-SA 4.0**. A cópia original de 50.000 entradas com contagens fica em `bots/data/pt-BR-frequency.txt`. Na inicialização, `bots/load-dictionary.js` filtra entradas com pelo menos `BOT_RULES.commonMinFrequency` ocorrências, normaliza como o completo, remove duplicatas e mantém a interseção com ele: **11.304 palavras** com a configuração atual. Os pesos só filtram palavras raras; não são usados nos sorteios. Fonte, snapshot, atribuição e transformações estão em **`bots/data/SOURCE-COMMON.md`**; a licença integral está em **`bots/data/LICENSE-CC-BY-SA-4.0.txt`**.
+`npm run dict:build` usa `scripts/hunspell-expand.js` para expandir `.dic` + `.aff` (flags UTF-8, prefixos, sufixos, cruzamentos e continuações). Gera `data/pt-BR-forms.txt.gz` e o manifesto `data/dictionary-build.json`, com hashes e contagens. O resultado comprimido é versionado, portanto **npm install e a inicialização não precisam baixar fontes nem refazer a expansão**. São 2.711.928 grafias elegíveis no arquivo, com a caixa e os acentos preservados; após normalização e listas iniciais há **2.613.061 palavras** no completo.
 
-Os dois tries ficam só em memória; nenhum dicionário, peso ou modo sorteado entra no estado salvo das salas. Não é necessário acesso à rede na inicialização. Os dicionários são recursos dos bots: **não mudam a regra de votação nem impõem validação automática às palavras dos humanos**.
+Os filtros são aplicados **antes de normalizar**: rejeitar siglas em maiúsculas, inicial maiúscula e qualquer caractere que não seja letra (incluindo hífen, apóstrofo e ponto); depois remover acentos/cedilha, converter para A–Z e exigir pelo menos três letras. A palavra inválida é descartada inteira: “guarda-chuva” não vira GUARDACHUVA, nem “beija-flor” vira BEIJAFLOR. Entradas proibidas pelo próprio Hunspell também são excluídas. O build aplica os filtros às raízes antes de expandir e às formas resultantes; a carga os verifica novamente. As contagens classificam cada rejeição uma só vez, com siglas antes de maiúscula inicial.
+
+- **`data/bloqueio.txt`**: remove palavras dos dois léxicos. Já inclui YAKUZA, BRASIL, MARIA, PARIS, GOOGLE, CPF, ONU, SMS, FBI, ANVISA, PETROBRAS e NASA.
+- **`data/aceitas.txt`**: exceções explícitas da casa, como gírias ou estrangeirismos ausentes da fonte; começa vazia. **Bloqueio sempre prevalece**, mesmo sobre uma exceção.
+
+As listas aceitam uma palavra por linha, linhas vazias e comentários `#` (inclusive no fim da linha). São normalizadas e lidas na inicialização; reinicie o servidor após editar. Não é necessário reconstruir os dados para mudar as listas. Caminhos, versão e limites ficam em `bots/dictionary-config.js`; o limiar de frequência permanece em `BOT_RULES.commonMinFrequency`.
+
+A lista **comum** mantém [FrequencyWords, de Hermit Dave](https://github.com/hermitdave/FrequencyWords), pt-BR/OpenSubtitles2018, sob **CC BY-SA 4.0**, com os créditos e licença em `bots/data/`. Aplica os mesmos filtros e bloqueios, exige o limiar atual de 1.000 ocorrências e mantém apenas a interseção com o completo: **13.669 palavras**. Frequências só filtram, nunca ponderam o sorteio. O modo comum/erudito, o sorteio uniforme e as chances de dúvida permanecem iguais.
+
+Os dois tries são carregados uma vez, **só em memória**. A construção usa vetores tipados expansíveis para acomodar o novo corpus sem guardar um segundo conjunto de todas as palavras. Nenhum léxico, filtro ou relatório entra no estado da partida ou é enviado ao cliente. O completo continua sendo usado para julgar prefixos, votar contra bots e fazer fallback erudito; isso **não impõe validação automática às palavras humanas nem muda a votação**.
+
+Confira qualquer palavra e os totais de descarte:
+
+```bash
+npm run dict:check -- GUARDACHUVA BEIJAFLOR BRASIL BRASILEIRO MARIA YAKUZA CPF ONU LASER PIZZA SHOPPING PIX ONIBUS CASA CORRENDO
+```
+
+O relatório mostra presença no completo, comum, bloqueio e exceções. Com as listas iniciais, BRASILEIRO existe só no completo por estar abaixo do limiar comum; PIX está ausente nesta versão da fonte, e a lista de exceções continua vazia. Descartes do completo: 14.234 por maiúscula inicial, 7.669.911 por hífen/caractere inválido, 2.902 siglas, 238 entradas curtas e 4 grafias removidas pelo bloqueio; além de 4 raízes proibidas pelo Hunspell. Esses totais somam raízes rejeitadas, grafias da expansão e rejeições na carga, não o número de verbetes únicos que restaram.
 
 ## Avatares e som
 
@@ -290,7 +307,8 @@ bots/actions.js      Despacho para as mesmas validações puras dos humanos
 bots/players.js      Inclusão e remoção de bots no lobby
 bots/dictionary.js   Trie e buscas por prefixo, palavra e continuação
 bots/load-dictionary.js Carregamento dos léxicos completo e comum, só em memória
-bots/data/           Léxico completo (MIT), frequências pt-BR (CC BY-SA 4.0) e atribuições
+data/                Fontes VERO (LGPLv3), formas geradas, manifesto e listas da casa
+bots/data/           Frequências pt-BR (CC BY-SA 4.0) e atribuições
 storage/memory.js    Interface assíncrona de armazenamento, implementada em memória
 network/socket.js    Eventos Socket.IO, identificação, filas por sala e limpeza
 network/client-view.js Filtro de privacidade dos votos e avisos enviados ao cliente

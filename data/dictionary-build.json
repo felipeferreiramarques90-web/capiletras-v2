@@ -1,0 +1,26 @@
+{
+  "source": "VERO 3.3.0 (cabeçalho aff 3.2)",
+  "snapshot": "4f1df64b2e8e14751aa7c2205d170ca016071315",
+  "generatedAt": "2026-10-29T03:03:57.403Z",
+  "roots": 312368,
+  "forms": 2711928,
+  "expandedForms": 10331559,
+  "sourceRejected": {
+    "initialUppercase": 14234,
+    "invalidCharacters": 50293,
+    "acronym": 2902,
+    "tooShort": 225,
+    "blocked": 0,
+    "forbidden": 4
+  },
+  "expansionRejected": {
+    "initialUppercase": 0,
+    "invalidCharacters": 7619618,
+    "acronym": 0,
+    "tooShort": 13,
+    "blocked": 0,
+    "forbidden": 0
+  },
+  "dicSha256": "a38bfb26b68ece2834e79fe83e48d5792652970ace12db89d1b9674bf9933183",
+  "affSha256": "21d8ad2a769a60e17e2b5ea4ef11d4d593a58b9e2a82d642ef82d6a4c5523865"
+}

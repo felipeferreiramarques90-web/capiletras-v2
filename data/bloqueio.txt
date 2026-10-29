@@ -1,0 +1,13 @@
+# Uma palavra por linha, A–Z. Bloqueio tem prioridade sobre aceitas.txt.
+YAKUZA
+BRASIL
+MARIA
+PARIS
+GOOGLE
+CPF
+ONU
+SMS
+FBI
+ANVISA
+PETROBRAS
+NASA

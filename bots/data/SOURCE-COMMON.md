@@ -20,11 +20,11 @@ no formato `palavra ocorrências`. SHA-256:
 Transformações **somente em memória**, ao iniciar o servidor:
 
 - Descartar entradas abaixo de `BOT_RULES.commonMinFrequency` (padrão: 1.000 ocorrências).
-- Aplicar a mesma normalização do léxico completo: NFD, remover acentos/cedilha,
+- Antes de normalizar, rejeitar maiúscula inicial, siglas em maiúsculas e caracteres fora de letras. Aplicar as listas da casa e a mesma normalização do léxico completo: NFD, remover acentos/cedilha,
   maiúsculas, apenas A–Z, mínimo de três letras; deduplicar.
-- Manter apenas palavras que também existem no dicionário completo. Isso evita
+- Manter apenas palavras que também existem no dicionário completo (VERO; ver `data/SOURCE.md`). Isso evita
   que ruídos, nomes ou termos estrangeiros das legendas ampliem o léxico julgador.
 
-Resultado com os padrões atuais: **11.304 palavras**. As frequências servem só
+Resultado com os padrões atuais: **13.669 palavras**. As frequências servem só
 para o filtro de inclusão; não são guardadas no trie, não ponderam sorteios e
 não entram no estado JSON. Não há download em tempo de execução.
