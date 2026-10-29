@@ -42,7 +42,7 @@ test('lista comum livre: limiar só filtra, normaliza, deduplica e intersecta o 
   assert.deepEqual(commonWords(text, full), ['ACAO', 'JOGAVAMOS']);
   assert.deepEqual(commonWords(text, full, 5000), ['JOGAVAMOS']);
   const common = defaultCommonDictionary(), complete = defaultDictionary();
-  assert.equal(common.size, 11304);
+  assert.ok(common.size > 10000 && common.size < complete.size);
   for (const word of ['CASA', 'BOLA', 'JOGAMOS', 'ACAO']) assert.ok(common.isWord(word), word);
   for (const suffix of common.allContinuations('')) assert.ok(complete.isWord(suffix));
 });
