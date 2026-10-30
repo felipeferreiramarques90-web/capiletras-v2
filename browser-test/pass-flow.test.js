@@ -28,7 +28,7 @@ test('modais no celular: cancelar qualquer etapa preserva a jogada; pagamento + 
   assert.deepEqual(await current(), before);
   await pay('block-0');
   await a.locator('[data-letter="K"]').click();
-  await a.locator('[data-block="Z"]').click();
+  await a.locator('#confirm-block').click();await a.locator('[data-block="Z"]').click();
   await a.locator('#close-letter').click();
   assert.deepEqual(await current(), before);
 

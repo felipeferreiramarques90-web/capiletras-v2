@@ -35,6 +35,7 @@ import { createSound } from './audio/sound.js';
   let selectedCard = null;
   let selectedLetter = null;
   let selectedBlock = null;
+  let blockStep = 1;
   let pendingDebtLetters = '';
   let selectedPlayVersion = null;
   let challengeDialogId = null;
@@ -363,6 +364,7 @@ import { createSound } from './audio/sound.js';
     selectedCard = null;
     selectedLetter = null;
     selectedBlock = null;
+    blockStep = 1;
     pendingDebtLetters = '';
     selectedPlayVersion = null;
     $('#debt-dialog').close();
@@ -374,17 +376,25 @@ import { createSound } from './audio/sound.js';
     if (room.config.cardTypes[selectedCard.type].effect === 'appendMany') { refreshMultiOptions(); return; }
     let choices = room.game.allowedLettersByCard[selectedCard.id] || '';
     if (selectedCard.type === 'swap' && pendingDebtLetters) choices = [...choices].filter((letter) => letter !== pendingDebtLetters.at(-1)).join('');
-    if (!choices.includes(selectedLetter)) selectedLetter = null;
-    $('#letter-grid').innerHTML = [...alphabet].map((letter) => `<button class="letter-option ${selectedLetter === letter ? 'selected' : ''}" data-letter="${letter}" aria-pressed="${selectedLetter === letter}" ${disabled(!choices.includes(letter))}>${letter}</button>`).join('');
     const block = selectedCard.type === 'block';
+    if (!choices.includes(selectedLetter)) { selectedLetter = null; blockStep = 1; selectedBlock = null; }
+    const blocking = block && blockStep === 2;
+    const selected = blocking ? selectedBlock : selectedLetter;
+    $('#letter-grid').innerHTML = [...alphabet].map((letter) => `<button class="letter-option ${selected === letter ? 'selected' : ''}" ${blocking ? 'data-block' : 'data-letter'}="${letter}" aria-pressed="${selected === letter}" ${disabled(!blocking && !choices.includes(letter))}>${letter}</button>`).join('');
     $('#letter-live-preview').hidden = selectedCard.type !== 'sword';
     $('#letter-live-preview').textContent = `Visor agora: ${room.game.word || 'vazio'}`;
-    $('#block-picker').hidden = !block;
-    if (block) $('#block-grid').innerHTML = [...alphabet].map((letter) => `<button class="letter-option ${selectedBlock === letter ? 'selected' : ''}" data-block="${letter}" aria-pressed="${selectedBlock === letter}">${letter}</button>`).join('');
-    $('#confirm-block').disabled = !selectedLetter || !selectedBlock || !canAct();
+    $('#block-step-title').hidden = !block;
+    $('#block-step-title').textContent = blocking ? 'Letra para bloquear' : 'Adicionar letra';
+    $('#block-add-chip').hidden = !blocking;
+    $('#block-add-chip').textContent = `Adicionar: ${selectedLetter || ''}`;
+    $('#confirm-block').hidden = !block;
+    $('#confirm-block').textContent = blocking ? 'Bloquear letra' : 'Adicionar';
+    $('#confirm-block').disabled = !selected || !canAct();
+    $('#letter-dialog').classList.toggle('block-dialog', block);
+    $('#letter-title').textContent = block ? 'Bloqueio' : $('#letter-title').textContent;
     $('#letter-hint').textContent = selectedCard.type === 'swap'
       ? `Substitua ${(room.game.word + pendingDebtLetters).at(-1)} por outra letra. A letra substituída não vale${pendingDebtLetters ? '' : ', nem a bloqueada'}.`
-      : `${block ? '1. Letra a adicionar. ' : ''}Letras permitidas: ${[...choices].join(', ')}.`;
+      : `Letras permitidas: ${[...choices].join(', ')}.`;
     if (pendingDebtLetters) $('#letter-hint').textContent = `Letras acumuladas: ${pendingDebtLetters}. ` + $('#letter-hint').textContent;
   }
   function openLetters(card) {
@@ -392,6 +402,7 @@ import { createSound } from './audio/sound.js';
     selectedCard = card;
     selectedLetter = null;
     selectedBlock = null;
+    blockStep = 1;
     if (room.config.cardTypes[card.type].effect === 'appendMany') {
       $('#multi-input').value = '';
       refreshMultiOptions();
@@ -752,14 +763,16 @@ import { createSound } from './audio/sound.js';
     if (selectedCard.type === 'block') { selectedLetter = button.dataset.letter; refreshLetterOptions(); return; }
     await submitSelectedCard(button.dataset.letter);
   });
-  $('#block-grid').addEventListener('click', (event) => {
+  $('#letter-grid').addEventListener('click', (event) => {
     const button = event.target.closest('[data-block]');
     if (!button || !selectedCard || !canAct()) return;
     selectedBlock = button.dataset.block;
     refreshLetterOptions();
   });
   $('#confirm-block').addEventListener('click', async () => {
-    if (!selectedCard || !selectedLetter || !selectedBlock || !canAct()) return;
+    if (!selectedCard || !selectedLetter || !canAct()) return;
+    if (blockStep === 1) { blockStep = 2; selectedBlock = null; refreshLetterOptions(); return; }
+    if (!selectedBlock) return;
     await submitSelectedCard(selectedLetter, selectedBlock);
   });
   $('#close-letter').addEventListener('click', closeLetters);

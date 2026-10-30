@@ -25,7 +25,7 @@ test('Passar letra e Bloqueio ficam no texto sob o visor, persistem e desaparece
  await a.locator('[data-action="draw"]').click();await waitFor(async()=> (await current()).game.drawsThisTurn===1);
  assert.match(await a.locator('.table-state').innerText(),/Ana deve 2 letras/);
  await a.locator('.table-notice').filter({hasText:'comprou'}).waitFor();
- await pay('block-0','AB');await a.locator('[data-letter="C"]').click();await a.locator('[data-block="K"]').click();await a.locator('#confirm-block').click();
+ await pay('block-0','AB');await a.locator('[data-letter="C"]').click();await a.locator('#confirm-block').click();await a.locator('[data-block="K"]').click();await a.locator('#confirm-block').click();
  await a.locator('.block-state').filter({hasText:'Letra bloqueada: K'}).waitFor();assert.equal(await a.locator('.debt-state').count(),0);
  assert.equal(await a.locator('.block-badge,.debt-badge,.challenge-debt-reason').count(),0);
  await b.locator('[data-card="letra-B"]').click();await a.locator('.block-state').waitFor({state:'hidden'});

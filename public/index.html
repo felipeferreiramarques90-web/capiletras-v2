@@ -29,13 +29,10 @@
       <h2 id="letter-title">Escolha uma letra</h2>
       <p id="letter-hint" class="muted"></p>
       <p id="letter-live-preview" class="letter-live-preview" aria-live="polite" hidden></p>
+      <h3 id="block-step-title" hidden>Adicionar letra</h3>
+      <span id="block-add-chip" class="block-add-chip" hidden></span>
       <div id="letter-grid" class="letter-grid"></div>
-      <section id="block-picker" hidden aria-labelledby="block-picker-title">
-        <h3 id="block-picker-title">2. Letra a bloquear</h3>
-        <p class="muted">O bloqueio vale até a próxima jogada com letra, mesmo após 2x.</p>
-        <div id="block-grid" class="letter-grid"></div>
-        <button type="button" class="button primary full" id="confirm-block" disabled>Jogar Bloqueio</button>
-      </section>
+      <button type="button" class="button primary full" id="confirm-block" hidden disabled>Adicionar</button>
       <p class="dialog-note">Sua escolha será aplicada ao visor da mesa.</p>
     </dialog>
     <dialog id="multi-dialog" class="text-entry-dialog" data-card-theme="multi" aria-labelledby="multi-title">

@@ -710,3 +710,12 @@ body:has(.game-layout) .site-header { display: flex; }
 .challenge-prefix { color: var(--challenge-prefix-ink); }
 .challenge-added { color: var(--challenge-added-ink); }
 #challenge-dialog .multi-body { padding-bottom: 22px; }
+.block-dialog .dialog-heading .eyebrow, .block-dialog #letter-hint, .block-dialog .dialog-note { display: none; }
+.block-dialog { padding: 20px; max-height: calc(100dvh - 24px); overflow: hidden; }
+.block-dialog #letter-title { margin: 5px 0 10px; font-size: 1.4rem; }
+.block-dialog #block-step-title { margin: 0 0 10px; font-size: 1.1rem; }
+.block-add-chip { display: block; width: fit-content; background: var(--painel-suave); color: var(--texto); border-radius: 14px; padding: 4px 10px; margin-bottom: 8px; font-weight: 800; }
+.block-dialog .letter-grid { grid-template-columns: repeat(7,minmax(0,1fr)); gap: 5px; }
+.block-dialog .letter-option { min-height: 42px; padding: 4px; }
+.block-dialog #confirm-block { margin-top: 12px; }
+.block-dialog .dialog-heading { justify-content: flex-end; }

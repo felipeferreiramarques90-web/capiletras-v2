@@ -62,7 +62,7 @@ test('modal da espada reflete bloqueio e visor atuais sem fechar enquanto outra 
  await seed([['block-0','letra-A'],['letra-B','letra-C'],['sword-0','letra-D']],{debt:0,word:'CA',blockedLetter:null});
  await c.locator('[data-card=sword-0]').click();
  await a.locator('[data-card=block-0]').click();
- await a.locator('[data-letter=A]').click();await a.locator('[data-block=X]').click();await a.locator('#confirm-block').click();
+ await a.locator('[data-letter=A]').click();await a.locator('#confirm-block').click();await a.locator('[data-block=X]').click();await a.locator('#confirm-block').click();
  await c.locator('#letter-live-preview').filter({hasText:'Visor agora: CAA'}).waitFor();
  assert.equal(await c.locator('[data-letter=X]').isDisabled(),true);
  await c.locator('[data-letter=Y]').click();
