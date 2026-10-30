@@ -4,6 +4,7 @@ export const RULES = Object.freeze({
   maxPlayers: 8,
   minHand: 3,
   defaultHand: 7,
+  defaultAutomaticValidation: true,
   minHandForRestrictedCards: 2,
   actionNoticeMs: 1200,
   reservedDrawCards: 1,
@@ -17,6 +18,7 @@ export const RULES = Object.freeze({
 
 export const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 export const CHALLENGE_RULES = Object.freeze({
+  validationFallbackNotice: 'Validação automática indisponível, a mesa vota',
   completionMs: 30_000,
   voteMs: 15_000,
   minLetters: 0,

@@ -30,9 +30,9 @@ function normalizeLetters(letters) {
 
 // Desafios comuns mantêm a vez. Ao recusar uma última carta, a jogada termina;
 // ao aceitá-la, preservamos a palavra completa para a tela de vitória.
-function finish(room, penalizedId, reason, automatic, now, random) {
+function finish(room, penalizedId, reason, automatic, now, random, preserveAdded = false) {
   const game = room.game, challenge = game.challenge;
-  if (automatic && (challenge.phase === 'completando' || reason === 'prazo')) challenge.addedLetters = '';
+  if (!preserveAdded && automatic && (challenge.phase === 'completando' || reason === 'prazo')) challenge.addedLetters = '';
   const penalized = player(room, penalizedId);
   const cards = takeCards(game, RULES.lossPenalty, random);
   penalized.hand.push(...cards);
@@ -45,7 +45,7 @@ function finish(room, penalizedId, reason, automatic, now, random) {
   if (pending && reason === 'aceita') {
     game.word = fullWord(challenge);
     game.challenge = null;
-    room.notice = `${voteNotice(challenge.tally)} ${penalized.name} comprou ${cards.length} carta${cards.length === 1 ? '' : 's'}.`;
+    room.notice = `${challenge.tally ? voteNotice(challenge.tally) : 'Palavra aceita.'} ${penalized.name} comprou ${cards.length} carta${cards.length === 1 ? '' : 's'}.`;
     return finishVictory(room, pending.playerId);
   }
   game.word = '';
@@ -101,14 +101,31 @@ export function previewChallenge(original, id, challengeId, letters, now) {
   return room;
 }
 
-export function confirmChallenge(original, id, challengeId, letters, now, random) {
+export function confirmChallenge(original, id, challengeId, letters, now, random, validateWord) {
   const room = structuredClone(previewChallenge(original, id, challengeId, letters, now));
   const challenge = room.game.challenge;
+  const automatic = room.settings.automaticValidation ?? RULES.defaultAutomaticValidation;
+  if (automatic) {
+    let accepted;
+    // O léxico é uma dependência do processo, nunca parte do estado JSON.
+    // Ausência, erro ou resposta inválida deixam este desafio seguir por votação.
+    try {
+      accepted = validateWord?.(fullWord(challenge));
+      if (typeof accepted !== 'boolean') accepted = undefined;
+    } catch { accepted = undefined; }
+    if (accepted !== undefined) {
+      const word = fullWord(challenge), outcome = accepted ? 'aceita' : 'recusada';
+      const result = finish(room, accepted ? challenge.challengerId : challenge.challengedId,
+        outcome, !accepted, now, random, true);
+      result.notice = `${word}: palavra ${outcome}`;
+      return result;
+    }
+  }
   challenge.phase = 'votando';
   challenge.voteDeadline = now + CHALLENGE_RULES.voteMs;
   room.game.word = fullWord(challenge);
   room.game.version++;
-  room.notice = 'Aceitar palavra? Os votos ficam ocultos até o resultado.';
+  room.notice = automatic ? CHALLENGE_RULES.validationFallbackNotice : 'Aceitar palavra? Os votos ficam ocultos até o resultado.';
   return resolveChallenge(room, now, random);
 }
 

@@ -16,7 +16,7 @@ export async function waitFor(predicate) {
 
 // Cenários determinísticos no armazenamento do servidor; as ações passam pela UI
 // e pelo Socket.IO reais. Nenhuma rota de teste é adicionada ao aplicativo.
-export async function setup(t, { players = 2, ...options } = {}) {
+export async function setup(t, { players = 2, automaticValidation = false, start = true, ...options } = {}) {
   const storage = new MemoryStorage();
   const { server, io } = createApp({ roomStorage: storage, randomSource: () => 0.375, ...options });
   server.listen(0, '127.0.0.1');
@@ -40,6 +40,7 @@ export async function setup(t, { players = 2, ...options } = {}) {
   await a.locator('[data-action="create"]').click();
   await a.locator('[data-action="start"]').waitFor();
   const [{ code }] = await storage.listRooms();
+  if (!automaticValidation) { await a.locator('#automatic-validation').uncheck(); await waitFor(async () => (await storage.getRoom(code)).settings.automaticValidation === false); }
   if (players > 2) {
     await a.locator('#player-count').selectOption(String(players));
     await a.locator('#settings-form button').click();
@@ -49,9 +50,11 @@ export async function setup(t, { players = 2, ...options } = {}) {
     await pages[i].locator('#player-name').fill(['Ana', 'Bia', 'Caio'][i]);
     await pages[i].locator('#join-form button').click();
   }
-  await a.locator('[data-action="start"]').click();
-  await a.locator('.hand-cards').waitFor();
-  for (const page of pages.slice(1)) await page.locator('.hand-cards').waitFor();
+  if (start) {
+    await a.locator('[data-action="start"]').click();
+    await a.locator('.hand-cards').waitFor();
+    for (const page of pages.slice(1)) await page.locator('.hand-cards').waitFor();
+  }
 
   async function seed(hands, { debt = 2, word = 'X', blockedLetter = 'K', last = false, lastLetter = 0, ...game } = {}) {
     const room = await storage.getRoom(code);

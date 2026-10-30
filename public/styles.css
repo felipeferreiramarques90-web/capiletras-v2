@@ -718,4 +718,13 @@ body:has(.game-layout) .site-header { display: flex; }
 .block-dialog .letter-grid { grid-template-columns: repeat(7,minmax(0,1fr)); gap: 5px; }
 .block-dialog .letter-option { min-height: 42px; padding: 4px; }
 .block-dialog #confirm-block { margin-top: 12px; }
+.automatic-validation-setting { display: flex; align-items: center; gap: 16px; margin: 20px 0; }
+.automatic-validation-setting span { flex: 1; min-width: 0; }
+.automatic-validation-setting strong { display: block; font-size: .9rem; }
+.automatic-validation-setting small { display: block; margin-top: 5px; font-size: .75rem; font-weight: normal; color: var(--texto-secundario); line-height: 1.4; }
+.automatic-validation-setting input { appearance: none; flex: 0 0 44px; width: 44px; height: 26px; margin: 0; border-radius: 20px; background: var(--painel-borda); padding: 3px; cursor: pointer; }
+.automatic-validation-setting input::before { content: ''; display: block; width: 18px; height: 18px; border-radius: 50%; background: var(--painel); transition: transform .15s; }
+.automatic-validation-setting input:checked { background: var(--campo-verde); }
+.automatic-validation-setting input:checked::before { transform: translateX(17px); }
+.automatic-validation-setting input:disabled { cursor: default; opacity: .7; }
 .block-dialog .dialog-heading { justify-content: flex-end; }

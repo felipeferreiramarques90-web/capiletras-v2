@@ -7,7 +7,7 @@ import storage from './storage/memory.js';
 import { registerSockets } from './network/socket.js';
 import { PUBLIC_CONFIG } from './game/config.js';
 
-export function createApp({ roomStorage = storage, cleanupIntervalMs, randomSource, nowSource, challengeIntervalMs, botOptions } = {}) {
+export function createApp({ roomStorage = storage, cleanupIntervalMs, randomSource, nowSource, challengeIntervalMs, botOptions, dictionaryProvider } = {}) {
   const app = express();
   app.disable('x-powered-by');
   app.use((_req, res, next) => {
@@ -21,7 +21,7 @@ export function createApp({ roomStorage = storage, cleanupIntervalMs, randomSour
   app.use(express.static(fileURLToPath(new URL('./public', import.meta.url))));
   const server = createServer(app);
   const io = new Server(server, { maxHttpBufferSize: 8192, serveClient: true });
-  const stopCleanup = registerSockets(io, roomStorage, { cleanupIntervalMs, randomSource, nowSource, challengeIntervalMs, botOptions });
+  const stopCleanup = registerSockets(io, roomStorage, { cleanupIntervalMs, randomSource, nowSource, challengeIntervalMs, botOptions, dictionaryProvider });
   server.on('close', stopCleanup);
   return { app, server, io };
 }

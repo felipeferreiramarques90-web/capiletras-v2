@@ -19,6 +19,8 @@ test('avatares cabem com 2 e 8 jogadores em 360px; áudio real inicia e acompanh
  await page.goto(`http://127.0.0.1:${app.server.address().port}`);
  await page.locator('#player-name').fill('Ana Maria');await page.locator('[data-action="create"]').click();
  for(let i=1;i<total;i++){await page.locator('[data-action="add-bot"]').click();await page.waitForFunction(n=>document.querySelectorAll('[data-remove-bot]').length===n,i);}
+ await page.locator('#automatic-validation').uncheck();
+ await page.waitForFunction(()=>!document.querySelector('#automatic-validation').checked);
  await page.locator('[data-action="start"]').click();await page.locator('.opponent').first().waitFor();
  assert.equal(await page.locator('.opponent').count(),total-1);
  assert.equal(await page.locator('.opponent strong').count(),0);

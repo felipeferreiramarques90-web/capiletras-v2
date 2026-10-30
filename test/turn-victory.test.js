@@ -12,6 +12,7 @@ function fixture(hands = [['letra-K'], ['letra-B', 'letra-C'], ['letra-D', 'letr
   let room = createRoom({ code: 'ABC234', playerId: 'p1', sessionId: 's1', name: 'Ana', now });
   room = updateSettings(room, 'p1', { playerCount: hands.length, initialCards: 3 });
   for (let i = 1; i < hands.length; i++) room = joinRoom(room, { playerId: `p${i + 1}`, sessionId: `s${i + 1}`, name: ['Ana', 'Bia', 'Caio'][i] });
+  room.settings.automaticValidation = false;
   room = startGame(room, 'p1', random);
   room.settings.deckComposition = compositionForHands(hands);
   const cards = createDeck(room.settings.deckComposition), used = new Set(hands.flat());

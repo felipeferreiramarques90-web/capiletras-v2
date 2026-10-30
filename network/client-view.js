@@ -1,4 +1,5 @@
 import { roomView } from '../game/game.js';
+import { CHALLENGE_RULES } from '../game/config.js';
 
 // Filtro exclusivo do transporte para humanos. Os reducers, o storage e a visão
 // usada pelo cérebro dos bots mantêm os dados internos necessários às regras.
@@ -15,12 +16,12 @@ export function clientView(room, viewerId) {
       ownVote: challenge.votes[viewerId] ?? null,
       hasVoted: view.game.challenge.hasVoted, canVote: view.game.challenge.canVote,
     };
-    if (challenge.phase === 'votando') view.notice = 'Aceitar palavra?';
+    if (challenge.phase === 'votando' && room.notice !== CHALLENGE_RULES.validationFallbackNotice) view.notice = 'Aceitar palavra?';
   }
   const result = room.game.challengeResult;
   view.game.challengeResult = result?.tally ? {
     outcome: result.tally.rejected ? 'recusada' : 'aceita',
-  } : null;
+  } : result && ['aceita', 'recusada'].includes(result.reason) ? { outcome: result.reason, word: result.word } : null;
   if (result?.tally) {
     const outcome = result.tally.rejected ? 'recusada' : 'aceita';
     // A mensagem interna pode conter cédulas, totais e detalhes do encerramento.

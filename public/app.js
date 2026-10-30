@@ -308,6 +308,7 @@ import { createSound } from './audio/sound.js';
         <form id="settings-form"><fieldset ${disabled(!isHost() || !canAct())}><label for="player-count">Número de jogadores <span>2 a 8</span></label><select id="player-count" name="playerCount">${Array.from({ length: 7 }, (_, i) => i + 2).map((n) => `<option value="${n}" ${n === room.settings.playerCount ? 'selected' : ''}>${n} jogadores</option>`).join('')}</select>
         <label for="initial-cards">Cartas por pessoa <span id="max-cards">3 a ${room.settings.maxInitialCards}</span></label><input id="initial-cards" name="initialCards" type="number" min="3" max="${room.settings.maxInitialCards}" value="${room.settings.initialCards}" required><p class="field-hint">${room.deckSize} cartas no total. Sempre sobra pelo menos uma para comprar.</p>
         ${isHost() ? '<button class="button secondary full">Salvar configuração <span>✓</span></button>' : ''}</fieldset></form>
+        <label class="automatic-validation-setting" for="automatic-validation"><span><strong>Validação automática de palavras</strong><small>O jogo confere a palavra no dicionário em vez de a mesa votar</small></span><input id="automatic-validation" type="checkbox" role="switch" ${room.settings.automaticValidation ? 'checked' : ''} ${disabled(!isHost() || !canAct())}></label>
         ${deckEditor()}
         <div class="lobby-tip"><span aria-hidden="true">✳</span><p>Não precisa saber a palavra inteira.<br>Só a próxima letra.</p></div>
       </section>
@@ -357,7 +358,7 @@ import { createSound } from './audio/sound.js';
   function victory() {
     const winner = room.players.find((p) => p.id === room.game.winnerId);
     const won = winner.id === room.meId;
-    return `<section class="room-layout">${roomBar('FIM DE PARTIDA · COMEÇO DE OUTRA HISTÓRIA')}<section class="victory-panel"><div class="victory-star" aria-hidden="true">✳</div><span class="eyebrow">MÃO VAZIA. SORRISO CHEIO.</span><h1>${won ? 'Essa foi sua!' : `${escape(winner.name)} venceu!`}</h1><p>${won ? 'Você encontrou a última letra e levou a melhor.' : 'A última carta foi jogada. Vale uma revanche?'}</p><div class="final-word">${wordHeading(winner, true)}<strong>${escape(room.game.word)}</strong></div>${['Palavra aceita', 'Palavra recusada'].includes(room.notice) ? `<p class="victory-challenge-result" role="status">${escape(room.notice)}</p>` : ''}<div class="victory-actions">${isHost() ? `<button class="button primary" data-action="start" ${disabled(!canAct())}>Jogar de novo <span>→</span></button><button class="button secondary" data-action="lobby" ${disabled(!canAct())}>Voltar à sala</button>` : '<p class="muted">O anfitrião pode começar outra partida ou voltar à sala.</p><button class="button secondary" data-action="leave" '+disabled(!canAct())+'>Voltar ao início</button>'}</div><p class="field-hint">${isHost() ? 'Para mudar jogadores ou configurações, volte à sala.' : 'Você pode continuar aqui para a próxima rodada.'}</p></section></section>`;
+    return `<section class="room-layout">${roomBar('FIM DE PARTIDA · COMEÇO DE OUTRA HISTÓRIA')}<section class="victory-panel"><div class="victory-star" aria-hidden="true">✳</div><span class="eyebrow">MÃO VAZIA. SORRISO CHEIO.</span><h1>${won ? 'Essa foi sua!' : `${escape(winner.name)} venceu!`}</h1><p>${won ? 'Você encontrou a última letra e levou a melhor.' : 'A última carta foi jogada. Vale uma revanche?'}</p><div class="final-word">${wordHeading(winner, true)}<strong>${escape(room.game.word)}</strong></div>${room.game.challengeResult && (['Palavra aceita', 'Palavra recusada'].includes(room.notice) || /: palavra (aceita|recusada)$/.test(room.notice)) ? `<p class="victory-challenge-result" role="status">${escape(room.notice)}</p>` : ''}<div class="victory-actions">${isHost() ? `<button class="button primary" data-action="start" ${disabled(!canAct())}>Jogar de novo <span>→</span></button><button class="button secondary" data-action="lobby" ${disabled(!canAct())}>Voltar à sala</button>` : '<p class="muted">O anfitrião pode começar outra partida ou voltar à sala.</p><button class="button secondary" data-action="leave" '+disabled(!canAct())+'>Voltar ao início</button>'}</div><p class="field-hint">${isHost() ? 'Para mudar jogadores ou configurações, volte à sala.' : 'Você pode continuar aqui para a próxima rodada.'}</p></section></section>`;
   }
 
   function closeLetters() {
@@ -565,6 +566,12 @@ import { createSound } from './audio/sound.js';
     if (event.key === 'Enter' && event.target.matches('input[data-deck-type]')) { event.preventDefault(); event.target.blur(); }
   });
 
+  app.addEventListener('change', async (event) => {
+    if (event.target.id === 'automatic-validation' && isHost() && canAct()) {
+      await send('room:settings', { automaticValidation: event.target.checked });
+    }
+  });
+
   app.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (event.target.id === 'join-form') {
@@ -681,8 +688,9 @@ import { createSound } from './audio/sound.js';
     } else if (!mine) challengeField.set(challenge.baseWord, challenge.addedLetters, room.config.challenge.maxLetters, mine && completing);
     const nameOf = (id) => room.players.find((p) => p.id === id)?.name || 'Jogador';
     $('#challenge-title').textContent = completing ? 'Diga sua palavra' : 'Aceitar palavra?';
-    $('#challenge-description').hidden = voting;
-    $('#challenge-description').textContent = `${nameOf(challenge.challengerId)} desafia ${nameOf(challenge.challengedId)}`;
+    const fallback = voting && room.notice === room.config.challenge.validationFallbackNotice;
+    $('#challenge-description').hidden = voting && !fallback;
+    $('#challenge-description').textContent = fallback ? room.config.challenge.validationFallbackNotice : `${nameOf(challenge.challengerId)} desafia ${nameOf(challenge.challengedId)}`;
     $('#challenge-ok').hidden = !mine || !completing;
     $('#challenge-loss').hidden = !mine || voting;
     $('#challenge-vote-actions').hidden = !voting || mine;

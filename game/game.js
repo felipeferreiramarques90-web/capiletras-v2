@@ -107,7 +107,7 @@ export function canSkipTurn(room, id) {
 export function createRoom({ code, playerId, sessionId, name, now }) {
   return {
     code, hostId: playerId, phase: 'lobby', createdAt: now, updatedAt: now,
-    emptySince: null, settings: { playerCount: 2, initialCards: RULES.defaultHand, deckComposition: { ...DEFAULT_DECK_COMPOSITION } },
+    emptySince: null, settings: { playerCount: 2, initialCards: RULES.defaultHand, automaticValidation: RULES.defaultAutomaticValidation, deckComposition: { ...DEFAULT_DECK_COMPOSITION } },
     players: [{ id: playerId, sessionId, name: cleanName(name), connected: true, left: false, hand: [] }],
     game: null,
     notice: 'Sala criada. Convide seus amigos!',
@@ -138,8 +138,12 @@ export function updateSettings(original, id, settings) {
   const room = clone(original);
   requireHost(room, id);
   requireRule(room.phase === 'lobby', 'A partida já começou.');
-  requireRule(settings && typeof settings === 'object', 'Configuração inválida.');
-  const { playerCount, initialCards } = settings;
+  requireRule(settings && typeof settings === 'object' && !Array.isArray(settings), 'Configuração inválida.');
+  requireRule(['playerCount', 'initialCards', 'automaticValidation'].some((key) => Object.hasOwn(settings, key)), 'Configuração inválida.');
+  requireRule(!Object.hasOwn(settings, 'automaticValidation') || typeof settings.automaticValidation === 'boolean', 'Validação automática deve ser ligada ou desligada.');
+  const { playerCount = room.settings.playerCount, initialCards = room.settings.initialCards,
+    automaticValidation = room.settings.automaticValidation ?? RULES.defaultAutomaticValidation } = settings;
+  requireRule(typeof automaticValidation === 'boolean', 'Validação automática deve ser ligada ou desligada.');
   requireRule(Number.isInteger(playerCount) && playerCount >= RULES.minPlayers && playerCount <= RULES.maxPlayers,
     'Escolha entre 2 e 8 jogadores.');
   requireRule(playerCount >= room.players.length, 'Há mais jogadores na sala do que o limite escolhido.');
@@ -147,7 +151,7 @@ export function updateSettings(original, id, settings) {
   requireRule(Number.isInteger(initialCards) && initialCards >= RULES.minHand
     && (initialCards <= maximum || playerCount !== room.settings.playerCount),
     `Escolha de ${RULES.minHand} a ${maximum} cartas para essa quantidade de jogadores.`);
-  room.settings = { ...room.settings, playerCount, initialCards: Math.min(initialCards, maximum) };
+  room.settings = { ...room.settings, playerCount, initialCards: Math.min(initialCards, maximum), automaticValidation };
   recordHandAdjustment(room, initialCards > maximum);
   return room;
 }
@@ -183,10 +187,15 @@ export function updateDeckComposition(original, id, composition) {
   return room;
 }
 
-export const restoreDefaultComposition = (room, id) => updateDeckComposition(room, id, DEFAULT_DECK_COMPOSITION);
+export function restoreDefaultComposition(room, id) {
+  const next = updateDeckComposition(room, id, DEFAULT_DECK_COMPOSITION);
+  next.settings.automaticValidation = RULES.defaultAutomaticValidation;
+  return next;
+}
 
 export function startGame(original, id, random) {
   const room = clone(original);
+  room.settings.automaticValidation ??= RULES.defaultAutomaticValidation;
   requireHost(room, id);
   requireRule(room.phase === 'lobby' || room.phase === 'finished', 'A partida já começou.');
   const issue = deckStartIssue(room);
@@ -484,7 +493,7 @@ export function roomView(room, viewerId) {
   const challenge = game?.challenge;
   return {
     code: room.code, phase: room.phase, hostId: room.hostId, meId: viewerId,
-    settings: { ...room.settings, deckComposition: { ...roomComposition(room) }, maxInitialCards: room.phase === 'lobby' ? roomHandLimit(room) : maxInitialCards(room.settings.playerCount, effectiveRoomComposition(room), null) },
+    settings: { ...room.settings, automaticValidation: room.settings.automaticValidation ?? RULES.defaultAutomaticValidation, deckComposition: { ...roomComposition(room) }, maxInitialCards: room.phase === 'lobby' ? roomHandLimit(room) : maxInitialCards(room.settings.playerCount, effectiveRoomComposition(room), null) },
     settingsAdjustment: viewerId === room.hostId ? room.settingsAdjustment ?? null : null,
     startIssue: room.phase === 'playing' ? null : deckStartIssue(room),
     deckSize: deckSize(effectiveRoomComposition(room)), swordUnavailable: room.phase === 'lobby' && participantCount(room) === PUBLIC_CONFIG.deckRules.swordUnavailablePlayers, config: PUBLIC_CONFIG, notice: room.notice,

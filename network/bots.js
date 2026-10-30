@@ -17,7 +17,7 @@ export function botDelayMs(task, game, rng, timing = BOT_RULES, now = 0) {
 
 // Timers e tentativas ficam só na camada de execução. Cada sala usa a mesma fila
 // de leitura/validação/salvamento que as ações humanas; nunca há duas escritas paralelas.
-export function createBotScheduler({ storage, locked, settle, save, dictionary, commonDictionary = dictionary, rng, nowSource,
+export function createBotScheduler({ storage, locked, settle, save, dictionary, commonDictionary = dictionary, validateWord, rng, nowSource,
   timings = {}, chooseAction = decideBotAction }) {
   const timers = new Map(), attempts = new Map();
   const timing = { ...BOT_RULES, ...timings };
@@ -59,7 +59,7 @@ export function createBotScheduler({ storage, locked, settle, save, dictionary, 
           try {
             const action = (safety ? decideBotAction : chooseAction)(currentView, dictionary, rng, { safety, commonDictionary });
             if (!action) throw new GameError('O bot não escolheu uma ação disponível.');
-            const next = applyBotAction(current, bot.id, action, { version: item.version, now: nowSource(), rng });
+            const next = applyBotAction(current, bot.id, action, { version: item.version, now: nowSource(), rng, validateWord });
             await save(settle(next));
           } catch (error) {
             if (!(error instanceof GameError)) console.error('Falha no cérebro; bot tentará a ação de segurança:', error);

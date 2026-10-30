@@ -41,6 +41,7 @@ async function setup(t, options = {}) {
   }
   const a = await connect();
   assert.equal((await emit(a, 'room:create', { sessionId: a.sessionId, name: 'Ana' })).ok, true);
+  await emit(a, 'room:settings', { automaticValidation: false });
   const code = a.view.code;
   const b = await connect();
   assert.equal((await emit(b, 'room:join', { sessionId: b.sessionId, name: 'Bia', code })).ok, true);

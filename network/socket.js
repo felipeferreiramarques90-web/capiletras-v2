@@ -8,6 +8,7 @@ import { startChallenge, previewChallenge, confirmChallenge, voteChallenge, lose
 import { acceptVictory, resolvePendingVictory } from '../game/victory.js';
 import { addBot, removeBot } from '../bots/players.js';
 import { defaultDictionary, defaultCommonDictionary } from '../bots/load-dictionary.js';
+import { createDictionary } from '../bots/dictionary.js';
 import { createBotScheduler } from './bots.js';
 import { clientView } from './client-view.js';
 
@@ -16,11 +17,20 @@ const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const newCode = () => Array.from({ length: 6 }, () => CODE_CHARS[randomInt(CODE_CHARS.length)]).join('');
 
 export function registerSockets(io, storage, { cleanupIntervalMs = 60_000, randomSource = random,
-  nowSource = () => Date.now(), challengeIntervalMs = CHALLENGE_RULES.tickMs, botOptions = {} } = {}) {
+  nowSource = () => Date.now(), challengeIntervalMs = CHALLENGE_RULES.tickMs, botOptions = {}, dictionaryProvider = defaultDictionary } = {}) {
   const owners = new Map();
   const queues = new Map();
   const ownerKey = (code, id) => `${code}:${id}`;
   const settle = (room) => resolvePendingVictory(resolveChallenge(room, nowSource(), randomSource), nowSource());
+  let dictionary, commonDictionary;
+  try { dictionary = botOptions.dictionary || dictionaryProvider(); } catch { dictionary = null; }
+  const brainDictionary = dictionary || createDictionary([]);
+  try { commonDictionary = botOptions.commonDictionary || (botOptions.dictionary || dictionaryProvider !== defaultDictionary || !dictionary ? brainDictionary : defaultCommonDictionary()); }
+  catch { commonDictionary = brainDictionary; }
+  const validateWord = (word) => {
+    if (!dictionary) throw new Error('Dicionário indisponível.');
+    return dictionary.isWord(word);
+  };
 
   // Serializa leitura/regra/salvamento por sala, inclusive reconexões e limpeza.
   // Com vários processos, mova também este bloqueio para o banco/uma fila distribuída.
@@ -47,8 +57,7 @@ export function registerSockets(io, storage, { cleanupIntervalMs = 60_000, rando
   }
 
   const bots = createBotScheduler({ storage, locked, settle, save, nowSource,
-    dictionary: botOptions.dictionary || defaultDictionary(), rng: botOptions.rng || randomSource,
-    commonDictionary: botOptions.commonDictionary || (botOptions.dictionary ? botOptions.dictionary : defaultCommonDictionary()),
+    dictionary: brainDictionary, rng: botOptions.rng || randomSource, commonDictionary, validateWord,
     timings: botOptions.timings, chooseAction: botOptions.chooseAction });
 
   async function deleteRoom(room, { notify = true } = {}) {
@@ -155,7 +164,7 @@ export function registerSockets(io, storage, { cleanupIntervalMs = 60_000, rando
     on('victory:accept', (data) => action((room, id) => acceptVictory(room, id, data?.pendingId, nowSource())));
     on('challenge:start', () => action((room, id) => startChallenge(room, id, nowSource())));
     on('challenge:preview', (data) => action((room, id) => previewChallenge(room, id, data?.challengeId, data?.letters, nowSource())));
-    on('challenge:confirm', (data) => action((room, id) => confirmChallenge(room, id, data?.challengeId, data?.letters, nowSource(), randomSource)));
+    on('challenge:confirm', (data) => action((room, id) => confirmChallenge(room, id, data?.challengeId, data?.letters, nowSource(), randomSource, validateWord)));
     on('challenge:vote', (data) => action((room, id) => voteChallenge(room, id, data?.challengeId, data?.vote, nowSource(), randomSource)));
     on('challenge:lose', (data) => action((room, id) => loseChallenge(room, id, data?.challengeId, nowSource(), randomSource)));
     // Versão obrigatória na rede: dois cliques sobre a mesma mesa não cobram duas penalidades.

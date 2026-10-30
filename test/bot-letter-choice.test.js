@@ -16,6 +16,7 @@ const now = 100000;
 function fixture(ids = ['wild-0', 'letra-Z'], game = {}) {
   let room = createRoom({ code: 'ABC234', playerId: 'h', sessionId: 's', name: 'Ana', now });
   room = addBot(addBot(room, 'h', 'b1'), 'h', 'b2');
+  room.settings.automaticValidation = false;
   room = startGame(room, 'h', () => .375);
   const composition = compositionForHands([ids]);
   const cards = createDeck(composition), used = new Set(ids);

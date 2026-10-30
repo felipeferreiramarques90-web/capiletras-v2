@@ -3,7 +3,7 @@ import { startChallenge, previewChallenge, confirmChallenge, voteChallenge, lose
 import { acceptVictory } from '../game/victory.js';
 
 // Despacho puro. Toda ação passa pelos mesmos reducers usados pelos sockets humanos.
-export function applyBotAction(room, id, action, { version, now, rng }) {
+export function applyBotAction(room, id, action, { version, now, rng, validateWord }) {
   if (!room.players.some((p) => p.id === id && p.isBot && !p.left)) throw new GameError('Bot não encontrado.');
   if (room.game?.version !== version || room.phase !== 'playing') throw new GameError('A mesa mudou. Ação antiga do bot descartada.');
   if (action.type === 'sword' || action.type === 'sword-decision') {
@@ -30,7 +30,7 @@ export function applyBotAction(room, id, action, { version, now, rng }) {
     case 'play': return playCard(room, id, action.cardId, action.letter, action.blockedLetter, action.accumulatedLetters, version, now);
     case 'skip': return skipTurn(room, id, rng, version);
     case 'preview': return previewChallenge(room, id, action.challengeId, action.letters, now);
-    case 'confirm': return confirmChallenge(room, id, action.challengeId, action.letters, now, rng);
+    case 'confirm': return confirmChallenge(room, id, action.challengeId, action.letters, now, rng, validateWord);
     case 'vote': return voteChallenge(room, id, action.challengeId, action.vote, now, rng);
     case 'lose': return loseChallenge(room, id, action.challengeId, now, rng);
     case 'accept': return acceptVictory(room, id, action.pendingId, now);

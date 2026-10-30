@@ -19,6 +19,7 @@ const rng = () => 0.99;
 const lobby = () => createRoom({ code: 'ABC234', playerId: 'h', sessionId: 'human-session', name: 'Ana', now });
 function fixture(ids = ['wild-0', 'letra-Z'], { word = 'CA', blockedLetter = null, owed = 0, ...game } = {}) {
   let room = addBot(addBot(lobby(), 'h', 'b1'), 'h', 'b2');
+  room.settings.automaticValidation = false;
   room = startGame(room, 'h', () => 0.375);
   room.settings.deckComposition = compositionForHands([ids]);
   const cards = createDeck(room.settings.deckComposition), used = new Set(ids);

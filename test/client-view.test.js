@@ -10,7 +10,7 @@ function votingRoom() {
   let room = createRoom({code:'ABC234', playerId:'p1', sessionId:'s1', name:'Ana', now});
   room = updateSettings(room,'p1',{playerCount:4,initialCards:3});
   for (let i=2;i<=4;i++) room=joinRoom(room,{playerId:`p${i}`,sessionId:`s${i}`,name:['Ana','Bia','Caio','Dora'][i-1]});
-  room=startGame(room,'p1',rng);
+  room.settings.automaticValidation=false;room=startGame(room,'p1',rng);
   Object.assign(room.game,{word:'CASA',lastLetterPlayerId:'p1',lastPlayerId:'p1',turnPlayerId:'p2'});
   room=startChallenge(room,'p2',now);
   return confirmChallenge(room,'p1',room.game.challenge.id,'',now+100,rng);

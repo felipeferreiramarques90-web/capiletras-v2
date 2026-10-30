@@ -12,6 +12,7 @@ function fixture(count = 3) {
   let room = createRoom({ code: 'ABC234', playerId: 'p1', sessionId: 's1', name: 'Ana', now });
   room = updateSettings(room, 'p1', { playerCount: count, initialCards: 3 });
   for (let i = 1; i < count; i++) room = joinRoom(room, { playerId: `p${i + 1}`, sessionId: `s${i + 1}`, name: ['Ana', 'Bia', 'Caio', 'Dani', 'Eva', 'Fábio', 'Gui', 'Hugo'][i] });
+  room.settings.automaticValidation = false;
   room = startGame(room, 'p1', random);
   const cards = createDeck();
   room.players.forEach((p, i) => { p.hand = cards.splice(0, 3); });
