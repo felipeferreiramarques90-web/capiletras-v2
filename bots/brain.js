@@ -1,13 +1,13 @@
 import { ALPHABET, CHALLENGE_RULES } from '../game/config.js';
 import { BOT_RULES } from './config.js';
-import { previewCardWord } from '../game/game.js';
+import { previewCardWord, debtAllowsChallenge } from '../game/game.js';
 
 // Recebe exclusivamente roomView(room, botId): a única mão disponível é view.hand.
 // As cartas jogáveis e letras permitidas já vêm das mesmas funções dos humanos.
 const player = (view, id) => view.players.find((p) => p.id === id);
 const debt = (view) => view.game.letterDebt.playerId === view.meId ? view.game.letterDebt.count : 0;
 const decided = (view) => view.game.botDecisionPlay === view.game.letterPlayNumber;
-const canChallenge = (view) => view.game.word && !view.game.letterDebt.count
+const canChallenge = (view) => view.game.word && debtAllowsChallenge(view.game)
   && view.game.lastLetterPlayerId && view.game.lastLetterPlayerId !== view.meId
   && view.game.protectedPlayerId !== view.game.lastLetterPlayerId;
 

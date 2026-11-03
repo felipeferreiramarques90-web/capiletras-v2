@@ -89,12 +89,11 @@ test('não usa duas espadas seguidas; libera depois que outro jogador joga, sem 
   assert.equal(room.game.word,'CASAS'); assert.equal(room.game.turnPlayerId,'p1');
 });
 
-test('qualquer débito, desafio, vitória pendente ou fim bloqueia a espada sem mutação', () => {
-  const debt = fixture(undefined,{ letterDebt:{count:2,playerId:'p3'} });
+test('desafio, vitória pendente ou fim bloqueiam a espada sem mutação', () => {
   const challenge = startChallenge(fixture(),'p3',now);
   const pending = playCard(fixture([['letra-A'],['sword-0','letra-B'],['letra-C','letra-D']]),'p1','letra-A',undefined,undefined,'',0,now);
   const finished = resolvePendingVictory(pending,now+RULES.victoryWindowMs);
-  for (const room of [debt,challenge,pending,finished]) {
+  for (const room of [challenge,pending,finished]) {
     assert.equal(canPlaySword(room,'p2'),false);
     assert.ok(!roomView(room,'p2').game.playableCardIds.includes('sword-0'));
     unchanged(room,() => cast(room));

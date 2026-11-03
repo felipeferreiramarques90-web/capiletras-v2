@@ -58,9 +58,14 @@ export function debtForPlayer(game, id = game?.turnPlayerId) {
   return game?.letterDebt && game.letterDebt.playerId === id ? game.letterDebt.count : 0;
 }
 
+// A espada abre uma exceção temporária à trava de dúvida por débito.
+export function debtAllowsChallenge(game) {
+  return Boolean(game && (!game.letterDebt.count || game.lastLetterWasSword));
+}
+
 function swordEligible(game, id) {
   return Boolean(game && id && game.turnPlayerId !== id && game.lastPlayerId !== id
-    && !game.letterDebt.count && !game.challenge && !game.pendingVictory && !game.winnerId);
+    && !game.challenge && !game.pendingVictory && !game.winnerId);
 }
 
 export function canPlaySword(room, id) {
@@ -213,7 +218,7 @@ export function startGame(original, id, random) {
     lastPlayerId: null, winnerId: null, pendingVictory: null, turnNumber: 1,
     blockedLetter: null, protectedPlayerId: null, extraTurns: [], version: 0,
     letterDebt: { count: 0, playerId: null },
-    lastLetterPlayerId: null, challenge: null, challengeResult: null,
+    lastLetterPlayerId: null, lastLetterWasSword: false, challenge: null, challengeResult: null,
     letterPlayNumber: 0, botDecisions: {}, playNumber: 0, botSwordDecisions: {},
   };
   room.notice = 'A partida começou. Boa sorte!';
@@ -377,6 +382,7 @@ export function playCard(original, id, cardId, choice, blockedChoice, accumulate
         : CARD_TYPES[card.type].protectsFromChallenge ? `${player.name} jogou Vida ${CARD_TYPES[card.type].symbol}: adicionou ${letter}.`
         : `${player.name} jogou a letra ${letter}.`;
   }
+  room.game.lastLetterWasSword = effect === 'interrupt';
   room.game.lastPlayerId = id;
   room.game.playNumber = (room.game.playNumber || 0) + 1;
   if (usesLetters) {
@@ -424,6 +430,7 @@ export function skipTurn(original, id, random, expectedVersion = original.game?.
   room.game.letterDebt = { count: 0, playerId: null };
   room.game.protectedPlayerId = null;
   room.game.lastPlayerId = null;
+  room.game.lastLetterWasSword = false;
   room.game.version++;
   room.notice = `${player.name} não conseguiu jogar, comprou ${cards.length} carta${cards.length === 1 ? '' : 's'} e perdeu a vez.`;
   if (previousBlock) room.notice += ` O bloqueio da letra ${previousBlock} foi cancelado.`;
@@ -515,6 +522,7 @@ export function roomView(room, viewerId) {
         canAccept: !game.challenge && game.pendingVictory.voterIds.includes(viewerId) && !game.pendingVictory.acceptedIds.includes(viewerId),
       } : null,
       lastLetterPlayerId: game.lastLetterPlayerId,
+      lastLetterWasSword: Boolean(game.lastLetterWasSword), canChallengeWithDebt: debtAllowsChallenge(game),
       challenge: challenge ? {
         id: challenge.id, phase: challenge.phase, challengerId: challenge.challengerId,
         challengedId: challenge.challengedId, baseWord: challenge.baseWord, addedLetters: challenge.addedLetters,

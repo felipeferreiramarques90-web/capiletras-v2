@@ -84,18 +84,46 @@ test('ação do bot com versão antiga é descartada após uma espada; replaneja
   assert.equal(decide(next).letter,'A');
 });
 
-test('cérebro usa só mão própria; espada não é oferecida na vez nem com débito', () => {
+test('cérebro usa só mão própria; espada não é oferecida na vez e é oferecida com débito', () => {
   const room = fixture(), view = roomView(room,'b1');
   view.players.forEach((p) => Object.defineProperty(p,'hand',{get(){throw Error('Mão adversária acessada');}}));
   assert.equal(decideBotAction(view,dictionary,() => 0).type,'sword');
   room.game.turnPlayerId = 'b1';
   assert.notEqual(botTask(roomView(room,'b1'),dictionary)?.kind,'sword');
   room.game.turnPlayerId = 'h'; room.game.letterDebt = {count:1,playerId:'h'};
-  assert.equal(botTask(roomView(room,'b1'),dictionary),null);
+  assert.equal(botTask(roomView(room,'b1'),dictionary)?.kind,'sword');
 });
 
 for (const seed of [3,15,29,44,99]) test(`partida completa com bots e espadas termina sem travar (semente ${seed})`, () => {
   const room = simulateMatch(DEFAULT_DECK_COMPOSITION,seed);
   assert.equal(room.phase,'finished');
   assert.equal(room.game.deck.length + room.game.discard.length + room.players.reduce((n,p) => n + p.hand.length,0),70);
+});
+
+test('bot usa espada com débito preservado, mesmas chances e letras restritas pelo bloqueio', () => {
+  const room = fixture({blockedLetter:'S'});
+  room.game.letterDebt = {count:2,playerId:'h'};
+  const action = decide(room,()=>.1);
+  assert.equal(action.type,'sword');assert.equal(action.letter,'N');
+  const next = apply(room,action);
+  assert.deepEqual(next.game.letterDebt,room.game.letterDebt);
+  assert.equal(next.game.word,'CAN');assert.equal(next.game.blockedLetter,null);
+  assert.equal(decide(room,()=>.2).type,'sword-decision');
+});
+
+test('bot só duvida com débito se última jogada foi espada, sem alterar chance nem sorteio único', () => {
+  let room = fixture({word:'ZZZ'});
+  room.game.letterDebt = {count:2,playerId:'h'};
+  room.game.lastLetterPlayerId = 'h';
+  assert.notEqual(botTask(roomView(room,'b1'),dictionary)?.kind,'doubt');
+  room.game.lastLetterWasSword = true;
+  assert.equal(botTask(roomView(room,'b1'),dictionary).kind,'doubt');
+  assert.equal(decide(room,()=>.34).type,'challenge');
+  assert.equal(decide(room,()=>.35).type,'decision');
+  room = apply(room,decide(room,()=>.99));
+  assert.notEqual(botTask(roomView(room,'b1'),dictionary)?.kind,'doubt');
+  assert.equal(botTask(roomView(room,'b2'),dictionary).kind,'doubt');
+  room.game.lastLetterWasSword = false;
+  room.game.letterPlayNumber++;
+  assert.notEqual(botTask(roomView(room,'b2'),dictionary)?.kind,'doubt');
 });

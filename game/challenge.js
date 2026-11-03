@@ -1,5 +1,5 @@
 import { CHALLENGE_RULES, RULES } from './config.js';
-import { GameError, takeCards, advanceTurn } from './game.js';
+import { GameError, takeCards, advanceTurn, debtAllowsChallenge } from './game.js';
 import { finishVictory } from './victory.js';
 
 const requireRule = (condition, message) => { if (!condition) throw new GameError(message); };
@@ -54,6 +54,7 @@ function finish(room, penalizedId, reason, automatic, now, random, preserveAdded
   game.protectedPlayerId = null;
   game.lastLetterPlayerId = null;
   game.lastPlayerId = null;
+  game.lastLetterWasSword = false;
   game.challenge = null;
   game.pendingVictory = null;
   game.version++;
@@ -70,7 +71,7 @@ export function startChallenge(original, id, now) {
   requireRule(!room.game.challenge, 'Já existe um desafio em andamento.');
   requireRule(!room.game.pendingVictory || now < room.game.pendingVictory.deadline, 'O prazo da vitória pendente terminou.');
   const debt = room.game.letterDebt;
-  requireRule(debt.count === 0,
+  requireRule(debtAllowsChallenge(room.game),
     `Não dá para duvidar: ${player(room, debt.playerId)?.name || 'um jogador'} ainda deve ${debt.count} letra${debt.count === 1 ? '' : 's'}.`);
   requireRule(room.game.word && room.game.lastLetterPlayerId, 'A palavra está vazia. Aguarde alguém adicionar uma letra.');
   const challenged = player(room, room.game.lastLetterPlayerId);
