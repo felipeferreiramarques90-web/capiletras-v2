@@ -22,15 +22,15 @@ function fixture({ hands = [['life-0', 'letra-B', 'letra-E'], ['double-0', 'letr
 }
 const playLife = (room, letter = 'A') => playCard(room, 'p1', 'life-0', letter);
 
-test('Vida é opcional: zero no padrão de 76 cartas e disponível por composição personalizada', () => {
+test('Vida é opcional: zero no padrão de 70 cartas e disponível por composição personalizada', () => {
   assert.equal(CARD_TYPES.life.quantity, 0);
-  assert.equal(DECK_SIZE, 76);
+  assert.equal(DECK_SIZE, 70);
   assert.equal(createDeck().length, DECK_SIZE);
   assert.equal(new Set(createDeck().map((card) => card.id)).size, DECK_SIZE);
   assert.equal(createDeck().filter((card) => card.type === 'life').length, 0);
   const customized = createDeck(compositionForHands([['life-0', 'life-1']]));
   assert.equal(customized.filter((card) => card.type === 'life').length, 2);
-  assert.deepEqual([2, 3, 4, 5, 6, 7, 8].map((players) => maxInitialCards(players)), [35, 25, 18, 15, 12, 10, 9]);
+  assert.deepEqual([2, 3, 4, 5, 6, 7, 8].map((players) => maxInitialCards(players)), [32, 23, 17, 13, 11, 9, 8]);
 });
 
 test('Vida adiciona uma vogal, inclusive com visor vazio, e publica o aviso', () => {

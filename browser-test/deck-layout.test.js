@@ -95,7 +95,7 @@ test('lobby: composição editável só pelo anfitrião, total ao vivo, limites,
   const { page, context, storage, code, clients, url } = await setup(t);
   await page.locator('.deck-settings summary').click();
   await page.locator('#deck-wild').waitFor({ state: 'visible' });
-  assert.equal(await page.locator('#deck-total').innerText(), '72 cartas');
+  assert.equal(await page.locator('#deck-total').innerText(), '66 cartas');
   assert.equal(await page.locator('#initial-cards').inputValue(), '7');
   assert.equal(await page.locator('#deck-life').inputValue(), '0');
   for (const [width, height] of [[375,667],[1440,900]]) {
@@ -111,8 +111,8 @@ test('lobby: composição editável só pelo anfitrião, total ao vivo, limites,
 
   await page.locator('[data-deck-type=wild][data-deck-step="1"]').click();
   await waitFor(async () => (await storage.getRoom(code)).settings.deckComposition.wild === 13);
-  await page.locator('#deck-total').filter({ hasText: '73 cartas' }).waitFor();
-  await waitFor(() => clients[0].view?.deckSize === 73);
+  await page.locator('#deck-total').filter({ hasText: '67 cartas' }).waitFor();
+  await waitFor(() => clients[0].view?.deckSize === 67);
   assert.equal(clients[0].view.settings.deckComposition.wild, 13);
   await page.locator('#deck-wild').fill('31'); await page.locator('#deck-wild').blur();
   assert.equal(await page.locator('[data-action=start]').isDisabled(), true);
@@ -121,7 +121,7 @@ test('lobby: composição editável só pelo anfitrião, total ao vivo, limites,
   await page.locator('[data-action=reset-deck]').click();
   await page.locator('#deck-wild').filter({ visible: true }).waitFor();
   await waitFor(async () => (await page.locator('#deck-wild').inputValue()) === '12');
-  await page.locator('#initial-cards').fill('36');
+  await page.locator('#initial-cards').fill('33');
   assert.equal(await page.locator('[data-action=start]').isDisabled(), true);
   assert.match(await page.locator('#start-help').innerText(), /reservar cartas/);
   await page.locator('#initial-cards').fill('7');
@@ -141,7 +141,7 @@ test('lobby: composição editável só pelo anfitrião, total ao vivo, limites,
   await other.goto(url); await other.locator('.deck-settings summary').click();
   assert.equal(await other.locator('input[data-deck-type]').count(), 0);
   assert.equal(await other.locator('[data-action=reset-deck]').count(), 0);
-  await page.locator('#initial-cards').fill('35'); await page.locator('#settings-form button').click();
+  await page.locator('#initial-cards').fill('32'); await page.locator('#settings-form button').click();
   for (const type of clients[0].view.config.configurableCardTypes) {
     if (type === 'sword') { assert.equal(await page.locator('#deck-sword').isDisabled(), true); continue; }
     await page.locator(`#deck-${type}`).fill('0'); await page.locator(`#deck-${type}`).blur();
@@ -165,17 +165,17 @@ test('lobby: espada desabilitada com dois participantes reais, preserva quantida
   await page.locator('.deck-settings summary').click();
   assert.equal(await page.locator('#deck-sword').inputValue(),'4');
   assert.equal(await page.locator('#deck-sword').isDisabled(),true);
-  assert.equal(await page.locator('#deck-total').innerText(),'72 cartas');
+  assert.equal(await page.locator('#deck-total').innerText(),'66 cartas');
   await page.locator('.deck-unavailable').filter({hasText:'Indisponível em partidas de 2 jogadores'}).waitFor();
   await page.locator('[data-action=add-bot]').click();
   await waitFor(async()=>!(await page.locator('#deck-sword').isDisabled()));
-  assert.equal(await page.locator('#deck-total').innerText(),'76 cartas');
+  assert.equal(await page.locator('#deck-total').innerText(),'70 cartas');
   assert.equal(await page.locator('#deck-sword').inputValue(),'4');
   await page.locator('[data-deck-type=sword][data-deck-step="1"]').click();
   await waitFor(async()=>(await storage.getRoom(code)).settings.deckComposition.sword===5);
   await page.locator('[data-remove-bot]').click();
   await waitFor(async()=>(await page.locator('#deck-sword').isDisabled()));
-  assert.equal(await page.locator('#deck-sword').inputValue(),'5');await page.locator('#deck-total').filter({hasText:'72 cartas'}).waitFor();
+  assert.equal(await page.locator('#deck-sword').inputValue(),'5');await page.locator('#deck-total').filter({hasText:'66 cartas'}).waitFor();
   await page.locator('[data-action=reset-deck]').click();
   await waitFor(async()=>(await page.locator('#deck-sword').inputValue())==='4');
   for(const [width,height]of[[375,667],[1440,900]]){

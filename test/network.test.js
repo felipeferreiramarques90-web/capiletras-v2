@@ -60,13 +60,13 @@ test('HTTP: /health responde 200 e o mesmo servidor entrega o front-end e Socket
   assert.equal((await fetch(`${url}/socket.io/socket.io.js`)).status, 200);
   assert.equal((await fetch(`${url}/game/game.js`)).status, 404);
   const config = await (await fetch(`${url}/api/config`)).json();
-  assert.equal(config.deckSize, 76);
+  assert.equal(config.deckSize, 70);
   assert.equal(config.cardTypes.swap.quantity, 6);
   assert.equal(config.cardTypes.block.quantity, 6);
-  assert.equal(config.cardTypes.double.quantity, 6);
-  assert.equal(config.cardTypes.multi.quantity, 4);
+  assert.equal(config.cardTypes.double.quantity, 4);
+  assert.equal(config.cardTypes.multi.quantity, 2);
   assert.equal(config.cardTypes.life.quantity, 0);
-  assert.equal(config.cardTypes.pass.quantity, 8);
+  assert.equal(config.cardTypes.pass.quantity, 6);
   assert.equal(config.cardTypes.life.letters, 'AEIOU');
   assert.equal(config.cardTypes.multi.minLetters, 2);
   assert.equal(config.cardTypes.multi.maxLetters, 16);

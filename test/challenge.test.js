@@ -55,9 +55,9 @@ function assertReset(room, before, penalizedId) {
   assert.deepEqual(JSON.parse(JSON.stringify(room)), room);
 }
 
-test('desafio não altera o baralho de 76 cartas e tem tempos/limites em constantes', () => {
-  assert.equal(DECK_SIZE, 76);
-  assert.equal(createDeck().length, 76);
+test('desafio não altera o baralho de 70 cartas e tem tempos/limites em constantes', () => {
+  assert.equal(DECK_SIZE, 70);
+  assert.equal(createDeck().length, 70);
   assert.equal(CHALLENGE_RULES.completionMs, 30_000);
   assert.equal(CHALLENGE_RULES.voteMs, 15_000);
   assert.equal(Object.hasOwn(CHALLENGE_RULES, 'lossMs'), false);

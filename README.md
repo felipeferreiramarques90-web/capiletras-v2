@@ -38,14 +38,14 @@ No lobby, abra **Baralho**. Só o anfitrião edita as quantidades pelos botões 
 | --- | ---: |
 | Coringa * | 12 |
 | Vida ❤️ | 0 |
-| Passar letra → | 8 |
+| Passar letra → | 6 |
 | Troca 🔄 | 6 |
 | Bloqueio ➕🚫 | 6 |
-| 2x | 6 |
-| 2+* | 4 |
+| 2x | 4 |
+| 2+* | 2 |
 | Jogar na vez do outro ⚔️ | 4 |
 
-As **26 letras e quatro restritivas** são fixas (30 cartas). Cada tipo configurável aceita inteiros de **0 a 30**, com limite de **150 cartas no total**. Todos podem ser zerados; nesse caso o baralho tem 30 cartas. O padrão configurado é **76 cartas** (30 fixas + 46 configuráveis) com três ou mais participantes; com exatamente **2 participantes reais**, o baralho efetivo tem **72 cartas**, pois a espada entra com quantidade 0. A Vida começa em **0** e continua disponível para adicionar pelo controle do lobby. Quantidades inválidas são rejeitadas pelo servidor sem modificar a sala; o início fica indisponível com o motivo indicado.
+As **26 letras e quatro restritivas** são fixas (30 cartas). Cada tipo configurável aceita inteiros de **0 a 30**, com limite de **150 cartas no total**. Todos podem ser zerados; nesse caso o baralho tem 30 cartas. O padrão configurado é **70 cartas** (30 fixas + 40 configuráveis) com três ou mais participantes; com exatamente **2 participantes reais**, o baralho efetivo tem **66 cartas**, pois a espada entra com quantidade 0. A Vida começa em **0** e continua disponível para adicionar pelo controle do lobby. Quantidades inválidas são rejeitadas pelo servidor sem modificar a sala; o início fica indisponível com o motivo indicado.
 
 A mão inicial padrão é de **7 cartas**, definida em `RULES.defaultHand`. Mudar a composição ou o número de jogadores recalcula `floor((total - 1) / jogadores)` como máximo de cartas iniciais. Se a mão escolhida ultrapassar esse valor, ela é reduzida automaticamente, com aviso ao anfitrião. O início também valida a distribuição e a reserva de compra. A composição é travada durante a partida e preservada em **Jogar de novo** e no retorno à sala. Com exatamente dois participantes reais (humanos + bots, independentemente do limite configurado), o controle da espada fica desabilitado com o aviso **“Indisponível em partidas de 2 jogadores”**. Seu valor escolhido é preservado; volta a valer quando o terceiro entra. O total efetivo e o máximo inicial recalculam também ao entrar ou sair alguém do lobby. Ao iniciar, `game.deckComposition` congela a composição efetiva: uma saída durante a partida não retira espadas já distribuídas.
 
@@ -143,12 +143,12 @@ A paleta e os tamanhos ficam nas variáveis de **`public/styles.css`**, no `:roo
 | `--carta-verso`, `--carta-verso-borda`, `--capivara-*` | Marrom `#69412c`, borda bege e cores da ilustração do verso. |
 | `--carta-largura`, `--carta-altura`, `--carta-fonte-*`, `--verso-*` | Frentes de **92 × 127 px** no desktop e **70 × 100 px** no celular, como antes; tamanhos das letras, símbolos e versos. |
 
-As letras fixas, o coringa e as restritivas têm `+` no canto; as restritivas mostram “vogal”, “consoante”, “a-m” e “n-z”. O Bloqueio mostra 🚫 no centro e `+` no canto. Cartas desabilitadas ficam esmaecidas e sem brilho; hover e seleção mantêm o comportamento. A arte fica nos componentes de renderização em `public/app.js`, separada da configuração de regras do servidor. O tema não altera regras nem a arte das cartas. A composição padrão tem **76 cartas** (72 com dois participantes), e as quantidades escolhidas pelo anfitrião valem para a sala.
+As letras fixas, o coringa e as restritivas têm `+` no canto; as restritivas mostram “vogal”, “consoante”, “a-m” e “n-z”. O Bloqueio mostra 🚫 no centro e `+` no canto. Cartas desabilitadas ficam esmaecidas e sem brilho; hover e seleção mantêm o comportamento. A arte fica nos componentes de renderização em `public/app.js`, separada da configuração de regras do servidor. O tema não altera regras nem a arte das cartas. A composição padrão tem **70 cartas** (66 com dois participantes), e as quantidades escolhidas pelo anfitrião valem para a sala.
 
 ## Como jogar
 
-- O baralho **padrão** tem **76 cartas** com três ou mais participantes, ou **72** com dois (sem espadas): **26 letras fixas, 4 restritivas, 12 coringas, 6 Trocas, 6 Bloqueios, 6 cartas 2x, 4 cartas `2+*`, 8 cartas Passar letra e 4 cartas Jogar na vez do outro**. Vida tem quantidade padrão **0**. O anfitrião pode personalizar os oito tipos especiais no lobby; as letras e as restritivas são fixas.
-- O padrão de cartas iniciais é **7** e o mínimo é 3. O máximo é `floor((tamanhoDoBaralho - reservaDeCompra) / jogadores)`. A reserva padrão é 1: com o baralho padrão, são até **35 cartas para 2 jogadores** ou **9 para 8**. O total é calculado a partir da composição salva na sala, somada às cartas fixas; a interface recebe os limites e os padrões de `game/config.js`.
+- O baralho **padrão** tem **70 cartas** com três ou mais participantes, ou **66** com dois (sem espadas): **26 letras fixas, 4 restritivas, 12 coringas, 6 Trocas, 6 Bloqueios, 4 cartas 2x, 2 cartas `2+*`, 6 cartas Passar letra e 4 cartas Jogar na vez do outro**. Vida tem quantidade padrão **0**. O anfitrião pode personalizar os oito tipos especiais no lobby; as letras e as restritivas são fixas.
+- O padrão de cartas iniciais é **7** e o mínimo é 3. O máximo é `floor((tamanhoDoBaralho - reservaDeCompra) / jogadores)`. A reserva padrão é 1: com o baralho padrão, são até **32 cartas para 2 jogadores** ou **8 para 8**. O total é calculado a partir da composição salva na sala, somada às cartas fixas; a interface recebe os limites e os padrões de `game/config.js`.
 - Na sua vez, você pode comprar **no máximo uma carta**, opcionalmente. Comprar não passa a vez: baixe uma carta, inclusive a recém-comprada. Sem comprar, também pode jogar diretamente.
 - Cartas fixas acrescentam sua letra. Nas demais, um seletor habilita somente as letras válidas. As escolhas vão de A a Z, sem acentos; Y é tratado como consoante.
 - **Não consigo jogar** só fica disponível para quem está na vez, tem cartas e não consegue jogar nenhuma delas. Passar letra e Vida são jogáveis com pelo menos duas cartas na mão; como carta única também ficam indisponíveis. Antes de usar o botão, é obrigatório comprar a carta opcional deste turno. A exceção é quando baralho e descarte estão vazios: sem carta jogável, pode passar sem comprar. Se a carta comprada for jogável, o botão permanece desabilitado. O contador de compras zera em todo novo turno, inclusive no turno forçado e no retorno do 2x. O servidor rejeita o clique antecipado sem alterar o estado. Ele não fica disponível durante desafio ou vitória pendente.
@@ -170,8 +170,8 @@ O aviso de ação mais recente aparece **logo abaixo do visor**, substituindo a 
 | --- | ---: | --- | --- |
 | Troca | 6 | Azul neon, 🔄 | Escolha A–Z para **substituir a última letra** por outra. Sem débito, exige visor preenchido e respeita bloqueios. Com débito, primeiro entram as acumuladas e a última delas é substituída; vale mesmo com visor inicialmente vazio. |
 | Bloqueio | 6 | Vermelha, ➕🚫 | Escolha uma letra para adicionar e outra para bloquear até a **próxima jogada que adiciona ou substitui letra**. As duas escolhas são independentes: pode bloquear a própria letra adicionada. |
-| 2x | 6 | Preta, 2x em contorno ciano/violeta/rosa | Não muda o visor. Quem baixou a carta imediatamente anterior joga novamente; depois, o autor do 2x recebe um novo turno com nova compra opcional. Só então a ordem normal continua. Não vale antes da primeira jogada. |
-| 2+* | 4 | Verde neon, bomba vermelha e 2+* no canto | Digite duas ou mais letras para acrescentar à palavra. Só a primeira respeita o Bloqueio ativo. |
+| 2x | 4 | Preta, 2x em contorno ciano/violeta/rosa | Não muda o visor. Quem baixou a carta imediatamente anterior joga novamente; depois, o autor do 2x recebe um novo turno com nova compra opcional. Só então a ordem normal continua. Não vale antes da primeira jogada. |
+| 2+* | 2 | Verde neon, bomba vermelha e 2+* no canto | Digite duas ou mais letras para acrescentar à palavra. Só a primeira respeita o Bloqueio ativo. |
 | Vida | 0 | Rosa, ❤️ | Só vogais: escolha A, E, I, O ou U e adicione ao visor. Depois, o autor fica protegido contra desafios. |
 | Jogar na vez do outro | 4 | Preta, espada vertical em gradiente e + | Coringa apenas fora da vez; adiciona letra sem mudar turno nem compra. |
 | Passar letra | 8 | Preta, seta → em gradiente | Não usa letra: passa a vez e transfere ao próximo o débito anterior acrescido de uma letra. Sempre jogável, inclusive como primeira carta. |
@@ -204,11 +204,11 @@ Com Bloqueio, **só a primeira letra acumulada não pode ser a bloqueada**; as d
 
 **2x e Passar letra não pagam o débito.** No 2x, ele acompanha quem é forçado a jogar de novo. Se esse jogador usar Passar letra, soma mais uma e devolve o débito ao autor do 2x; nas cadeias de 2x, ele sempre acompanha quem vai jogar, respeitando a pilha de retornos. Comprar uma carta não paga nem aumenta o débito. **Não consigo jogar e PERDI do desafio zeram todo o débito**, além de zerar a palavra e cancelar o Bloqueio, e avisam a mesa. A proteção da Vida contra desafios continua restrita ao seu autor.
 
-O centro da mesa mostra **“Fulano deve N letras”** para todos. O estado `game.letterDebt = { count, playerId }` é JSON serializável; ele acompanha também passagens por desconexão. Quantidade padrão (`8`) e acréscimo (`1`) ficam em `CARD_TYPES.pass`, em `game/config.js`. O preto e as cores da seta são ajustáveis nas variáveis `--pass-card-background` e `--pass-arrow-gradient` de `public/styles.css`.
+O centro da mesa mostra **“Fulano deve N letras”** para todos. O estado `game.letterDebt = { count, playerId }` é JSON serializável; ele acompanha também passagens por desconexão. Quantidade padrão (`6`) e acréscimo (`1`) ficam em `CARD_TYPES.pass`, em `game/config.js`. O preto e as cores da seta são ajustáveis nas variáveis `--pass-card-background` e `--pass-arrow-gradient` de `public/styles.css`.
 
 ### Outras interações
 
-A carta `2+*` é um coringa de várias letras: digite uma sequência de **2 a 16 letras de A a Z**. Todas entram no final do visor, na ordem digitada, em maiúsculas. O modal remove espaços, números, acentos e símbolos enquanto você digita; o servidor rejeita esses caracteres se forem enviados diretamente. Não há validação por dicionário. A quantidade padrão (`4`), o mínimo (`2`) e o máximo (`16`) são constantes em `CARD_TYPES.multi`, em `game/config.js`.
+A carta `2+*` é um coringa de várias letras: digite uma sequência de **2 a 16 letras de A a Z**. Todas entram no final do visor, na ordem digitada, em maiúsculas. O modal remove espaços, números, acentos e símbolos enquanto você digita; o servidor rejeita esses caracteres se forem enviados diretamente. Não há validação por dicionário. A quantidade padrão (`2`), o mínimo (`2`) e o máximo (`16`) são constantes em `CARD_TYPES.multi`, em `game/config.js`.
 
 O modal mostra contador, prévia da palavra e confirmação habilitada apenas com uma sequência válida. Sob Bloqueio, **só a primeira letra não pode ser a bloqueada**: com A bloqueado, `BAAA` é válido e `AB` não é. Da segunda posição em diante, a letra bloqueada é permitida. A carta continua jogável sob qualquer Bloqueio e sua jogada consome a restrição. Ela conta como uma jogada normal para o próximo 2x e a janela de vitória ao esvaziar a mão. No celular, o modal se ajusta à área visível ao abrir o teclado; o conteúdo rola e o botão de confirmação fica separado dessa rolagem. Palavras e prévias longas quebram linha e têm rolagem própria.
 

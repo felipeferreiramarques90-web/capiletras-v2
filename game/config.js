@@ -37,10 +37,10 @@ export const CARD_TYPES = Object.freeze(Object.fromEntries(Object.entries({
   last: { quantity: 1, letters: 'NOPQRSTUVWXYZ', effect: 'append', label: 'N até Z', symbol: '→', color: 'peach' },
   swap: { quantity: 6, letters: ALPHABET, effect: 'replace', label: 'Troca', symbol: '🔄', color: 'blue' },
   block: { quantity: 6, letters: ALPHABET, effect: 'block', label: 'Bloqueio', symbol: '➕🚫', color: 'red' },
-  double: { cannotBeLast: true, quantity: 6, letters: '', effect: 'replay', label: '2x', symbol: '2x', color: 'double' },
-  multi: { quantity: 4, letters: ALPHABET, effect: 'appendMany', minLetters: 2, maxLetters: 16, label: '2+*', symbol: '2+*', color: 'purple' },
+  double: { cannotBeLast: true, quantity: 4, letters: '', effect: 'replay', label: '2x', symbol: '2x', color: 'double' },
+  multi: { quantity: 2, letters: ALPHABET, effect: 'appendMany', minLetters: 2, maxLetters: 16, label: '2+*', symbol: '2+*', color: 'purple' },
   life: { cannotBeLast: true, quantity: 0, letters: 'AEIOU', effect: 'append', protectsFromChallenge: true, label: 'Vida', description: 'Só vogais', symbol: '❤️', color: 'pink' },
-  pass: { cannotBeLast: true, quantity: 8, letters: '', effect: 'pass', debtIncrement: 1, label: 'Passar letra', symbol: '→', color: 'black' },
+  pass: { cannotBeLast: true, quantity: 6, letters: '', effect: 'pass', debtIncrement: 1, label: 'Passar letra', symbol: '→', color: 'black' },
   sword: { cannotBeLast: true, quantity: 4, letters: ALPHABET, effect: 'interrupt', label: 'Jogar na vez do outro', caption: 'jogue na vez do outro', symbol: '⚔️', color: 'sword' },
 }).map(([type, rule]) => [type, Object.freeze(rule)])));
 export const CONFIGURABLE_CARD_TYPES = Object.freeze(['wild', 'life', 'pass', 'swap', 'block', 'double', 'multi', 'sword']);

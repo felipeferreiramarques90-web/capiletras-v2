@@ -61,19 +61,19 @@ test('duplo pedido do mesmo autor é negado; letra revalidada usa o bloqueio atu
 });
 
 test('dois participantes reais: espada é 0 efetiva, valor 4 preservado, limite recalcula em entrada e saída',()=>{
-  let room=updateSettings(lobby(),'p1',{playerCount:8,initialCards:9});
+  let room=updateSettings(lobby(),'p1',{playerCount:3,initialCards:23});
   room=joinRoom(room,{playerId:'p2',sessionId:'s2',name:'Bia'});
-  assert.equal(roomView(room,'p1').deckSize,72);assert.equal(room.settings.deckComposition.sword,4);
-  assert.equal(roomView(room,'p1').swordUnavailable,true);assert.equal(room.settings.initialCards,8);
-  assert.match(roomView(room,'p1').settingsAdjustment.message,/ajustadas para 8/);
+  assert.equal(roomView(room,'p1').deckSize,66);assert.equal(room.settings.deckComposition.sword,4);
+  assert.equal(roomView(room,'p1').swordUnavailable,true);assert.equal(room.settings.initialCards,21);
+  assert.match(roomView(room,'p1').settingsAdjustment.message,/ajustadas para 21/);
   room=joinRoom(room,{playerId:'p3',sessionId:'s3',name:'Caio'});
-  assert.equal(roomView(room,'p1').deckSize,76);assert.equal(roomView(room,'p1').swordUnavailable,false);
-  room=updateSettings(room,'p1',{playerCount:8,initialCards:9});
+  assert.equal(roomView(room,'p1').deckSize,70);assert.equal(roomView(room,'p1').swordUnavailable,false);
+  room=updateSettings(room,'p1',{playerCount:3,initialCards:23});
   room=disconnectPlayer(room,'p3',now,true);
-  assert.equal(room.settings.initialCards,8);assert.equal(roomView(room,'p1').deckSize,72);
+  assert.equal(room.settings.initialCards,21);assert.equal(roomView(room,'p1').deckSize,66);
   room=updateDeckComposition(room,'p1',{...DEFAULT_DECK_COMPOSITION,sword:0});
   room=restoreDefaultComposition(room,'p1');
-  assert.equal(room.settings.deckComposition.sword,4);assert.equal(roomView(room,'p1').deckSize,72);
+  assert.equal(room.settings.deckComposition.sword,4);assert.equal(roomView(room,'p1').deckSize,66);
 });
 
 test('partidas de dois sem espadas, inclusive com bot; saída depois do início preserva o baralho congelado',()=>{
@@ -83,18 +83,18 @@ test('partidas de dois sem espadas, inclusive com bot; saída depois do início 
     let room=updateDeckComposition(initial,'p1',{...DEFAULT_DECK_COMPOSITION,sword});
     room=startGame(room,'p1',rng);
     const all=[...room.game.deck,...room.players.flatMap(p=>p.hand)];
-    assert.equal(all.length,72);assert.ok(all.every(c=>c.type!=='sword'));
+    assert.equal(all.length,66);assert.ok(all.every(c=>c.type!=='sword'));
     assert.equal(room.settings.deckComposition.sword,sword);assert.equal(room.game.deckComposition.sword,0);
   }
   let three=addBot(addBot(lobby(),'p1','b1'),'p1','b2');
   three=startGame(three,'p1',rng);
   const originalMaximum=roomView(three,'b1').settings.maxInitialCards;
   three=disconnectPlayer(three,'p1',now,true);
-  assert.equal(roomView(three,'b1').deckSize,76);assert.equal(three.game.deckComposition.sword,4);
+  assert.equal(roomView(three,'b1').deckSize,70);assert.equal(three.game.deckComposition.sword,4);
   assert.equal(roomView(three,'b1').settings.maxInitialCards,originalMaximum);assert.equal(roomView(three,'b1').startIssue,null);
   assert.deepEqual(JSON.parse(JSON.stringify(three)),three);
-  bots=addBot(bots,'p1','b2');assert.equal(roomView(bots,'p1').deckSize,76);
-  bots=removeBot(bots,'p1','b2');assert.equal(roomView(bots,'p1').deckSize,72);
+  bots=addBot(bots,'p1','b2');assert.equal(roomView(bots,'p1').deckSize,70);
+  bots=removeBot(bots,'p1','b2');assert.equal(roomView(bots,'p1').deckSize,66);
 });
 
 for (const [type,choice] of [['life','A'],['pass',undefined],['double',undefined]]) test(`${type} única é rejeitada; compra injogável libera a carta e impede Não consigo jogar`,()=>{
@@ -175,5 +175,5 @@ test('atrasos determinísticos: jogo 5–13s, dúvida final 1–8s, respostas 0,
 for (const seed of [8,77,308]) test(`simulação com as novas regras termina sem vitória imediata indevida (semente ${seed})`,()=>{
   const room=simulateMatch(DEFAULT_DECK_COMPOSITION,seed);
   assert.equal(room.phase,'finished');assert.equal(room.game.deckComposition.sword,4);
-  assert.equal(room.game.deck.length+room.game.discard.length+room.players.reduce((n,p)=>n+p.hand.length,0),76);
+  assert.equal(room.game.deck.length+room.game.discard.length+room.players.reduce((n,p)=>n+p.hand.length,0),70);
 });

@@ -97,5 +97,5 @@ test('cérebro usa só mão própria; espada não é oferecida na vez nem com d�
 for (const seed of [3,15,29,44,99]) test(`partida completa com bots e espadas termina sem travar (semente ${seed})`, () => {
   const room = simulateMatch(DEFAULT_DECK_COMPOSITION,seed);
   assert.equal(room.phase,'finished');
-  assert.equal(room.game.deck.length + room.game.discard.length + room.players.reduce((n,p) => n + p.hand.length,0),76);
+  assert.equal(room.game.deck.length + room.game.discard.length + room.players.reduce((n,p) => n + p.hand.length,0),70);
 });

@@ -22,18 +22,18 @@ function fixture(hands = [['wild-0', 'letra-A', 'double-0'], ['sword-0', 'sword-
 const cast = (room, id = 'p2', card = 'sword-0', letter = 'S', version = room.game.version) => playCard(room, id, card, letter, undefined, '', version, now);
 function unchanged(room, operation, pattern) { const before = structuredClone(room); assert.throws(operation, pattern); assert.deepEqual(room,before); }
 
-test('espada: quatro no padrão de 76, máximo inicial recalculado, zero e restauração', () => {
+test('espada: quatro no padrão de 70, máximo inicial recalculado, zero e restauração', () => {
   assert.equal(CARD_TYPES.sword.quantity, 4);
-  assert.equal(DECK_SIZE, 76);
+  assert.equal(DECK_SIZE, 70);
   assert.equal(createDeck().filter((c) => c.type === 'sword').length, 4);
-  assert.deepEqual([2,3,4,5,6,7,8].map((n) => maxInitialCards(n)), [35,25,18,15,12,10,9]);
+  assert.deepEqual([2,3,4,5,6,7,8].map((n) => maxInitialCards(n)), [32,23,17,13,11,9,8]);
   let lobby = createRoom({ code:'ABC234', playerId:'p1', sessionId:'s1', name:'Ana', now });
   lobby = updateDeckComposition(lobby,'p1',{...DEFAULT_DECK_COMPOSITION,sword:0});
-  assert.equal(roomView(lobby,'p1').deckSize,72);
+  assert.equal(roomView(lobby,'p1').deckSize,66);
   assert.ok(createDeck(lobby.settings.deckComposition).every((c) => c.type !== 'sword'));
   lobby = restoreDefaultComposition(lobby,'p1');
   assert.equal(lobby.settings.deckComposition.sword,4);
-  assert.equal(roomView(lobby,'p1').deckSize,76);
+  assert.equal(roomView(lobby,'p1').deckSize,70);
   for (const value of [-1,31,1.5,'4']) unchanged(lobby,() => updateDeckComposition(lobby,'p1',{...DEFAULT_DECK_COMPOSITION,sword:value}));
   assert.deepEqual(JSON.parse(JSON.stringify(lobby)),lobby);
 });
@@ -190,7 +190,7 @@ test('primeira espada pode colocar a primeira letra; composições salvas antes 
   assert.equal(cast(room).game.word,'S');
   let old = createRoom({code:'ABC234',playerId:'p1',sessionId:'s1',name:'Ana',now});
   delete old.settings.deckComposition.sword;
-  assert.equal(roomView(old,'p1').deckSize,72);
+  assert.equal(roomView(old,'p1').deckSize,66);
   assert.equal(roomView(old,'p1').settings.deckComposition.sword,0);
   old = joinRoom(old,{playerId:'p2',sessionId:'s2',name:'Bia'});
   const playing = startGame(old,'p1',rng);
