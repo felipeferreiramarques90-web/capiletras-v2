@@ -42,9 +42,23 @@ Desde a auditoria de 05/11/2026, a base VERO e a exceção DRIBLAVEL são confer
 contra extratos do Wikcionário/Kaikki. O suplemento separado e sua atribuição estão
 em `audit/`; a referência e seus derivados usam CC BY-SA 4.0, sem alterar a licença
 do VERO. O carregador combina os dados em memória. A lista comum continua sendo
-a interseção da fonte de frequências com o completo, agora com 13.813 palavras.
-O total atual do completo é 2.654.164, incluindo 41.102 acréscimos confirmados.
+a interseção da fonte de frequências com o completo, agora com 12.987 palavras.
+O total atual do completo é 426.095, incluindo 41.102 acréscimos confirmados.
 
 A auditoria não exclui palavras do VERO apenas por não encontrá-las nas referências.
 O bloqueio da casa continua prevalecendo sobre todos os dados, e DRIBLAVEL permanece
 uma exceção explícita. `audit/last-audit.json` registra a revisão e os totais atuais.
+
+## Bloqueio explícito das não confirmadas
+
+Em 05/11/2026, por decisão da mesa, as 2.228.069 palavras classificadas como
+não confirmadas foram adicionadas a `bloqueio.txt`, junto dos 12 bloqueios
+originais. O arquivo contém 2.228.081 palavras únicas. O lote deriva da base
+VERO normalizada, sob a mesma LGPLv3 já acompanhada de licença e fontes neste
+repositório; o relatório foi usado para selecionar as entradas. As referências
+do Wikcionário e seu suplemento continuam separados, sob CC BY-SA 4.0.
+
+`audit/blocked-unconfirmed-import.json` registra a revisão da auditoria usada,
+as contagens e os hashes antes/depois da importação. A nova auditoria registra
+as palavras como bloqueadas; não as qualifica como linguisticamente inexistentes.
+DRIBLAVEL continua uma exceção e os 41.102 acréscimos confirmados não foram bloqueados.

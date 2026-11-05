@@ -120,3 +120,11 @@ test('conferência compara conteúdo e tolera compactações gzip diferentes sem
  assert.notEqual(hash(await readFile(a)),hash(await readFile(b)));
  assert.equal(await sha256GzipContent(a),await sha256GzipContent(b));
 });
+
+test('uma palavra não confirmada passa a ser recusada ao ser explicitamente bloqueada pela mesa',async()=>{
+ const reference=new Map([['CASA',[{source:'ptwiktionary',lemma:'casa'}]]]),blocked=new Set(['LLALLAGUALITAS']),accepted=new Set(['DRIBLAVEL']),records=[];
+ const result=await auditEntries(['llallagualitas','casa'],{reference,blocked,accepted,onRecord:r=>records.push(r)});
+ assert.equal(records.find(r=>r.word==='LLALLAGUALITAS').status,'bloqueada');
+ assert.equal(result.counts.unconfirmed,0);assert.equal(result.counts.blocked,1);assert.equal(result.finalWords,2);
+ assert.equal(records.find(r=>r.word==='DRIBLAVEL').status,'excecao_da_casa');
+});

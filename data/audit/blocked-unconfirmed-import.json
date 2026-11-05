@@ -1,0 +1,9 @@
+{
+  "importedFromAuditAt": "2026-11-05T16:23:23.570Z",
+  "referenceSha256": "7429d51ddd76229cd227510b0b987f74e20609262b10d2e0ce96352af1c9f2df",
+  "previousBlockedSha256": "e05e99de628fef32476b2ed4c690e02ad81c0fd14360ecc429114362f7aa4adc",
+  "previousBlockedWords": 12,
+  "newUnconfirmedBlockedWords": 2228069,
+  "totalBlockedWords": 2228081,
+  "blockedFileSha256": "8cb3dad509e73093594483175e5640b05a40e8a175e68476874423cd40084216"
+}

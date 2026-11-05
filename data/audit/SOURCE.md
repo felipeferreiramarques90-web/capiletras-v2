@@ -62,6 +62,8 @@ O relatório completo por palavra é gerado em `reports/dictionary/` e publicado
 como artefato pelo workflow do GitHub; não é enviado ao cliente nem ao storage.
 
 Não confirmada **não significa inválida**. O modo padrão acrescenta lacunas
-confirmadas e preserva as demais palavras da base. `data/bloqueio.txt` prevalece
+confirmadas e respeita os bloqueios explícitos da casa. O lote de 2.228.069
+não confirmadas de 05/11/2026 foi incluído em `data/bloqueio.txt` a pedido da mesa;
+`blocked-unconfirmed-import.json` registra a origem, as contagens e os hashes. `data/bloqueio.txt` prevalece
 sobre todas as fontes e exceções. Não há certificação de correção semântica de
 cada verbete; o relatório registra exatamente a evidência encontrada.

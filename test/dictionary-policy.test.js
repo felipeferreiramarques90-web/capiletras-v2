@@ -1,3 +1,6 @@
+import {readFileSync,createReadStream} from 'node:fs';
+import {createHash} from 'node:crypto';
+import {DICTIONARY} from '../bots/dictionary-config.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {rejectionReason,parseHouseList,filterWords} from '../bots/dictionary-policy.js';
@@ -55,4 +58,25 @@ test('dicionário do jogo carrega todos os acréscimos auditados sem alterar blo
  assert.equal(full.isWord('PIX'),true);
  for(const word of ['BRASIL','YAKUZA','BUCUNIS'])assert.equal(full.isWord(word),false,word);
  assert.equal(dictionaryReport().supplement.words,supplement.words.length);
+});
+
+test('não confirmadas importadas estão bloqueadas nos dois léxicos; exceções e suplemento permanecem',async()=>{
+ const imported=JSON.parse(readFileSync(new URL('../data/audit/blocked-unconfirmed-import.json',import.meta.url),'utf8'));
+ const full=defaultDictionary(),common=defaultCommonDictionary(),lists=houseLists();
+ assert.equal(imported.newUnconfirmedBlockedWords,2228069);
+ assert.equal(lists.blocked.size,imported.totalBlockedWords);
+ assert.equal(lists.blocked.size,imported.previousBlockedWords+imported.newUnconfirmedBlockedWords);
+ for(const word of ['LLALLAGUALITA','LLALLAGUALITAS']){
+  assert.equal(lists.blocked.has(word),true);assert.equal(full.isWord(word),false);assert.equal(common.isWord(word),false);
+ }
+ for(const word of ['DRIBLAVEL','DRIBLAVEIS','CASA','PIX']){assert.equal(lists.blocked.has(word),false);assert.equal(full.isWord(word),true);}
+ for(const word of ['BRASIL','YAKUZA','NASA'])assert.equal(lists.blocked.has(word),true);
+ assert.equal(houseLists().blocked,lists.blocked,'Reutiliza a lista grande sem reconstruí-la.');
+ const hash=createHash('sha256');for await(const chunk of createReadStream(DICTIONARY.blocked))hash.update(chunk);
+ assert.equal(hash.digest('hex'),imported.blockedFileSha256);
+});
+
+test('leitor de listas mantém comentários, CRLF, normalização e última linha sem quebra',()=>{
+ const words=parseHouseList('# comentário\r\n casa # anotação\r\n\nDRIBLÁVEL\r\nCASA\nINVÁLIDA-TESTE\n\nônibus');
+ assert.deepEqual([...words],['CASA','DRIBLAVEL','ONIBUS']);
 });
