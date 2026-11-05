@@ -1,2 +1,5 @@
-# Exceções da casa: uma palavra por linha (A–Z), por exemplo uma gíria.
-# Começa vazia. O bloqueio sempre prevalece.
+# Exceções da casa: uma palavra por linha (A–Z).
+# O bloqueio sempre prevalece.
+
+# Adjetivo ausente da lista gerada do VERO.
+DRIBLAVEL

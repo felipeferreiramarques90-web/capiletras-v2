@@ -27,7 +27,7 @@ test('opção padrão ligada, edição parcial booleana só do anfitrião antes 
  r=startGame(r,'p1',rng);r.phase='finished';r=startGame(r,'p1',rng);assert.equal(r.settings.automaticValidation,false);
  assert.deepEqual(JSON.parse(JSON.stringify(r)),r);
 });
-for(const [word,suffix,outcome] of [['CA','SA','aceita'],['CASA','','aceita'],['CA','','recusada'],['C','','recusada'],['CANT','','recusada'],['ZZZ','','recusada'],['YAKUZA','','recusada'],['BRASIL','','recusada']])test(`validação exata ${word}+${suffix}: ${outcome}, sem votos nem léxico no estado`,()=>{
+for(const [word,suffix,outcome] of [['CA','SA','aceita'],['CASA','','aceita'],['CA','','recusada'],['C','','recusada'],['CANT','','recusada'],['ZZZ','','recusada'],['YAKUZA','','recusada'],['BRASIL','','recusada'],['DRIBLAVEL','','aceita'],['DRIBLAVEIS','','aceita'],['BUCUNIS','','recusada']])test(`validação exata ${word}+${suffix}: ${outcome}, sem votos nem léxico no estado`,()=>{
  const before=begin(fixture(word)),r=confirm(before,suffix),penalized=outcome==='aceita'?'p2':'p1';reset(r,before,penalized);
  assert.equal(r.game.challengeResult.reason,outcome);assert.equal(r.game.challengeResult.word,word+suffix);assert.equal(r.game.challengeResult.tally,null);assert.deepEqual(r.game.challengeResult.votes,{});
  assert.equal(r.notice,`${word+suffix}: palavra ${outcome}`);assert.equal(clientView(r,'p3').notice,r.notice);assert.deepEqual(clientView(r,'p2').game.challengeResult,{outcome,word:word+suffix});

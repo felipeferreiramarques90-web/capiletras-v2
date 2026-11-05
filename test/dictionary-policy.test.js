@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {rejectionReason,parseHouseList,filterWords} from '../bots/dictionary-policy.js';
-import {createDictionary} from '../bots/dictionary.js';
-import {defaultDictionary,defaultCommonDictionary,commonWords,dictionaryReport} from '../bots/load-dictionary.js';
+import {createDictionary,normalizeWord} from '../bots/dictionary.js';
+import {defaultDictionary,defaultCommonDictionary,commonWords,dictionaryReport,houseLists} from '../bots/load-dictionary.js';
 import {expandHunspell} from '../scripts/hunspell-expand.js';
 import {simulateMatch} from './helpers/simulation.js';
 import {DEFAULT_DECK_COMPOSITION} from '../game/config.js';
@@ -37,4 +37,12 @@ test('comum filtra maiúsculas, hífen, apóstrofo e bloqueio antes da normaliza
 test('simulação longa com novo completo termina e não serializa os léxicos',()=>{
  const full=defaultDictionary(),common=defaultCommonDictionary();
  for(const seed of [51,91,111]){const room=simulateMatch(DEFAULT_DECK_COMPOSITION,seed,{full,common});assert.equal(room.phase,'finished');assert.ok(!JSON.stringify(room).includes('dictionary'));}
+});
+
+test('exceção aceita driblável, preservando seu plural e rejeitando BUCUNIS',()=>{
+ const full=defaultDictionary(),{accepted,blocked}=houseLists();
+ for(const input of ['DRIBLAVEL','driblável','DRIBLAVEIS','dribláveis']){
+  const word=normalizeWord(input);if(word==='DRIBLAVEL')assert.ok(accepted.has(word));assert.equal(blocked.has(word),false);assert.equal(full.isWord(word),true);
+ }
+ assert.equal(full.isWord('BUCUNIS'),false);
 });
