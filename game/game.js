@@ -1,4 +1,4 @@
-import { ALPHABET, CARD_TYPES, CONFIGURABLE_CARD_TYPES, DEFAULT_DECK_COMPOSITION, PUBLIC_CONFIG, RULES, compositionForPlayers, deckSize, maxInitialCards } from './config.js';
+import { ALPHABET, DRAW_RULES, CARD_TYPES, CONFIGURABLE_CARD_TYPES, DEFAULT_DECK_COMPOSITION, PUBLIC_CONFIG, RULES, compositionForPlayers, deckSize, maxInitialCards } from './config.js';
 import { deckStartIssue, roomComposition, lobbyComposition, effectiveRoomComposition, participantCount, roomHandLimit, validateComposition } from './deck.js';
 import { GameError } from './errors.js';
 import { beginPendingVictory } from './victory.js';
@@ -112,7 +112,7 @@ export function canSkipTurn(room, id) {
 export function createRoom({ code, playerId, sessionId, name, now }) {
   return {
     code, hostId: playerId, phase: 'lobby', createdAt: now, updatedAt: now,
-    emptySince: null, settings: { playerCount: 2, initialCards: RULES.defaultHand, automaticValidation: RULES.defaultAutomaticValidation, deckComposition: { ...DEFAULT_DECK_COMPOSITION } },
+    emptySince: null, settings: { playerCount: 2, initialCards: RULES.defaultHand, automaticValidation: RULES.defaultAutomaticValidation, maxDrawsPerTurn: DRAW_RULES.default, deckComposition: { ...DEFAULT_DECK_COMPOSITION } },
     players: [{ id: playerId, sessionId, name: cleanName(name), connected: true, left: false, hand: [] }],
     game: null,
     notice: 'Sala criada. Convide seus amigos!',
@@ -144,8 +144,10 @@ export function updateSettings(original, id, settings) {
   requireHost(room, id);
   requireRule(room.phase === 'lobby', 'A partida já começou.');
   requireRule(settings && typeof settings === 'object' && !Array.isArray(settings), 'Configuração inválida.');
-  requireRule(['playerCount', 'initialCards', 'automaticValidation'].some((key) => Object.hasOwn(settings, key)), 'Configuração inválida.');
+  requireRule(['playerCount', 'initialCards', 'automaticValidation', 'maxDrawsPerTurn'].some((key) => Object.hasOwn(settings, key)), 'Configuração inválida.');
   requireRule(!Object.hasOwn(settings, 'automaticValidation') || typeof settings.automaticValidation === 'boolean', 'Validação automática deve ser ligada ou desligada.');
+  const maxDrawsPerTurn = Object.hasOwn(settings, 'maxDrawsPerTurn') ? settings.maxDrawsPerTurn : room.settings.maxDrawsPerTurn ?? DRAW_RULES.default;
+  requireRule(Number.isInteger(maxDrawsPerTurn) && maxDrawsPerTurn >= DRAW_RULES.min && maxDrawsPerTurn <= DRAW_RULES.max, 'Escolha de 1 a 4 compras por turno.');
   const { playerCount = room.settings.playerCount, initialCards = room.settings.initialCards,
     automaticValidation = room.settings.automaticValidation ?? RULES.defaultAutomaticValidation } = settings;
   requireRule(typeof automaticValidation === 'boolean', 'Validação automática deve ser ligada ou desligada.');
@@ -156,7 +158,7 @@ export function updateSettings(original, id, settings) {
   requireRule(Number.isInteger(initialCards) && initialCards >= RULES.minHand
     && (initialCards <= maximum || playerCount !== room.settings.playerCount),
     `Escolha de ${RULES.minHand} a ${maximum} cartas para essa quantidade de jogadores.`);
-  room.settings = { ...room.settings, playerCount, initialCards: Math.min(initialCards, maximum), automaticValidation };
+  room.settings = { ...room.settings, playerCount, initialCards: Math.min(initialCards, maximum), automaticValidation, maxDrawsPerTurn };
   recordHandAdjustment(room, initialCards > maximum);
   return room;
 }
@@ -195,12 +197,14 @@ export function updateDeckComposition(original, id, composition) {
 export function restoreDefaultComposition(room, id) {
   const next = updateDeckComposition(room, id, DEFAULT_DECK_COMPOSITION);
   next.settings.automaticValidation = RULES.defaultAutomaticValidation;
+  next.settings.maxDrawsPerTurn = DRAW_RULES.default;
   return next;
 }
 
 export function startGame(original, id, random) {
   const room = clone(original);
   room.settings.automaticValidation ??= RULES.defaultAutomaticValidation;
+  room.settings.maxDrawsPerTurn ??= DRAW_RULES.default;
   requireHost(room, id);
   requireRule(room.phase === 'lobby' || room.phase === 'finished', 'A partida já começou.');
   const issue = deckStartIssue(room);
@@ -293,10 +297,14 @@ export function takeCards(game, count, random) {
   return cards;
 }
 
+export function drawLimit(room, id = room.game?.turnPlayerId) {
+  return room.players.find(p => p.id === id)?.isBot ? DRAW_RULES.botMax : room.settings.maxDrawsPerTurn ?? DRAW_RULES.default;
+}
+
 export function drawCard(original, id, random) {
   const room = clone(original);
   const player = requireTurn(room, id);
-  requireRule(room.game.drawsThisTurn < RULES.maxDrawsPerTurn, 'Você já comprou neste turno. Baixe uma carta.');
+  requireRule(room.game.drawsThisTurn < drawLimit(room, id), 'Você já comprou neste turno. Baixe uma carta.');
   const cards = takeCards(room.game, 1, random);
   requireRule(cards.length, 'Não há cartas disponíveis para compra.');
   player.hand.push(...cards);
@@ -500,7 +508,7 @@ export function roomView(room, viewerId) {
   const challenge = game?.challenge;
   return {
     code: room.code, phase: room.phase, hostId: room.hostId, meId: viewerId,
-    settings: { ...room.settings, automaticValidation: room.settings.automaticValidation ?? RULES.defaultAutomaticValidation, deckComposition: { ...roomComposition(room) }, maxInitialCards: room.phase === 'lobby' ? roomHandLimit(room) : maxInitialCards(room.settings.playerCount, effectiveRoomComposition(room), null) },
+    settings: { ...room.settings, maxDrawsPerTurn: room.settings.maxDrawsPerTurn ?? DRAW_RULES.default, automaticValidation: room.settings.automaticValidation ?? RULES.defaultAutomaticValidation, deckComposition: { ...roomComposition(room) }, maxInitialCards: room.phase === 'lobby' ? roomHandLimit(room) : maxInitialCards(room.settings.playerCount, effectiveRoomComposition(room), null) },
     settingsAdjustment: viewerId === room.hostId ? room.settingsAdjustment ?? null : null,
     startIssue: room.phase === 'playing' ? null : deckStartIssue(room),
     deckSize: deckSize(effectiveRoomComposition(room)), swordUnavailable: room.phase === 'lobby' && participantCount(room) === PUBLIC_CONFIG.deckRules.swordUnavailablePlayers, config: PUBLIC_CONFIG, notice: room.notice,
@@ -511,6 +519,7 @@ export function roomView(room, viewerId) {
     game: game ? {
       word: game.word, turnPlayerId: game.turnPlayerId, lastPlayerId: game.lastPlayerId,
       winnerId: game.winnerId, turnNumber: game.turnNumber, drawsThisTurn: game.drawsThisTurn,
+      drawsRemaining: Math.max(0, drawLimit(room) - game.drawsThisTurn),
       version: game.version, blockedLetter: game.blockedLetter, extraTurns: [...game.extraTurns],
       playNumber: game.playNumber || 0, botSwordDecisionPlay: game.botSwordDecisions?.[viewerId] ?? null,
       canPlaySword: canPlaySword(room, viewerId),
@@ -537,7 +546,7 @@ export function roomView(room, viewerId) {
       allowedLettersByCard: Object.fromEntries(viewer.hand.map((card) => [card.id, playableLetters(card, game, viewerId)])),
       deckCount: game.deck.length, discardCount: game.discard.length, availableCount: available,
       paused: connected(room).length < RULES.minPlayers || !room.players.some((p) => p.id === game.turnPlayerId && p.connected && !p.left),
-      canDraw: myTurn && game.drawsThisTurn < RULES.maxDrawsPerTurn && available > 0,
+      canDraw: myTurn && game.drawsThisTurn < drawLimit(room, viewerId) && available > 0,
       canPlay: myTurn,
       canSkipTurn: canSkipTurn(room, viewerId),
       noPlayableCards: !hasPlayableCard(viewer, game),

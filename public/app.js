@@ -1,5 +1,6 @@
 import { protectChallengeField, CHALLENGE_UI } from './challenge-field.js';
 import { initials, createAvatarPalette, botNumber, AVATAR_UI } from './avatars.js';
+import { animateDraws } from './draw-animation.js';
 import { createSound } from './audio/sound.js';
 /* O cliente apresenta a mesa e envia intenções. Todas as regras são validadas pelo servidor. */
 (() => {
@@ -168,6 +169,7 @@ import { createSound } from './audio/sound.js';
   });
   socket.on('disconnect', () => { closeLetters(); connection(); render(); });
   socket.on('room:state', (state) => {
+    const previousView = room;
     if (room?.code !== state.code || room?.hostId !== state.hostId || state.phase !== 'lobby') {
       deckDraft = null;
       if (room?.code !== state.code) deckExpanded = false;
@@ -196,6 +198,7 @@ import { createSound } from './audio/sound.js';
       else refreshLetterOptions();
     }
     render();
+    animateDraws(previousView, state, { artwork: capybaraSvg() });
   });
   socket.on('session:replaced', () => {
     replacing = true;
@@ -310,6 +313,7 @@ import { createSound } from './audio/sound.js';
         <form id="settings-form"><fieldset ${disabled(!isHost() || !canAct())}><label for="player-count">Número de jogadores <span>2 a 8</span></label><select id="player-count" name="playerCount">${Array.from({ length: 7 }, (_, i) => i + 2).map((n) => `<option value="${n}" ${n === room.settings.playerCount ? 'selected' : ''}>${n} jogadores</option>`).join('')}</select>
         <label for="initial-cards">Cartas por pessoa <span id="max-cards">3 a ${room.settings.maxInitialCards}</span></label><input id="initial-cards" name="initialCards" type="number" min="3" max="${room.settings.maxInitialCards}" value="${room.settings.initialCards}" required><p class="field-hint">${room.deckSize} cartas no total. Sempre sobra pelo menos uma para comprar.</p>
         ${isHost() ? '<button class="button secondary full">Salvar configuração <span>✓</span></button>' : ''}</fieldset></form>
+        <div class="draw-settings"><label for="draw-limit">Compras por turno</label>${isHost() ? `<div class="quantity-controls"><button type="button" class="icon-button" data-draw-step="-1" aria-label="Diminuir compras por turno" ${disabled(!canAct() || room.settings.maxDrawsPerTurn <= room.config.drawRules.min)}>−</button><output id="draw-limit">${room.settings.maxDrawsPerTurn}</output><button type="button" class="icon-button" data-draw-step="1" aria-label="Aumentar compras por turno" ${disabled(!canAct() || room.settings.maxDrawsPerTurn >= room.config.drawRules.max)}>+</button></div>` : `<output id="draw-limit">${room.settings.maxDrawsPerTurn}</output>`}</div>
         <label class="automatic-validation-setting" for="automatic-validation"><span><strong>Validação automática de palavras</strong><small>O jogo confere a palavra no dicionário em vez de a mesa votar</small></span><input id="automatic-validation" type="checkbox" role="switch" ${room.settings.automaticValidation ? 'checked' : ''} ${disabled(!isHost() || !canAct())}></label>
         ${deckEditor()}
         <div class="lobby-tip"><span aria-hidden="true">✳</span><p>Não precisa saber a palavra inteira.<br>Só a próxima letra.</p></div>
@@ -332,11 +336,11 @@ import { createSound } from './audio/sound.js';
     const meIndex = room.players.findIndex((p) => p.id === room.meId);
     const ordered = [...room.players.slice(meIndex + 1), ...room.players.slice(0, meIndex)];
     return `<section class="game-layout">${roomBar('PALAVRAS SE CONSTROEM EM BOA COMPANHIA')}
-      <div class="opponents" data-count="${ordered.length}">${ordered.map((p) => `<div class="opponent ${p.id === game.turnPlayerId ? 'active' : ''} ${!p.connected ? 'offline-player' : ''}"><button type="button" class="avatar-target" data-avatar-name="${escape(p.name)}" aria-label="${escape(p.name)}, ${p.cardCount} cartas${!p.connected ? ', desconectado' : ''}">${avatar(p)}${!p.connected ? '<span class="avatar-offline" aria-label="Desconectado">·</span>' : ''}</button><small class="avatar-count"><svg class="count-cards-icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="2" width="11" height="14" rx="2"/><rect x="7" y="5" width="11" height="14" rx="2"/></svg><span>${p.cardCount}</span></small></div>`).join('')}</div>
+      <div class="opponents" data-count="${ordered.length}">${ordered.map((p) => `<div data-player-id="${escape(p.id)}" class="opponent ${p.id === game.turnPlayerId ? 'active' : ''} ${!p.connected ? 'offline-player' : ''}"><button type="button" class="avatar-target" data-avatar-name="${escape(p.name)}" aria-label="${escape(p.name)}, ${p.cardCount} cartas${!p.connected ? ', desconectado' : ''}">${avatar(p)}${!p.connected ? '<span class="avatar-offline" aria-label="Desconectado">·</span>' : ''}</button><small class="avatar-count"><svg class="count-cards-icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="2" width="11" height="14" rx="2"/><rect x="7" y="5" width="11" height="14" rx="2"/></svg><span>${p.cardCount}</span></small></div>`).join('')}</div>
       ${game.paused && !game.challenge && !game.pendingVictory && isHost() ? `<div class="paused-actions"><button class="text-button" data-action="end" ${disabled(!canAct())}>Encerrar partida e voltar à sala →</button></div>` : ''}
       <section class="table-felt" aria-label="Centro da mesa">${game.pendingVictory && !game.challenge ? `<section class="pending-victory" aria-label="Vitória pendente"><p id="victory-countdown" role="status"></p>${game.pendingVictory.playerId !== room.meId ? `<button class="button primary" data-action="accept-victory" ${disabled(!canAct() || !game.pendingVictory.canAccept)}>Aceito a palavra</button>` : '<small>Aguardando os outros jogadores.</small>'}</section>` : ''}
         <div class="table-center"><div class="word-area">${wordHeading(current)}<div class="word-display ${game.word ? '' : 'word-empty'}" aria-label="Palavra atual: ${escape(game.word || 'vazia')}">${game.word ? escape(game.word) : 'A primeira letra é com você.'}</div><div class="table-feedback"><p class="table-notice" role="status">${escape(activeNotice || room.notice)}</p><p class="table-state" id="table-state" role="status">${game.letterDebt.count ? `<span class="debt-state">${escape(room.players.find((p) => p.id === game.letterDebt.playerId)?.name)} deve ${game.letterDebt.count} letra${game.letterDebt.count === 1 ? '' : 's'}</span>` : ''}${game.letterDebt.count && game.blockedLetter ? ' · ' : ''}${game.blockedLetter ? `<span class="block-state">Letra bloqueada: ${escape(game.blockedLetter)}</span>` : ''}</p></div>${game.extraTurns.length ? `<p class="extra-turn-notice">2x ativo · retorno para ${escape(room.players.find((p) => p.id === game.extraTurns.at(-1))?.name)}</p>` : ''}</div></div>
-        <div class="table-controls"><button class="draw-pile ${game.canDraw ? 'available' : ''}" data-action="draw" ${disabled(!game.canDraw || !canAct())} aria-label="Comprar uma carta. ${game.deckCount} cartas na pilha, ${game.discardCount} para reembaralhar."><span class="deck-back card-back" aria-hidden="true">${capybaraSvg()}</span><strong>COMPRAR</strong><small>${game.deckCount} na pilha${game.discardCount ? ` · ${game.discardCount} jogadas` : ''}</small></button><div class="challenge-table-actions"><button class="button challenge-button" data-action="challenge" aria-describedby="table-state" ${disabled(!canAct() || Boolean(game.challenge) || !game.canChallengeWithDebt)}>DUVIDAR</button>${game.challenge ? '<button class="text-button" data-action="challenge-view">Acompanhar desafio →</button>' : ''}</div></div>
+        <div class="table-controls"><button class="draw-pile ${game.canDraw ? 'available' : ''}" data-action="draw" ${disabled(!game.canDraw || !canAct())} aria-label="Comprar uma carta. ${game.deckCount} cartas na pilha, ${game.discardCount} para reembaralhar."><span class="deck-back card-back" aria-hidden="true">${capybaraSvg()}<span class="deck-count">${game.deckCount}</span></span><span class="draw-remaining ${game.turnPlayerId === room.meId ? 'own-draws' : ''}" aria-label="${game.drawsRemaining} compras restantes"><span aria-hidden="true">🂠</span> x ${game.drawsRemaining}</span></button><div class="challenge-table-actions"><button class="button challenge-button" data-action="challenge" aria-describedby="table-state" ${disabled(!canAct() || Boolean(game.challenge) || !game.canChallengeWithDebt)}>DUVIDAR</button>${game.challenge ? '<button class="text-button" data-action="challenge-view">Acompanhar desafio →</button>' : ''}</div></div>
       </section>
       <section class="hand-section" aria-label="Sua mão"><div class="hand-heading"><h2>Sua mão <span>${room.hand.length} carta${room.hand.length === 1 ? '' : 's'}</span></h2>${game.canSkipTurn && canAct() ? '<button class="button lose-button skip-button hand-skip-button" data-action="skip">Não consigo jogar <span aria-hidden="true">↺</span></button>' : ''}</div>
       <div class="hand-cards">${room.hand.map((card) => cardButton(card, canUseCard(card))).join('')}</div></section>
@@ -594,6 +598,8 @@ import { createSound } from './audio/sound.js';
     if (event.target.closest('[data-restricted-card]')) { toast('Compre uma carta para poder jogar esta'); return; }
     const cardHint = event.target.closest('[data-card-hint]');
     if (cardHint) { toast(cardHint.dataset.cardHint); return; }
+    const drawStep = event.target.closest('[data-draw-step]');
+    if (drawStep && !drawStep.disabled && isHost()) { await send('room:settings', { maxDrawsPerTurn: room.settings.maxDrawsPerTurn + Number(drawStep.dataset.drawStep) }); return; }
     const step = event.target.closest('[data-deck-step]');
     if (step && !step.disabled && isHost()) {
       await saveComposition({ ...chosenComposition(), [step.dataset.deckType]: Number(chosenComposition()[step.dataset.deckType]) + Number(step.dataset.deckStep) });

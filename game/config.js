@@ -1,4 +1,5 @@
 // Todas as regras ajustáveis ficam aqui. O total do baralho é derivado abaixo.
+export const DRAW_RULES = Object.freeze({ min: 1, max: 4, default: 1, botMax: 1 });
 export const RULES = Object.freeze({
   minPlayers: 2,
   maxPlayers: 8,
@@ -8,7 +9,7 @@ export const RULES = Object.freeze({
   minHandForRestrictedCards: 2,
   actionNoticeMs: 1200,
   reservedDrawCards: 1,
-  maxDrawsPerTurn: 1,
+  maxDrawsPerTurn: DRAW_RULES.default,
   lossPenalty: 4,
   victoryWindowMs: 10_000,
   nameMaxLength: 20,
@@ -63,7 +64,7 @@ export const PUBLIC_CONFIG = Object.freeze({
   deckSize: DECK_SIZE, cardTypes: CARD_TYPES,
   configurableCardTypes: CONFIGURABLE_CARD_TYPES, defaultDeckComposition: DEFAULT_DECK_COMPOSITION, deckRules: DECK_RULES,
   minHand: RULES.minHand, reservedDrawCards: RULES.reservedDrawCards,
-  maxDrawsPerTurn: RULES.maxDrawsPerTurn, lossPenalty: RULES.lossPenalty,
+  drawRules: DRAW_RULES, maxDrawsPerTurn: RULES.maxDrawsPerTurn, lossPenalty: RULES.lossPenalty,
   challenge: CHALLENGE_RULES,
   victoryWindowMs: RULES.victoryWindowMs, minHandForRestrictedCards: RULES.minHandForRestrictedCards, actionNoticeMs: RULES.actionNoticeMs,
 });

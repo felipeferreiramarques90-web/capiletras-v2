@@ -762,3 +762,15 @@ body:has(.game-layout) .site-header { display: flex; }
 .automatic-validation-setting input:checked::before { transform: translateX(17px); }
 .automatic-validation-setting input:disabled { cursor: default; opacity: .7; }
 .block-dialog .dialog-heading { justify-content: flex-end; }
+
+/* Saques: a pilha continua no mesmo lugar e os voos não participam do layout. */
+.draw-settings { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 18px 0; }
+.draw-settings label { margin: 0; }
+.draw-settings output { min-width: 32px; text-align: center; font-weight: var(--peso-destaque); }
+.table-controls .draw-pile { grid-template-rows: auto; }
+.draw-pile .deck-back { position: relative; grid-row: auto; overflow: visible; }
+.deck-count { position: absolute; top: -6px; right: -5px; border-radius: 9px; padding: 2px 5px; background: var(--painel); color: var(--texto); font-size: 10px; line-height: 1; font-weight: var(--peso-destaque); }
+.draw-remaining { font-size: .85rem; font-weight: var(--peso-destaque); opacity: .6; white-space: nowrap; }
+.draw-remaining.own-draws { opacity: 1; }
+.draw-flight { position: fixed; pointer-events: none; z-index: 100; border-radius: 6px; box-shadow: 0 3px 8px var(--sombra-forte); }
+@media (prefers-reduced-motion: reduce) { .draw-flight { display: none; } }
