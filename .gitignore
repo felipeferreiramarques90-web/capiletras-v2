@@ -7,3 +7,8 @@ coverage/
 .DS_Store
 playwright-report/
 test-results/
+
+.cache/dictionary/
+reports/dictionary/
+data/audit/*.tmp-*
+data/audit/*.next

@@ -12,8 +12,10 @@
     "dev": "node --watch server.js",
     "test": "node --test test/*.test.js",
     "test:browser": "node --test browser-test/*.test.js",
-    "dict:build": "node scripts/build-dictionary.js",
-    "dict:check": "node scripts/check-dictionary.js"
+    "dict:build": "node scripts/build-dictionary.js && node scripts/audit-dictionary.js",
+    "dict:check": "node scripts/check-dictionary.js",
+    "dict:reference": "node scripts/build-dictionary-reference.js",
+    "dict:audit": "node scripts/audit-dictionary.js"
   },
   "dependencies": {
     "express": "^5.1.0",

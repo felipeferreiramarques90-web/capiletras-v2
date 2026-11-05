@@ -1,0 +1,50 @@
+{
+  "policyVersion": 2,
+  "generatedAt": "2026-11-05T16:19:56.015Z",
+  "license": "CC-BY-SA-4.0",
+  "words": 426099,
+  "sha256": "7429d51ddd76229cd227510b0b987f74e20609262b10d2e0ce96352af1c9f2df",
+  "sources": [
+    {
+      "id": "ptwiktionary",
+      "url": "https://kaikki.org/dictionary/downloads/pt/pt-extract.jsonl.gz",
+      "sha256": "26b244e5b25629e9a88cf926813e6987289fa61e8b8a2faa68aef78ed6efaaa6",
+      "dumpDate": "2026-10-01",
+      "extractedAt": "2026-11-02",
+      "wiki": "https://pt.wiktionary.org/wiki/",
+      "entries": 628374,
+      "portugueseEntries": 401677,
+      "eligibleEntries": 371675,
+      "rejected": {
+        "otherLanguage": 226697,
+        "initialUppercase": 10980,
+        "tooShort": 282,
+        "nonLexicalPart": 10522,
+        "invalidCharacters": 4938,
+        "acronym": 69,
+        "excludedSenses": 3207,
+        "europeanOnly": 4
+      }
+    },
+    {
+      "id": "enwiktionary",
+      "url": "https://kaikki.org/dictionary/Portuguese/kaikki.org-dictionary-Portuguese.jsonl.gz",
+      "sha256": "0db87ddd508032c4e986fe818826801c9b167b2ee4f8315763166f0fa4014480",
+      "dumpDate": "2026-10-01",
+      "extractedAt": "2026-10-30",
+      "wiki": "https://en.wiktionary.org/wiki/",
+      "entries": 447028,
+      "portugueseEntries": 447028,
+      "eligibleEntries": 14430,
+      "rejected": {
+        "maintenanceFlag": 431552,
+        "acronym": 27,
+        "nonLexicalPart": 405,
+        "tooShort": 124,
+        "excludedSenses": 175,
+        "invalidCharacters": 271,
+        "initialUppercase": 44
+      }
+    }
+  ]
+}

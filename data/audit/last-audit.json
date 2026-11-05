@@ -1,0 +1,133 @@
+{
+  "policyVersion": 2,
+  "generatedAt": "2026-11-05T16:23:23.570Z",
+  "mode": "complementar_sem_excluir",
+  "referenceSha256": "7429d51ddd76229cd227510b0b987f74e20609262b10d2e0ce96352af1c9f2df",
+  "baseSha256": "f783e2f0fa47b38e048b028250a3f8e8a6fee2ee41603c575e39805e1ac4aa3c",
+  "houseAcceptedSha256": "be587759fdce0dedc95b4afa123cbe4d5f5432ebc8e232d0f84fef94d0c06a0b",
+  "houseBlockedSha256": "e05e99de628fef32476b2ed4c690e02ad81c0fd14360ecc429114362f7aa4adc",
+  "counts": {
+    "examined": 2654167,
+    "baseWords": 2613062,
+    "confirmed": 384992,
+    "houseExceptions": 1,
+    "unconfirmed": 2228069,
+    "blocked": 3,
+    "additions": 41102,
+    "rejected": {},
+    "duplicates": 98864
+  },
+  "samples": {
+    "confirmada": [
+      "AABORA",
+      "AABORAS",
+      "AALENIANA",
+      "AALENIANAS",
+      "AALENIANO",
+      "AALENIANOS",
+      "AALENIENSE",
+      "AALENIENSES",
+      "AALENSE",
+      "AALENIO",
+      "AALENIOS",
+      "AARDVARK"
+    ],
+    "nao_confirmada": [
+      "AALENSES",
+      "AANA",
+      "AANAS",
+      "AAQUENENSE",
+      "AAQUENENSES",
+      "AAQUENIANA",
+      "AAQUENIANAS",
+      "AAQUENIANO",
+      "AAQUENIANOS",
+      "AAQUENIA",
+      "AAQUENIAS",
+      "AAQUENIO"
+    ],
+    "bloqueada": [
+      "BRASIL",
+      "MARIA",
+      "PARIS"
+    ],
+    "excecao_da_casa": [
+      "DRIBLAVEL"
+    ]
+  },
+  "finalWords": 2654164,
+  "queries": [
+    {
+      "word": "DRIBLAVEL",
+      "inCandidateDictionary": true,
+      "status": "excecao_da_casa",
+      "evidence": []
+    },
+    {
+      "word": "DRIBLAVEIS",
+      "inCandidateDictionary": true,
+      "status": "confirmada",
+      "evidence": [
+        {
+          "source": "ptwiktionary",
+          "lemma": "driblar",
+          "url": "https://pt.wiktionary.org/wiki/driblar"
+        }
+      ]
+    },
+    {
+      "word": "BUCUNIS",
+      "inCandidateDictionary": false,
+      "status": "nao_confirmada",
+      "evidence": []
+    },
+    {
+      "word": "BRASIL",
+      "inCandidateDictionary": false,
+      "status": "bloqueada",
+      "evidence": [
+        {
+          "source": "ptwiktionary",
+          "lemma": "brasil",
+          "url": "https://pt.wiktionary.org/wiki/brasil"
+        }
+      ]
+    },
+    {
+      "word": "CASA",
+      "inCandidateDictionary": true,
+      "status": "confirmada",
+      "evidence": [
+        {
+          "source": "ptwiktionary",
+          "lemma": "casa",
+          "url": "https://pt.wiktionary.org/wiki/casa"
+        },
+        {
+          "source": "enwiktionary",
+          "lemma": "casa",
+          "url": "https://en.wiktionary.org/wiki/casa"
+        }
+      ]
+    },
+    {
+      "word": "PIX",
+      "inCandidateDictionary": true,
+      "status": "confirmada",
+      "evidence": [
+        {
+          "source": "ptwiktionary",
+          "lemma": "pix",
+          "url": "https://pt.wiktionary.org/wiki/pix"
+        }
+      ]
+    },
+    {
+      "word": "ZZZ",
+      "inCandidateDictionary": false,
+      "status": "nao_confirmada",
+      "evidence": []
+    }
+  ],
+  "supplementSha256": "b1ff5fb7769194c0162c36f273d9cdefb8796e4028241ce54394ce2092871722"
+}

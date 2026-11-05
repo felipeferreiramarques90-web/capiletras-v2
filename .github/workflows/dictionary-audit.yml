@@ -1,0 +1,43 @@
+name: Auditoria do dicionário
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'data/**'
+      - 'bots/*dictionary*'
+      - 'bots/load-supplement.js'
+      - 'scripts/*dictionary*'
+      - 'test/*dictionary*'
+      - 'package*.json'
+      - '.github/workflows/dictionary-audit.yml'
+  pull_request:
+    paths:
+      - 'data/**'
+      - 'bots/*dictionary*'
+      - 'bots/load-supplement.js'
+      - 'scripts/*dictionary*'
+      - 'test/*dictionary*'
+      - 'package*.json'
+      - '.github/workflows/dictionary-audit.yml'
+permissions:
+  contents: read
+jobs:
+  conferir:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run dict:audit -- --check DRIBLAVEL BUCUNIS BRASIL CASA
+      - run: npm test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: auditoria-dicionario
+          path: reports/dictionary/
+          if-no-files-found: warn

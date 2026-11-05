@@ -1,0 +1,26 @@
+// Referências independentes do VERO. As URLs mudam com o tempo; o hash fixa a revisão.
+export const AUDIT = Object.freeze({
+  policyVersion: 2,
+  reference: new URL('../data/audit/reference.tsv.gz', import.meta.url),
+  referenceManifest: new URL('../data/audit/reference-manifest.json', import.meta.url),
+  supplement: new URL('../data/audit/confirmed-additions.txt.gz', import.meta.url),
+  supplementManifest: new URL('../data/audit/additions-manifest.json', import.meta.url),
+  cacheDirectory: new URL('../.cache/dictionary/', import.meta.url),
+  reportDirectory: new URL('../reports/dictionary/', import.meta.url),
+  maxDownloadBytes: 100 * 1024 * 1024,
+  downloadTimeoutMs: 120_000,
+  maxRecordBytes: 8 * 1024 * 1024,
+  examplesPerStatus: 12,
+  sources: Object.freeze([
+    Object.freeze({ id: 'ptwiktionary', url: 'https://kaikki.org/dictionary/downloads/pt/pt-extract.jsonl.gz',
+      sha256: '26b244e5b25629e9a88cf926813e6987289fa61e8b8a2faa68aef78ed6efaaa6',
+      dumpDate: '2026-10-01', extractedAt: '2026-11-02', wiki: 'https://pt.wiktionary.org/wiki/' }),
+    Object.freeze({ id: 'enwiktionary', url: 'https://kaikki.org/dictionary/Portuguese/kaikki.org-dictionary-Portuguese.jsonl.gz',
+      sha256: '0db87ddd508032c4e986fe818826801c9b167b2ee4f8315763166f0fa4014480',
+      dumpDate: '2026-10-01', extractedAt: '2026-10-30', wiki: 'https://en.wiktionary.org/wiki/' }),
+  ]),
+  lexicalParts: Object.freeze(['noun', 'verb', 'adj', 'adv', 'intj', 'pron', 'contraction', 'num', 'prep', 'conj', 'article', 'det', 'particle']),
+  excludedTags: Object.freeze(['abbreviation', 'acronym', 'initialism', 'proper-noun', 'misspelling', 'error', 'nonstandard', 'romanization']),
+  excludedCategoryMarkers: Object.freeze(['entries with incorrect language header']),
+  europeanTags: Object.freeze(['Portugal', 'European-Portuguese']),
+});
