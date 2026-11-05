@@ -90,16 +90,16 @@ O critério é **verbete comum de português brasileiro**, incluindo plurais, fe
 
 A fonte completa é **Hunspell pt-BR / VERO 3.3.0**, distribuída pelo [LibreOffice](https://github.com/LibreOffice/dictionaries/tree/4f1df64b2e8e14751aa7c2205d170ca016071315/pt_BR), de Raimundo Santos Moura e colaboradores, sob **LGPLv3** (a fonte também declara Mozilla Public License). O cabeçalho do `.aff` informa 3.2; a versão do pacote, em `description.xml`, é 3.3.0. Snapshot: `4f1df64b2e8e14751aa7c2205d170ca016071315`. Geração: **29/10/2026, 03:03:57 UTC**. Fontes originais e licenças estão em `data/hunspell/`; atribuição e detalhes em `data/SOURCE.md`.
 
-`npm run dict:build` usa `scripts/hunspell-expand.js` para expandir `.dic` + `.aff` (flags UTF-8, prefixos, sufixos, cruzamentos e continuações). Gera `data/pt-BR-forms.txt.gz` e o manifesto `data/dictionary-build.json`, com hashes e contagens. O resultado comprimido é versionado, portanto **npm install e a inicialização não precisam baixar fontes nem refazer a expansão**. São 2.711.928 grafias elegíveis no arquivo, com a caixa e os acentos preservados; após normalização e aplicação das listas da casa há **2.613.062 palavras** no completo, incluindo DRIBLAVEL como exceção.
+`npm run dict:build` usa `scripts/hunspell-expand.js` para expandir `.dic` + `.aff` (flags UTF-8, prefixos, sufixos, cruzamentos e continuações). Gera `data/pt-BR-forms.txt.gz` e o manifesto `data/dictionary-build.json`, com hashes e contagens. O resultado comprimido é versionado, portanto **npm install e a inicialização não precisam baixar fontes nem refazer a expansão**. São 2.711.928 grafias elegíveis no arquivo, com a caixa e os acentos preservados. A base normalizada e a exceção DRIBLAVEL somam **2.613.062 palavras**. O suplemento confirmado pela auditoria acrescenta **41.102**, totalizando **2.654.164** no dicionário completo atual. O comando de build executa a auditoria automaticamente após expandir o VERO.
 
 Os filtros são aplicados **antes de normalizar**: rejeitar siglas em maiúsculas, inicial maiúscula e qualquer caractere que não seja letra (incluindo hífen, apóstrofo e ponto); depois remover acentos/cedilha, converter para A–Z e exigir pelo menos três letras. A palavra inválida é descartada inteira: “guarda-chuva” não vira GUARDACHUVA, nem “beija-flor” vira BEIJAFLOR. Entradas proibidas pelo próprio Hunspell também são excluídas. O build aplica os filtros às raízes antes de expandir e às formas resultantes; a carga os verifica novamente. As contagens classificam cada rejeição uma só vez, com siglas antes de maiúscula inicial.
 
 - **`data/bloqueio.txt`**: remove palavras dos dois léxicos. Já inclui YAKUZA, BRASIL, MARIA, PARIS, GOOGLE, CPF, ONU, SMS, FBI, ANVISA, PETROBRAS e NASA.
 - **`data/aceitas.txt`**: exceções explícitas da casa para lacunas da fonte, gírias ou estrangeirismos. Inclui **DRIBLAVEL** (driblável), ausente da fonte; DRIBLAVEIS já consta nela. **Bloqueio sempre prevalece**, mesmo sobre uma exceção.
 
-As listas aceitam uma palavra por linha, linhas vazias e comentários `#` (inclusive no fim da linha). São normalizadas e lidas na inicialização; reinicie o servidor após editar. Não é necessário reconstruir os dados para mudar as listas. Caminhos, versão e limites ficam em `bots/dictionary-config.js`; o limiar de frequência permanece em `BOT_RULES.commonMinFrequency`.
+As listas aceitam uma palavra por linha, linhas vazias e comentários `#` (inclusive no fim da linha). São normalizadas e lidas na inicialização; reinicie o servidor após editar. Não é necessário refazer a expansão do VERO para mudar as listas; execute `npm run dict:audit` para atualizar os dados derivados e o resumo verificados pelo CI. Caminhos, versão e limites ficam em `bots/dictionary-config.js`; o limiar de frequência permanece em `BOT_RULES.commonMinFrequency`.
 
-A lista **comum** mantém [FrequencyWords, de Hermit Dave](https://github.com/hermitdave/FrequencyWords), pt-BR/OpenSubtitles2018, sob **CC BY-SA 4.0**, com os créditos e licença em `bots/data/`. Aplica os mesmos filtros e bloqueios, exige o limiar atual de 1.000 ocorrências e mantém apenas a interseção com o completo: **13.669 palavras**. Frequências só filtram, nunca ponderam o sorteio. O modo comum/erudito, o sorteio uniforme e as chances de dúvida permanecem iguais.
+A lista **comum** mantém [FrequencyWords, de Hermit Dave](https://github.com/hermitdave/FrequencyWords), pt-BR/OpenSubtitles2018, sob **CC BY-SA 4.0**, com os créditos e licença em `bots/data/`. Aplica os mesmos filtros e bloqueios, exige o limiar atual de 1.000 ocorrências e mantém apenas a interseção com o completo: **13.813 palavras**. Frequências só filtram, nunca ponderam o sorteio. O modo comum/erudito, o sorteio uniforme e as chances de dúvida permanecem iguais.
 
 Os dois tries são carregados uma vez, **só em memória**. A construção usa vetores tipados expansíveis para acomodar o novo corpus sem guardar um segundo conjunto de todas as palavras. Nenhum léxico, filtro ou relatório entra no estado da partida ou é enviado ao cliente. O completo continua sendo usado para julgar prefixos, votar contra bots e fazer fallback erudito; a opção da sala determina se o desafio consulta o completo ou usa votação. Jogadas normais não são validadas como palavras.
 
@@ -109,7 +109,43 @@ Confira qualquer palavra e os totais de descarte:
 npm run dict:check -- GUARDACHUVA BEIJAFLOR BRASIL BRASILEIRO MARIA YAKUZA CPF ONU LASER PIZZA SHOPPING PIX ONIBUS CASA CORRENDO
 ```
 
-O relatório mostra presença no completo, comum, bloqueio e exceções. Com as listas iniciais, BRASILEIRO existe só no completo por estar abaixo do limiar comum; PIX está ausente nesta versão da fonte, DRIBLAVEL é aceita pela lista da casa, DRIBLAVEIS já consta na fonte e BUCUNIS permanece ausente. Descartes do completo: 14.234 por maiúscula inicial, 7.669.911 por hífen/caractere inválido, 2.902 siglas, 238 entradas curtas e 4 grafias removidas pelo bloqueio; além de 4 raízes proibidas pelo Hunspell. Esses totais somam raízes rejeitadas, grafias da expansão e rejeições na carga, não o número de verbetes únicos que restaram.
+O relatório mostra presença no completo, comum, bloqueio e exceções. Com as listas iniciais, BRASILEIRO existe só no completo por estar abaixo do limiar comum; PIX é aceito pelo suplemento documentado (não constava no VERO), DRIBLAVEL é aceita pela lista da casa, DRIBLAVEIS já consta na fonte e BUCUNIS permanece ausente. Descartes do completo: 14.234 por maiúscula inicial, 7.669.911 por hífen/caractere inválido, 2.902 siglas, 238 entradas curtas e 4 grafias removidas pelo bloqueio; além de 4 raízes proibidas pelo Hunspell. Esses totais somam raízes rejeitadas, grafias da expansão e rejeições na carga, não o número de verbetes únicos que restaram.
+
+### Auditoria automática, palavra por palavra
+
+`npm run dict:audit` percorre **todas as entradas**, sem amostragem, e compara com uma referência independente do VERO: verbetes em português das edições portuguesa e inglesa do Wikcionário, extraídos pelo **Kaikki/Wiktextract**. Os dados e suas flexões documentadas são filtrados antes da normalização: nomes, siglas, hífen, grafia incorreta/não padrão, romanização, variantes explicitamente exclusivas de Portugal e entradas marcadas com erro de idioma não confirmam palavras. Não são inferidos adjetivos ou conjugações novos por simples troca de sufixo.
+
+A referência filtrada tem **426.099 palavras**. Cada confirmação aponta para o verbete de origem e seu histórico. Datas, revisões, hashes e descarte por fonte estão em `data/audit/reference-manifest.json`; atribuição e **CC BY-SA 4.0** estão em `data/audit/SOURCE.md` e no arquivo de licença ao lado. O VERO mantém seus arquivos e sua licença LGPL separados. A referência é versionada e a auditoria normal não usa rede.
+
+| Resultado | Tratamento automático |
+| --- | --- |
+| `confirmada` | Palavra documentada nas referências elegíveis. |
+| `excecao_da_casa` | Aceita explicitamente por `data/aceitas.txt`, mesmo sem referência. |
+| `nao_confirmada` | Não encontrada nas referências; preservada no VERO, sem afirmar que seja inválida. |
+| `bloqueada` | Recusada por `data/bloqueio.txt`, que prevalece sobre tudo. |
+| Lacuna confirmada | Palavra documentada ausente da base: incluída automaticamente no suplemento. |
+
+A conferência de **05/11/2026** encontrou **384.992** palavras da base confirmadas, **1** exceção da casa, **2.228.069** não confirmadas e **41.102** lacunas confirmadas acrescentadas. O resumo distingue palavras únicas de grafias duplicadas e bloqueadas. **Não confirmada não significa incorreta**: referências têm lacunas, e a comparação não é uma certificação semântica. DRIBLAVEL continua aceita pela exceção; DRIBLAVEIS e CASA estão documentadas; BUCUNIS continua ausente e BRASIL/YAKUZA continuam bloqueadas.
+
+```bash
+# Conferir tudo, publicar somente acréscimos confirmados e consultar exemplos:
+npm run dict:audit -- DRIBLAVEL BUCUNIS BRASIL CASA
+
+# Gerar relatório sem alterar o suplemento publicado:
+npm run dict:audit -- --report-only DRIBLAVEL BUCUNIS
+
+# Conferência somente leitura: falha se o suplemento não reproduzir a auditoria:
+npm run dict:audit -- --check
+
+# Reimportar as revisões fixadas das referências (usa rede, só na manutenção):
+npm run dict:reference -- --download
+```
+
+O relatório completo fica em `reports/dictionary/palavras.jsonl.gz`, com **um registro por palavra**; `lacunas.jsonl.gz` registra os acréscimos com evidências, e `resumo.json` traz os totais. A consulta incluída no resumo se refere ao **dicionário candidato auditado**; `dict:check` consulta o léxico carregado pelo jogo. Os relatórios grandes e o cache de download são ignorados pelo Git. `data/audit/last-audit.json` guarda o último resumo publicado.
+
+`data/audit/confirmed-additions.txt.gz` contém só palavras confirmadas que faltavam, com hash/contagem em `additions-manifest.json`. O servidor confere a integridade ao carregar e aplica novamente o bloqueio da casa. Nenhuma consulta externa é feita na partida: os dois dicionários continuam em memória, nunca no cliente ou no estado da sala. É necessário reiniciar/deployar o servidor para carregar um suplemento novo.
+
+O workflow **Auditoria do dicionário**, em `.github/workflows/dictionary-audit.yml`, executa a conferência e os testes em alterações relevantes de código/dados e também permite execução manual. Publica o relatório como artefato do GitHub; não altera arquivos nem faz commits. Uma referência com revisão/hash diferente exige atualizar conscientemente a configuração e reimportar, em vez de trocar o léxico silenciosamente. Caminhos, fontes, limites, filtros e versão da política ficam em `bots/dictionary-audit-config.js`.
 
 ## Avatares e som
 

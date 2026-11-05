@@ -35,3 +35,16 @@ de maiúscula inicial porque ambas as regras as rejeitariam. A contagem de bloqu
 As listas da casa são aplicadas na inicialização, sem precisar refazer o build.
 O bloqueio prevalece sobre exceções. O léxico comum mantém a fonte de frequências
 CC BY-SA 4.0, com a mesma política e interseção obrigatória com o completo.
+
+## Auditoria independente e suplemento
+
+Desde a auditoria de 05/11/2026, a base VERO e a exceção DRIBLAVEL são conferidas
+contra extratos do Wikcionário/Kaikki. O suplemento separado e sua atribuição estão
+em `audit/`; a referência e seus derivados usam CC BY-SA 4.0, sem alterar a licença
+do VERO. O carregador combina os dados em memória. A lista comum continua sendo
+a interseção da fonte de frequências com o completo, agora com 13.813 palavras.
+O total atual do completo é 2.654.164, incluindo 41.102 acréscimos confirmados.
+
+A auditoria não exclui palavras do VERO apenas por não encontrá-las nas referências.
+O bloqueio da casa continua prevalecendo sobre todos os dados, e DRIBLAVEL permanece
+uma exceção explícita. `audit/last-audit.json` registra a revisão e os totais atuais.

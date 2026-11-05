@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {rejectionReason,parseHouseList,filterWords} from '../bots/dictionary-policy.js';
 import {createDictionary,normalizeWord} from '../bots/dictionary.js';
 import {defaultDictionary,defaultCommonDictionary,commonWords,dictionaryReport,houseLists} from '../bots/load-dictionary.js';
+import {loadSupplement} from '../bots/load-supplement.js';
 import {expandHunspell} from '../scripts/hunspell-expand.js';
 import {simulateMatch} from './helpers/simulation.js';
 import {DEFAULT_DECK_COMPOSITION} from '../game/config.js';
@@ -45,4 +46,13 @@ test('exceção aceita driblável, preservando seu plural e rejeitando BUCUNIS',
   const word=normalizeWord(input);if(word==='DRIBLAVEL')assert.ok(accepted.has(word));assert.equal(blocked.has(word),false);assert.equal(full.isWord(word),true);
  }
  assert.equal(full.isWord('BUCUNIS'),false);
+});
+
+test('dicionário do jogo carrega todos os acréscimos auditados sem alterar bloqueios',()=>{
+ const full=defaultDictionary(),supplement=loadSupplement();
+ assert.ok(supplement.words.length>0);
+ for(const word of supplement.words)assert.equal(full.isWord(word),true,word);
+ assert.equal(full.isWord('PIX'),true);
+ for(const word of ['BRASIL','YAKUZA','BUCUNIS'])assert.equal(full.isWord(word),false,word);
+ assert.equal(dictionaryReport().supplement.words,supplement.words.length);
 });

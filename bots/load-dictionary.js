@@ -1,3 +1,4 @@
+import { loadSupplement } from './load-supplement.js';
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { createDictionary, normalizeWord } from './dictionary.js';
@@ -9,13 +10,14 @@ export function houseLists() {
   return { blocked: parseHouseList(readFileSync(DICTIONARY.blocked,'utf8')), accepted: parseHouseList(readFileSync(DICTIONARY.accepted,'utf8')) };
 }
 function* lines(text) { let start=0,end;while((end=text.indexOf('\n',start))>=0){yield text.slice(start,end);start=end+1;}if(start<text.length)yield text.slice(start); }
-export function loadDictionary(path=DICTIONARY.generated, lists=houseLists(), counts=emptyCounts()) {
+export function loadDictionary(path=DICTIONARY.generated, lists=houseLists(), counts=emptyCounts(), { supplement = path === DICTIONARY.generated } = {}) {
   const raw=readFileSync(path),text=(String(path).endsWith('.gz')?gunzipSync(raw):raw).toString('utf8');
   function* eligible(){
     for(const original of lines(text)) {
       const reason=rejectionReason(original);if(reason){counts[reason]++;continue;}
       const word=normalizeWord(original);if(lists.blocked.has(word)){counts.blocked++;continue;}yield word;
     }
+    if(supplement)for(const word of loadSupplement().words)if(!lists.blocked.has(word))yield word;
     for(const word of lists.accepted)if(!lists.blocked.has(word))yield word;
   }
   return createDictionary(eligible());
@@ -43,4 +45,5 @@ export function defaultCommonDictionary(){if(!commonDictionary){const counts=emp
 export function dictionaryReport(){const full=defaultDictionary(),common=defaultCommonDictionary();const build=JSON.parse(readFileSync(DICTIONARY.manifest,'utf8'));
  const discarded={...report.full};for(const [key,value]of Object.entries(build.sourceRejected))discarded[key]+=value;
  if(build.expansionRejected)for(const [key,value]of Object.entries(build.expansionRejected))discarded[key]+=value;
- return {full:full.size,common:common.size,discarded,commonDiscarded:report.common,generatedAt:build.generatedAt};}
+ const supplement=loadSupplement();
+ return {full:full.size,common:common.size,discarded,commonDiscarded:report.common,generatedAt:build.generatedAt,supplement:{words:supplement.words.length,generatedAt:supplement.manifest.generatedAt,referenceSha256:supplement.manifest.referenceSha256}};}
