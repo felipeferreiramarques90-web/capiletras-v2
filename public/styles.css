@@ -1,3 +1,8 @@
+/* Rye (SIL OFL 1.1): subconjunto local só com as letras de DUVIDAR. */
+@font-face {
+  font-family: 'Rye'; font-style: normal; font-weight: 400; font-display: swap;
+  src: url('/fonts/rye-duvidar.ttf') format('truetype');
+}
 /* Tema: ajuste a paleta, a tipografia e as cartas aqui, sem alterar o layout. */
 :root {
   --campo-verde: #167647;
@@ -20,6 +25,15 @@
   --alerta-fundo: #f7dbac;
   --alerta-texto: #5e361c;
   --alerta-borda: #cc995f;
+  --fita-amarelo: #ffe04b;
+  --fita-preto: #151515;
+  --fita-espessura: 7px;
+  --fita-listra: 8px;
+  --duvidar-texto: #ffffff;
+  --duvidar-sombra: #001c14cc;
+  --duvidar-opacidade-inativa: .42;
+  --fonte-rustica: 'Rye', Georgia, 'Times New Roman', serif;
+  --duvidar-fonte: clamp(.75rem, 3.4vw, 1rem);
   --erro: #9d262d;
   --carta-neon: #b9ff62;
   --carta-verde-escuro: #173e23;
@@ -476,8 +490,25 @@ dialog .muted { font-size: calc(var(--fonte-base) * 0.75); }
 .debt-badge > span { color: var(--pass-arrow-start); font-size: calc(var(--fonte-base) * 1.5); }
 
 .challenge-table-actions { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
-.challenge-button { background: var(--alerta-fundo); color: var(--alerta-texto); border-color: var(--alerta-borda); min-height: 48px; }
-.challenge-button > span { font-family: var(--fonte-interface); font-size: calc(var(--fonte-base) * 1.375); }
+/* Uma única faixa contínua, recortada só no centro, preserva o gramado. */
+.challenge-button {
+  position: relative; background: transparent; color: var(--duvidar-texto);
+  border-color: transparent; min-height: 48px; justify-content: center;
+  font-family: var(--fonte-rustica); font-weight: var(--peso-destaque);
+  letter-spacing: .12em; text-shadow: 0 1px 3px var(--duvidar-sombra);
+}
+.challenge-button::before {
+  content: ''; position: absolute; inset: -1px; border-radius: inherit;
+  padding: var(--fita-espessura); pointer-events: none;
+  background: repeating-linear-gradient(45deg, var(--fita-amarelo) 0 var(--fita-listra), var(--fita-preto) var(--fita-listra) calc(var(--fita-listra) * 2));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+}
+.challenge-button:hover:not(:disabled) { transform: none; }
+.challenge-button:active:not(:disabled) { transform: translateY(1px); }
+.challenge-button:disabled { opacity: var(--duvidar-opacidade-inativa); filter: saturate(.25); }
 .challenge-debt-reason { width: 100%; text-align: center; color: var(--destaque); font-size: calc(var(--fonte-base) * 0.75); line-height: 1.6; }
 .skip-button { white-space: normal; line-height: 1.5; min-height: 52px; }
 .pending-victory { background: var(--alerta-fundo); color: var(--alerta-texto); padding: 16px; border-radius: 10px; margin: 18px auto; max-width: 600px; display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; line-height: 1.6; }
@@ -538,8 +569,7 @@ body:has(.game-layout) .site-footer { display: none; }
 .table-controls .draw-pile > strong { align-self: end; letter-spacing: .5px; }
 .table-controls .draw-pile > small { align-self: start; font-size: .65rem; font-variant-numeric: tabular-nums; min-height: 3em; max-width: none; }
 .table-controls .challenge-table-actions { display: flex; flex-direction: column; margin: 0; gap: 4px; min-width: 0; }
-.table-controls .challenge-button { width: 100%; min-height: 44px; padding: 8px 10px; gap: 6px; font-size: .8rem; line-height: 1.25; }
-.table-controls .challenge-button > span { flex-shrink: 0; }
+.table-controls .challenge-button { width: 100%; min-height: 44px; padding: 8px 10px; gap: 6px; font-size: var(--duvidar-fonte); line-height: 1.25; }
 .table-controls .challenge-debt-reason, .table-controls .text-button { font-size: .65rem; line-height: 1.3; }
 .game-layout .word-display { margin-top: 5px; min-height: 82px; padding: 12px; max-height: 140px; overflow-y: auto; }
 .game-layout .word-area > .table-notice { height: 3.2em; min-height: 3.2em; margin-top: 5px; }
@@ -556,7 +586,7 @@ body:has(.game-layout) .site-footer { display: none; }
   .table-controls { gap: 8px; margin-top: 5px; }
   .table-controls .draw-pile { column-gap: 6px; }
   .table-controls .deck-back { width: 36px; height: 50px; }
-  .table-controls .challenge-button { font-size: .75rem; padding: 8px; }
+  .table-controls .challenge-button { padding: 8px; }
   .table-controls .draw-pile > small { font-size: .6rem; }
   .game-layout .hand-heading { min-height: 52px; }
 }

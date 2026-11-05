@@ -125,7 +125,7 @@ Os controles **🔊/🔇 e 🎵** ficam no canto direito do cabeçalho, ao lado 
 
 ## Tema visual: campo de futebol
 
-A mesa usa faixas de gramado com linha do meio e círculo central discretos. Lobby, botões e modais mantêm a estrutura, com painéis claros e tipografia **Georgia**, seguida por Times New Roman e serifa do sistema como fallback. Não há download de fontes ou imagens externas. Os versos marrons mostram uma capivara em **SVG inline original**, também nas mãos dos adversários; a bomba da `2+*` é outro SVG original.
+A mesa usa faixas de gramado com linha do meio e círculo central discretos. Lobby, botões e modais mantêm a estrutura, com painéis claros e tipografia **Georgia**, seguida por Times New Roman e serifa do sistema como fallback. Só o botão **DUVIDAR** usa a fonte rústica **Rye** ([Google Fonts](https://fonts.google.com/specimen/Rye), SIL OFL 1.1). O subconjunto com as letras do botão é servido localmente de `public/fonts/rye-duvidar.ttf`, com licença em `public/fonts/rye-OFL.txt`, `font-display: swap` e fallback para Georgia/serifa bold. Não há requisições externas de fontes ou imagens. Os versos marrons mostram uma capivara em **SVG inline original**, também nas mãos dos adversários; a bomba da `2+*` é outro SVG original.
 
 A paleta e os tamanhos ficam nas variáveis de **`public/styles.css`**, no `:root` e nas substituições para celular em `@media (max-width: 650px)`:
 
@@ -139,6 +139,7 @@ A paleta e os tamanhos ficam nas variáveis de **`public/styles.css`**, no `:roo
 | `--carta-azul-neon`, `--carta-azul-escuro` | Troca azul neon com símbolo 🔄. |
 | `--carta-vermelho` | Texto e bomba da `2+*` sobre verde neon. |
 | `--double-background`, `--double-border`, `--double-ink`, `--double-cyan`, `--double-violet`, `--double-pink`, `--double-glow` | 2x preta com “MANDEI / JOGAR / DE NOVO” em serifa, contorno ciano/violeta/rosa e brilho suave, sem cantos ou rodapé. `--double-message-font` e `--double-message-stroke` ajustam o texto. A miniatura preta do lobby mantém “2x” reduzido. Os motivos de indisponibilidade aparecem por aviso ao tocar na carta. |
+| `--fita-amarelo`, `--fita-preto`, `--fita-espessura`, `--fita-listra`, `--fonte-rustica`, `--duvidar-*` | Botão DUVIDAR com fita diagonal contínua de 7 px, centro transparente sobre o campo e texto branco; esmaecido quando indisponível, sem alterar tamanho ou habilitação. |
 | `--block-card-*`, `--life-card-*`, `--pass-card-*`, `--pass-arrow-gradient` | Mantêm as cores de Bloqueio, Vida e Passar letra; Passar letra tem também seta no canto superior direito. |
 | `--carta-verso`, `--carta-verso-borda`, `--capivara-*` | Marrom `#69412c`, borda bege e cores da ilustração do verso. |
 | `--carta-largura`, `--carta-altura`, `--carta-fonte-*`, `--verso-*` | Frentes de **92 × 127 px** no desktop e **70 × 100 px** no celular, como antes; tamanhos das letras, símbolos e versos. |
