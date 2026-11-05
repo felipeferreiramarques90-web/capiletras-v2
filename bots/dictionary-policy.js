@@ -13,8 +13,25 @@ export function rejectionReason(raw) {
   return null;
 }
 export function parseHouseList(text) {
-  return new Set(text.split(/\r?\n/).map(line => line.split('#')[0].trim()).filter(Boolean).map(normalizeWord).filter(Boolean));
+  // Uma lista de milhões de palavras não deve criar vários arrays de todas as
+  // linhas ao mesmo tempo. Só o Set final e uma linha por vez ficam vivos.
+  const words = new Set();
+  let start = 0;
+  while (start < text.length) {
+    const newline = text.indexOf('\n', start);
+    const end = newline < 0 ? text.length : newline;
+    const line = text.slice(start, end);
+    const comment = line.indexOf('#');
+    const value = (comment < 0 ? line : line.slice(0, comment)).trim();
+    if (value) {
+      const word = normalizeWord(value);
+      if (word) words.add(word);
+    }
+    start = end + 1;
+  }
+  return words;
 }
+
 export function filterWords(entries, { blocked = new Set(), accepted = new Set() } = {}) {
   const words = new Set(), counts = emptyCounts();
   for (const raw of entries) {

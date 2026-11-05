@@ -1,19 +1,42 @@
+import { indexHouseList } from './house-list-index.js';
 import { loadSupplement } from './load-supplement.js';
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { createDictionary, normalizeWord } from './dictionary.js';
 import { BOT_RULES } from './config.js';
 import { DICTIONARY } from './dictionary-config.js';
 import { rejectionReason, parseHouseList, emptyCounts } from './dictionary-policy.js';
-let dictionary, commonDictionary, report;
+let dictionary, commonDictionary, report, houseCache;
 export function houseLists() {
-  return { blocked: parseHouseList(readFileSync(DICTIONARY.blocked,'utf8')), accepted: parseHouseList(readFileSync(DICTIONARY.accepted,'utf8')) };
+  // Compartilhamento interno somente para leitura: completo, comum e relatórios
+  // usam o mesmo bloqueio, sem reconstruir milhões de entradas a cada consulta.
+  const signature = [DICTIONARY.blocked, DICTIONARY.accepted].map(path => {
+    const stat = statSync(path, { bigint: true });
+    return `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeNs}`;
+  }).join('|');
+  if (!houseCache || houseCache.signature !== signature) {
+    const readList = path => {
+      const text = readFileSync(path, 'utf8');
+      return text.length >= DICTIONARY.houseListIndexThreshold ? indexHouseList(text) : parseHouseList(text);
+    };
+    houseCache = { signature, lists: {
+      blocked: readList(DICTIONARY.blocked),
+      accepted: readList(DICTIONARY.accepted),
+    } };
+  }
+  return houseCache.lists;
 }
-function* lines(text) { let start=0,end;while((end=text.indexOf('\n',start))>=0){yield text.slice(start,end);start=end+1;}if(start<text.length)yield text.slice(start); }
+
+// Decodifica uma linha por vez: evita duplicar todo o corpus UTF-8 em uma string.
+function* lines(bytes) {
+  let start = 0, end;
+  while ((end = bytes.indexOf(10, start)) >= 0) { yield bytes.toString('utf8', start, end); start = end + 1; }
+  if (start < bytes.length) yield bytes.toString('utf8', start);
+}
 export function loadDictionary(path=DICTIONARY.generated, lists=houseLists(), counts=emptyCounts(), { supplement = path === DICTIONARY.generated } = {}) {
-  const raw=readFileSync(path),text=(String(path).endsWith('.gz')?gunzipSync(raw):raw).toString('utf8');
+  const raw=readFileSync(path),bytes=String(path).endsWith('.gz')?gunzipSync(raw):raw;
   function* eligible(){
-    for(const original of lines(text)) {
+    for(const original of lines(bytes)) {
       const reason=rejectionReason(original);if(reason){counts[reason]++;continue;}
       const word=normalizeWord(original);if(lists.blocked.has(word)){counts.blocked++;continue;}yield word;
     }
