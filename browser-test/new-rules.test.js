@@ -24,8 +24,11 @@ test('2x preta usa texto serifado em gradiente próprio, sem ícones nos cantos 
   await a.setViewportSize({width,height});
   const card=a.locator('[data-card=double-0]');
   assert.equal(await card.evaluate(n=>getComputedStyle(n).backgroundColor),'rgb(21, 19, 32)');
-  assert.equal(await card.locator('.card-double-art text').textContent(),'2x');
-  assert.equal(await card.locator('.card-corner').isVisible(),false);
+  assert.equal(await card.locator('.card-double-art text').textContent(),'MANDEI JOGAR DE NOVO');
+  assert.equal(await card.locator('.card-corner, .card-bottom').count(),0);
+  assert.doesNotMatch(await card.innerText(),/2x/);
+  const text=await card.locator('text').boundingBox(), bounds=await card.boundingBox();
+  assert.ok(text.x>=bounds.x && text.x+text.width<=bounds.x+bounds.width && text.y>=bounds.y && text.y+text.height<=bounds.y+bounds.height);
   assert.equal(await card.locator('.double-cyan').count(),1);
   assert.equal(await card.locator('.double-violet').count(),1);
   assert.equal(await card.locator('.double-pink').count(),1);

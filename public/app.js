@@ -87,9 +87,11 @@ import { createSound } from './audio/sound.js';
     && (room.game.canPlay || (card.type === 'sword' && room.game.canPlaySword))
     && room.game.playableCardIds.includes(card.id));
 
-  const doubleSvg = (id) => {
+  const doubleSvg = (id, miniature = false) => {
     const gradientId = `duplo-${id.replace(/[^A-Za-z0-9_-]/g, '')}`;
-    return `<svg class="card-double-art" viewBox="0 0 100 70" aria-hidden="true" focusable="false"><defs><linearGradient id="${gradientId}" x1="0" y1="0" x2="1" y2="1"><stop class="double-cyan" offset="0"/><stop class="double-violet" offset=".5"/><stop class="double-pink" offset="1"/></linearGradient></defs><text x="50" y="50" text-anchor="middle" stroke="url(#${gradientId})">2x</text></svg>`;
+    const lines = miniature ? '<tspan x="50" y="50">2x</tspan>'
+      : '<tspan x="50" y="30">MANDEI</tspan> <tspan x="50" y="60">JOGAR</tspan> <tspan x="50" y="90">DE NOVO</tspan>';
+    return `<svg class="card-double-art ${miniature ? 'double-miniature' : 'double-message'}" viewBox="0 0 100 ${miniature ? 70 : 110}" aria-hidden="true" focusable="false"><defs><linearGradient id="${gradientId}" x1="0" y1="0" x2="1" y2="1"><stop class="double-cyan" offset="0"/><stop class="double-violet" offset=".5"/><stop class="double-pink" offset="1"/></linearGradient></defs><text x="50" y="50" text-anchor="middle" stroke="url(#${gradientId})">${lines}</text></svg>`;
   };
   const isCardAvailable = (card) => Boolean(room?.game && card
     && (room.game.canPlay || (card.type === 'sword' && room.game.canPlaySword))
@@ -277,7 +279,7 @@ import { createSound } from './audio/sound.js';
       <div class="deck-quantities">${room.config.configurableCardTypes.map((type) => {
         const rule = room.config.cardTypes[type];
         const unavailable = type === 'sword' && room.swordUnavailable;
-        return `<div class="deck-quantity"><label for="deck-${type}"><span class="deck-card-symbol theme-${type}" aria-hidden="true">${type === 'double' ? doubleSvg('lobby') : escape(rule.symbol)}</span> ${escape(rule.label)}${unavailable ? '<small class="deck-unavailable">Indisponível em partidas de 2 jogadores</small>' : ''}</label>${isHost() ? `<div class="quantity-controls"><button type="button" class="icon-button" data-deck-step="-1" data-deck-type="${type}" aria-label="Diminuir ${escape(rule.label)}" ${disabled(!canAct() || unavailable || composition[type] <= limits.minQuantity)}>−</button><input id="deck-${type}" data-deck-type="${type}" type="number" inputmode="numeric" min="${limits.minQuantity}" max="${limits.maxQuantity}" step="1" aria-label="Quantidade de ${escape(rule.label)}" value="${Number.isFinite(composition[type]) ? composition[type] : ''}" ${disabled(!canAct() || unavailable)}><button type="button" class="icon-button" data-deck-step="1" data-deck-type="${type}" aria-label="Aumentar ${escape(rule.label)}" ${disabled(!canAct() || unavailable || composition[type] >= limits.maxQuantity)}>+</button></div>` : `<output id="deck-${type}">${composition[type]}</output>`}</div>`;
+        return `<div class="deck-quantity"><label for="deck-${type}"><span class="deck-card-symbol theme-${type}" aria-hidden="true">${type === 'double' ? doubleSvg('lobby', true) : escape(rule.symbol)}</span> ${escape(rule.label)}${unavailable ? '<small class="deck-unavailable">Indisponível em partidas de 2 jogadores</small>' : ''}</label>${isHost() ? `<div class="quantity-controls"><button type="button" class="icon-button" data-deck-step="-1" data-deck-type="${type}" aria-label="Diminuir ${escape(rule.label)}" ${disabled(!canAct() || unavailable || composition[type] <= limits.minQuantity)}>−</button><input id="deck-${type}" data-deck-type="${type}" type="number" inputmode="numeric" min="${limits.minQuantity}" max="${limits.maxQuantity}" step="1" aria-label="Quantidade de ${escape(rule.label)}" value="${Number.isFinite(composition[type]) ? composition[type] : ''}" ${disabled(!canAct() || unavailable)}><button type="button" class="icon-button" data-deck-step="1" data-deck-type="${type}" aria-label="Aumentar ${escape(rule.label)}" ${disabled(!canAct() || unavailable || composition[type] >= limits.maxQuantity)}>+</button></div>` : `<output id="deck-${type}">${composition[type]}</output>`}</div>`;
       }).join('')}</div><p id="deck-error" class="deck-error" role="status">${escape(compositionIssue(composition) || '')}</p>
       ${isHost() ? `<button class="text-button" data-action="reset-deck" ${disabled(!canAct())}>Restaurar padrão</button>` : '<p class="field-hint">Só o anfitrião pode editar.</p>'}</details>`;
   }
@@ -351,8 +353,12 @@ import { createSound } from './audio/sound.js';
     const special = !fixed && card.type !== 'wild';
     const lastRestricted = room.hand.length < room.config.minHandForRestrictedCards && rule.cannotBeLast;
     const reason = lastRestricted ? '' : room.game.playableCardIds.includes(card.id) ? '' : card.type === 'sword' ? 'Aguarde uma oportunidade' : card.type === 'swap' && !room.game.word ? 'Visor vazio' : card.type === 'double' ? 'Sem jogada anterior' : 'Letra bloqueada';
-    const button = `<button class="playing-card card-${rule.color} card-face-${card.type} ${card.type === 'wild' ? 'wild-card' : ''} ${special ? 'special-card' : ''} ${reason ? 'unplayable-card' : ''}" data-card="${escape(card.id)}" ${disabled(!enabled)} aria-label="${escape(actionLabel)}${reason ? `: ${reason}` : ''}" title="${escape(reason || description)}"><span class="card-corner" aria-hidden="true">${escape(artwork.corner)}</span><strong class="${special ? 'card-special-title' : ''}" aria-hidden="true">${artwork.center}</strong>${card.type === 'pass' ? '<span class="card-corner card-corner-right" aria-hidden="true">→</span>' : ''}<span class="card-bottom">${escape(card.type === 'sword' ? rule.caption : reason || description.toUpperCase())}</span></button>`;
-    return lastRestricted ? `<span class="card-touch-target" role="button" tabindex="0" data-restricted-card="${escape(card.id)}" aria-label="Compre uma carta para poder jogar esta">${button}</span>` : button;
+    const button = `<button class="playing-card card-${rule.color} card-face-${card.type} ${card.type === 'wild' ? 'wild-card' : ''} ${special ? 'special-card' : ''} ${reason ? 'unplayable-card' : ''}" data-card="${escape(card.id)}" ${disabled(!enabled)} aria-label="${escape(actionLabel)}${reason ? `: ${reason}` : ''}" title="${escape(reason || description)}">${card.type === 'double' ? '' : `<span class="card-corner" aria-hidden="true">${escape(artwork.corner)}</span>`}<strong class="${special ? 'card-special-title' : ''}" aria-hidden="true">${artwork.center}</strong>${card.type === 'pass' ? '<span class="card-corner card-corner-right" aria-hidden="true">→</span>' : ''}${card.type === 'double' ? '' : `<span class="card-bottom">${escape(card.type === 'sword' ? rule.caption : reason || description.toUpperCase())}</span>`}</button>`;
+    const doubleHint = reason || (room.game.challenge ? 'Aguarde o desafio terminar.'
+      : room.game.pendingVictory ? 'Aguarde a vitória pendente.'
+        : room.game.paused ? 'Aguarde os jogadores reconectarem.'
+          : !room.game.canPlay ? 'Não é a sua vez.' : 'Aguarde para jogar.');
+    return lastRestricted ? `<span class="card-touch-target" role="button" tabindex="0" data-restricted-card="${escape(card.id)}" aria-label="Compre uma carta para poder jogar esta">${button}</span>` : card.type === 'double' && !enabled ? `<span class="card-touch-target" role="button" tabindex="0" data-card-hint="${escape(doubleHint)}" aria-label="${escape(doubleHint)}">${button}</span>` : button;
   }
 
   function victory() {
@@ -562,7 +568,7 @@ import { createSound } from './audio/sound.js';
     if (event.target.matches('input[data-deck-type]') && isHost() && canAct()) await saveComposition(chosenComposition());
   });
   app.addEventListener('keydown', (event) => {
-    if (['Enter', ' '].includes(event.key) && event.target.matches('[data-restricted-card]')) { event.preventDefault(); event.target.click(); }
+    if (['Enter', ' '].includes(event.key) && event.target.matches('[data-restricted-card], [data-card-hint]')) { event.preventDefault(); event.target.click(); }
     if (event.key === 'Enter' && event.target.matches('input[data-deck-type]')) { event.preventDefault(); event.target.blur(); }
   });
 
@@ -586,6 +592,8 @@ import { createSound } from './audio/sound.js';
 
   app.addEventListener('click', async (event) => {
     if (event.target.closest('[data-restricted-card]')) { toast('Compre uma carta para poder jogar esta'); return; }
+    const cardHint = event.target.closest('[data-card-hint]');
+    if (cardHint) { toast(cardHint.dataset.cardHint); return; }
     const step = event.target.closest('[data-deck-step]');
     if (step && !step.disabled && isHost()) {
       await saveComposition({ ...chosenComposition(), [step.dataset.deckType]: Number(chosenComposition()[step.dataset.deckType]) + Number(step.dataset.deckStep) });

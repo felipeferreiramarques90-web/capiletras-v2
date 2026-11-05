@@ -48,6 +48,8 @@
   --double-violet: #aa70ff;
   --double-pink: #ff65ce;
   --double-glow: #a870ff55;
+  --double-message-font: 22px;
+  --double-message-stroke: 1.6px;
   --sword-card-background: #14151d;
   --sword-card-border: #986333;
   --sword-card-ink: #ffe6a6;
@@ -316,8 +318,8 @@ fieldset:disabled input, fieldset:disabled select { opacity: .65; }
 .playing-card.card-pink { --card-bg: var(--life-card-background); --card-ink: var(--life-card-ink); --card-border: var(--life-card-border); }
 .playing-card.card-face-swap > strong, .playing-card.card-face-block > strong { font-size: var(--carta-fonte-simbolo); }
 .playing-card.card-face-life > strong { font-size: var(--carta-fonte-vida); }
-.playing-card.card-face-double > strong { display: flex; justify-content: center; }
-.playing-card.card-face-double .card-corner { visibility: hidden; }
+.playing-card.card-face-double > strong { display: flex; justify-content: center; top: 50%; width: calc(100% - 8px); }
+
 .playing-card.card-face-multi > strong { display: flex; justify-content: center; }
 .card-bomb { width: var(--carta-bomba); height: var(--carta-bomba); }
 .bomb-shine { stroke: var(--card-bg, var(--carta-neon)); }
@@ -604,6 +606,8 @@ body:has(.game-layout) .site-footer { display: none; }
 
 .card-double-art { width: 100%; height: calc(var(--carta-fonte-2x) * 1.5); overflow: visible; }
 .card-double-art text { font-family: var(--fonte-interface); font-size: 56px; font-weight: var(--peso-titulo); letter-spacing: -3px; fill: var(--double-ink); stroke-width: 4; paint-order: stroke fill; filter: drop-shadow(0 0 3px var(--double-glow)); }
+.card-double-art.double-message { height: auto; max-height: calc(var(--carta-altura) - 12px); overflow: hidden; }
+.card-double-art.double-message text { font-size: var(--double-message-font); letter-spacing: 0; stroke-width: var(--double-message-stroke); }
 .double-cyan { stop-color: var(--double-cyan); }
 .double-violet { stop-color: var(--double-violet); }
 .double-pink { stop-color: var(--double-pink); }

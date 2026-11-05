@@ -138,7 +138,7 @@ A paleta e os tamanhos ficam nas variáveis de **`public/styles.css`**, no `:roo
 | `--carta-neon`, `--carta-verde-escuro` | Cartas de adicionar: verde neon `#b9ff62` com texto verde escuro `#173e23`. |
 | `--carta-azul-neon`, `--carta-azul-escuro` | Troca azul neon com símbolo 🔄. |
 | `--carta-vermelho` | Texto e bomba da `2+*` sobre verde neon. |
-| `--double-background`, `--double-border`, `--double-ink`, `--double-cyan`, `--double-violet`, `--double-pink`, `--double-glow` | 2x preta com texto serifado grande, contorno ciano/violeta/rosa e brilho suave; sem ícones nos cantos. A miniatura no lobby segue o mesmo visual. |
+| `--double-background`, `--double-border`, `--double-ink`, `--double-cyan`, `--double-violet`, `--double-pink`, `--double-glow` | 2x preta com “MANDEI / JOGAR / DE NOVO” em serifa, contorno ciano/violeta/rosa e brilho suave, sem cantos ou rodapé. `--double-message-font` e `--double-message-stroke` ajustam o texto. A miniatura preta do lobby mantém “2x” reduzido. Os motivos de indisponibilidade aparecem por aviso ao tocar na carta. |
 | `--block-card-*`, `--life-card-*`, `--pass-card-*`, `--pass-arrow-gradient` | Mantêm as cores de Bloqueio, Vida e Passar letra; Passar letra tem também seta no canto superior direito. |
 | `--carta-verso`, `--carta-verso-borda`, `--capivara-*` | Marrom `#69412c`, borda bege e cores da ilustração do verso. |
 | `--carta-largura`, `--carta-altura`, `--carta-fonte-*`, `--verso-*` | Frentes de **92 × 127 px** no desktop e **70 × 100 px** no celular, como antes; tamanhos das letras, símbolos e versos. |
