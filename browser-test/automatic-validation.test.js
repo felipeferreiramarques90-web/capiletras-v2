@@ -18,7 +18,7 @@ test('lobby: interruptor padrão ligado, só host edita, demais acompanham e res
  assert.equal(await a.locator('#automatic-validation').isChecked(),true);assert.equal(await b.locator('#automatic-validation').isDisabled(),true);
  await a.locator('#automatic-validation').uncheck();await waitFor(async()=>(await storage.getRoom(code)).settings.automaticValidation===false);await b.waitForFunction(()=>!document.querySelector('#automatic-validation').checked);
  await a.locator('.deck-settings summary').click();await a.locator('[data-action="reset-deck"]').click();await b.waitForFunction(()=>document.querySelector('#automatic-validation').checked);
- await a.locator('#automatic-validation').scrollIntoViewIfNeeded();await a.screenshot({path:'/tmp/automatic-validation-lobby.png'});await a.locator('[data-action="start"]').click();await a.locator('.hand-cards').waitFor();assert.equal(await a.locator('#automatic-validation').count(),0);
+ await a.waitForFunction(()=>!document.querySelector('[data-action=start]').disabled);await a.locator('#automatic-validation').scrollIntoViewIfNeeded();await a.screenshot({path:'/tmp/automatic-validation-lobby.png'});await a.locator('[data-action="start"]').click();await a.locator('.hand-cards').waitFor();assert.equal(await a.locator('#automatic-validation').count(),0);
 });
 test('falha do dicionário mostra aviso no modal de votação e permite responder',async t=>{
  const {a,b,seed,current}=await setup(t,{automaticValidation:true,dictionaryProvider:()=>{throw Error('offline');}});

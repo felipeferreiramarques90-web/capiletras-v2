@@ -23,14 +23,14 @@ export function createBotScheduler({ storage, locked, settle, save, dictionary, 
   const timing = { ...BOT_RULES, ...timings };
   let stopped = false;
   const keyFor = (code, id) => `${code}:${id}`;
-  const humanOnline = (room) => room.players.some((p) => !p.isBot && !p.left && p.connected);
+  const humanPresent = (room) => room.players.some((p) => !p.isBot && !p.left);
   function forget(code) {
     for (const [key, item] of timers) if (item.code === code) { clearTimeout(item.timer); timers.delete(key); }
     for (const key of attempts.keys()) if (key.startsWith(`${code}:`)) attempts.delete(key);
   }
   function schedule(room) {
     if (stopped) return;
-    if (room.phase !== 'playing' || !humanOnline(room)) { forget(room.code); return; }
+    if (room.phase !== 'playing' || !humanPresent(room)) { forget(room.code); return; }
     const wanted = new Set();
     for (const bot of room.players.filter((p) => p.isBot && !p.left)) {
       const view = roomView(room, bot.id), task = botTask(view, dictionary);
@@ -46,7 +46,7 @@ export function createBotScheduler({ storage, locked, settle, save, dictionary, 
         timers.delete(key);
         void locked(room.code, async () => {
           let current = await storage.getRoom(room.code);
-          if (!current || current.phase !== 'playing' || !humanOnline(current)) return;
+          if (!current || current.phase !== 'playing' || !humanPresent(current)) return;
           const resolved = settle(current);
           if (resolved !== current) { await save(resolved); current = resolved; }
           if (current.phase !== 'playing' || !current.players.some((p) => p.id === bot.id && p.isBot && !p.left)) return;

@@ -63,6 +63,8 @@ export function debtAllowsChallenge(game) {
   return Boolean(game && (!game.letterDebt.count || game.lastLetterWasSword));
 }
 
+const participants = room => room.players.filter(p => !p.left);
+
 function swordEligible(game, id) {
   return Boolean(game && id && game.turnPlayerId !== id && game.lastPlayerId !== id
     && !game.challenge && !game.pendingVictory && !game.winnerId);
@@ -70,7 +72,7 @@ function swordEligible(game, id) {
 
 export function canPlaySword(room, id) {
   const player = room.players.find((p) => p.id === id && p.connected && !p.left);
-  return Boolean(room.phase === 'playing' && player && connected(room).length >= RULES.minPlayers
+  return Boolean(room.phase === 'playing' && player && participants(room).length >= RULES.minPlayers
     && swordEligible(room.game, id) && player.hand.some((card) => card.type === 'sword' && isCardPlayable(card, room.game, id, player.hand.length)));
 }
 
@@ -101,10 +103,10 @@ export function hasPlayableCard(player, game) {
   return player.hand.some((card) => isCardPlayable(card, game, player.id, player.hand.length));
 }
 
-export function canSkipTurn(room, id) {
-  const player = room.players.find((p) => p.id === id && p.connected && !p.left);
+export function canSkipTurn(room, id, { offline = false } = {}) {
+  const player = room.players.find((p) => p.id === id && !p.left && (offline ? !p.connected && !p.isBot : p.connected));
   return Boolean(room.phase === 'playing' && !room.game.challenge && !room.game.pendingVictory && player
-    && connected(room).length >= RULES.minPlayers && player.hand.length > 0
+    && participants(room).length >= RULES.minPlayers && player.hand.length > 0
     && (room.game.drawsThisTurn > 0 || room.game.deck.length + room.game.discard.length === 0)
     && room.game.turnPlayerId === id && !hasPlayableCard(player, room.game));
 }
@@ -126,7 +128,7 @@ export function joinRoom(original, { playerId, sessionId, name }) {
     existing.connected = true;
     room.emptySince = null;
     if (!room.players.some((p) => p.id === room.hostId && !p.isBot && p.connected && !p.left)) room.hostId = existing.id;
-    resumeTurn(room);
+    if (room.game?.offlineTurn?.playerId === existing.id) room.game.offlineTurn = null;
     if (room.game) room.game.version++;
     return room;
   }
@@ -147,7 +149,7 @@ export function updateSettings(original, id, settings) {
   requireRule(['playerCount', 'initialCards', 'automaticValidation', 'maxDrawsPerTurn'].some((key) => Object.hasOwn(settings, key)), 'Configuração inválida.');
   requireRule(!Object.hasOwn(settings, 'automaticValidation') || typeof settings.automaticValidation === 'boolean', 'Validação automática deve ser ligada ou desligada.');
   const maxDrawsPerTurn = Object.hasOwn(settings, 'maxDrawsPerTurn') ? settings.maxDrawsPerTurn : room.settings.maxDrawsPerTurn ?? DRAW_RULES.default;
-  requireRule(Number.isInteger(maxDrawsPerTurn) && maxDrawsPerTurn >= DRAW_RULES.min && maxDrawsPerTurn <= DRAW_RULES.max, 'Escolha de 1 a 4 compras por turno.');
+  requireRule(Number.isInteger(maxDrawsPerTurn) && maxDrawsPerTurn >= DRAW_RULES.min && maxDrawsPerTurn <= DRAW_RULES.max, `Escolha de ${DRAW_RULES.min} a ${DRAW_RULES.max} compras por turno.`);
   const { playerCount = room.settings.playerCount, initialCards = room.settings.initialCards,
     automaticValidation = room.settings.automaticValidation ?? RULES.defaultAutomaticValidation } = settings;
   requireRule(typeof automaticValidation === 'boolean', 'Validação automática deve ser ligada ou desligada.');
@@ -223,24 +225,26 @@ export function startGame(original, id, random) {
     blockedLetter: null, protectedPlayerId: null, extraTurns: [], version: 0,
     letterDebt: { count: 0, playerId: null },
     lastLetterPlayerId: null, lastLetterWasSword: false, challenge: null, challengeResult: null,
+    offlineTurn: null,
     letterPlayNumber: 0, botDecisions: {}, playNumber: 0, botSwordDecisions: {},
   };
   room.notice = 'A partida começou. Boa sorte!';
   return room;
 }
 
-function requireGameAction(room, id) {
+function requireGameAction(room, id, { offline = false } = {}) {
   requireRule(room.phase === 'playing', 'Não há partida em andamento.');
   requireRule(!room.game.challenge, 'Aguarde o fim do desafio para continuar a partida.');
   requireRule(!room.game.pendingVictory, 'Aguarde a resolução da vitória pendente.');
   const player = playerById(room, id);
-  requireRule(player.connected, 'Reconecte para continuar.');
-  requireRule(connected(room).length >= RULES.minPlayers, 'Partida pausada. Aguardando outro jogador reconectar.');
+  // Somente o resolvedor interno passa esta opção; a rede nunca a lê do cliente.
+  requireRule(offline ? !player.connected && !player.isBot && room.game.turnPlayerId === id : player.connected, 'Reconecte para continuar.');
+  requireRule(participants(room).length >= RULES.minPlayers, 'Partida pausada. Aguardando outro jogador reconectar.');
   return player;
 }
 
-function requireTurn(room, id) {
-  const player = requireGameAction(room, id);
+function requireTurn(room, id, execution) {
+  const player = requireGameAction(room, id, execution);
   requireRule(room.game.turnPlayerId === id, 'Aguarde a sua vez.');
   return player;
 }
@@ -251,6 +255,7 @@ function setTurn(room, id) {
   room.game.turnPlayerId = id;
   if (room.game.letterDebt.count > 0) room.game.letterDebt.playerId = id;
   room.game.drawsThisTurn = 0;
+  room.game.offlineTurn = null;
   room.game.turnNumber++;
 }
 
@@ -258,11 +263,11 @@ export function advanceTurn(room) {
   const game = room.game;
   let anchor = game.turnPlayerId;
   // Pilha de retornos: cada 2x só termina depois do turno de quem o jogou.
-  // Retornos desconectados são pulados e sua posição continua sendo a referência.
+  // Vagas desconectadas preservam sua posição, inclusive nos retornos de 2x.
   while (game.extraTurns.length) {
     const id = game.extraTurns.pop();
     anchor = id;
-    if (room.players.some((p) => p.id === id && p.connected && !p.left)) {
+    if (room.players.some((p) => p.id === id && !p.left)) {
       setTurn(room, id);
       return;
     }
@@ -270,17 +275,11 @@ export function advanceTurn(room) {
   const index = room.players.findIndex((p) => p.id === anchor);
   for (let offset = 1; offset <= room.players.length; offset++) {
     const next = room.players[(index + offset) % room.players.length];
-    if (next.connected && !next.left) {
+    if (!next.left) {
       setTurn(room, next.id);
       return;
     }
   }
-}
-
-function resumeTurn(room) {
-  if (room.phase !== 'playing' || room.game.challenge || room.game.pendingVictory) return;
-  const current = room.players.find((p) => p.id === room.game.turnPlayerId);
-  if (!current?.connected || current.left) advanceTurn(room);
 }
 
 // A mesma compra é usada na compra opcional e na penalidade; só a primeira conta no limite do turno.
@@ -301,9 +300,9 @@ export function drawLimit(room, id = room.game?.turnPlayerId) {
   return room.players.find(p => p.id === id)?.isBot ? DRAW_RULES.botMax : room.settings.maxDrawsPerTurn ?? DRAW_RULES.default;
 }
 
-export function drawCard(original, id, random) {
+export function drawCard(original, id, random, execution) {
   const room = clone(original);
-  const player = requireTurn(room, id);
+  const player = requireTurn(room, id, execution);
   requireRule(room.game.drawsThisTurn < drawLimit(room, id), 'Você já comprou neste turno. Baixe uma carta.');
   const cards = takeCards(room.game, 1, random);
   requireRule(cards.length, 'Não há cartas disponíveis para compra.');
@@ -314,9 +313,9 @@ export function drawCard(original, id, random) {
   return room;
 }
 
-export function playCard(original, id, cardId, choice, blockedChoice, accumulatedLetters, expectedVersion = original.game?.version, now = 0) {
+export function playCard(original, id, cardId, choice, blockedChoice, accumulatedLetters, expectedVersion = original.game?.version, now = 0, execution) {
   const room = clone(original);
-  const player = requireGameAction(room, id);
+  const player = requireGameAction(room, id, execution);
   const index = player.hand.findIndex((card) => card.id === cardId);
   requireRule(index >= 0, 'Essa carta não está na sua mão.');
   const card = player.hand[index];
@@ -373,7 +372,7 @@ export function playCard(original, id, cardId, choice, blockedChoice, accumulate
     room.notice = `${player.name} jogou Troca: ${previous} virou ${letter}.`;
   } else if (effect === 'replay') {
     const previous = room.players.find((p) => p.id === previousPlayerId);
-    room.notice = lastCard ? `${player.name} jogou 2x.` : previous.connected && !previous.left
+    room.notice = lastCard ? `${player.name} jogou 2x.` : !previous.left
       ? `${player.name} jogou 2x: ${previous.name} joga de novo; depois a vez volta para ${player.name}.`
       : `${player.name} jogou 2x: ${previous.name} está desconectado; ${player.name} recebe um novo turno.`;
   } else if (effect === 'pass') {
@@ -403,7 +402,7 @@ export function playCard(original, id, cardId, choice, blockedChoice, accumulate
     return beginPendingVictory(room, id, now);
   } else if (effect === 'replay') {
     room.game.extraTurns.push(id);
-    if (room.players.some((p) => p.id === previousPlayerId && p.connected && !p.left)) setTurn(room, previousPlayerId);
+    if (room.players.some((p) => p.id === previousPlayerId && !p.left)) setTurn(room, previousPlayerId);
     else advanceTurn(room);
   } else if (effect !== 'interrupt') {
     advanceTurn(room);
@@ -416,7 +415,7 @@ export function playCard(original, id, cardId, choice, blockedChoice, accumulate
   return room;
 }
 
-export function skipTurn(original, id, random, expectedVersion = original.game?.version) {
+export function skipTurn(original, id, random, expectedVersion = original.game?.version, execution) {
   const room = clone(original);
   requireRule(room.phase === 'playing', 'Não há partida em andamento.');
   requireRule(!room.game.challenge, 'Use os botões do desafio enquanto ele estiver em andamento.');
@@ -425,7 +424,7 @@ export function skipTurn(original, id, random, expectedVersion = original.game?.
   requireRule(Number.isInteger(expectedVersion) && expectedVersion === room.game.version, 'A mesa mudou. Confira o estado e tente novamente.');
   requireRule(room.game.turnPlayerId !== id || room.game.drawsThisTurn > 0 || room.game.deck.length + room.game.discard.length === 0,
     'Compre uma carta primeiro.');
-  requireRule(canSkipTurn(room, id), 'Só o jogador da vez com cartas na mão e sem carta jogável pode dizer Não consigo jogar.');
+  requireRule(canSkipTurn(room, id, execution), 'Só o jogador da vez com cartas na mão e sem carta jogável pode dizer Não consigo jogar.');
   const previousBlock = room.game.blockedLetter;
   const previousDebt = room.game.letterDebt.count;
   const cards = takeCards(room.game, RULES.lossPenalty, random);
@@ -460,7 +459,7 @@ export function disconnectPlayer(original, id, now, leave = false) {
   if (id === room.hostId && humans.length) room.hostId = humans[0].id;
   if (!humans.length && room.emptySince === null) room.emptySince = now;
   adjustLobbyHand(room);
-  resumeTurn(room);
+  if (leave && room.phase === 'playing' && room.game.turnPlayerId === id && !room.game.challenge && !room.game.pendingVictory) advanceTurn(room);
   if (room.game) room.game.version++;
   return room;
 }
@@ -504,7 +503,7 @@ export function roomView(room, viewerId) {
   const viewer = playerById(room, viewerId);
   const game = room.game;
   const available = game ? game.deck.length + game.discard.length : 0;
-  const myTurn = room.phase === 'playing' && !game.challenge && !game.pendingVictory && game.turnPlayerId === viewerId && connected(room).length >= RULES.minPlayers;
+  const myTurn = room.phase === 'playing' && !game.challenge && !game.pendingVictory && game.turnPlayerId === viewerId && participants(room).length >= RULES.minPlayers;
   const challenge = game?.challenge;
   return {
     code: room.code, phase: room.phase, hostId: room.hostId, meId: viewerId,
@@ -545,7 +544,8 @@ export function roomView(room, viewerId) {
       playableCardIds: viewer.hand.filter((card) => isCardPlayable(card, game, viewerId, viewer.hand.length)).map((card) => card.id),
       allowedLettersByCard: Object.fromEntries(viewer.hand.map((card) => [card.id, playableLetters(card, game, viewerId)])),
       deckCount: game.deck.length, discardCount: game.discard.length, availableCount: available,
-      paused: connected(room).length < RULES.minPlayers || !room.players.some((p) => p.id === game.turnPlayerId && p.connected && !p.left),
+      offlineTurn: game.offlineTurn ? structuredClone(game.offlineTurn) : null,
+      paused: participants(room).length < RULES.minPlayers || !room.players.some(p => p.id === game.turnPlayerId && !p.left),
       canDraw: myTurn && game.drawsThisTurn < drawLimit(room, viewerId) && available > 0,
       canPlay: myTurn,
       canSkipTurn: canSkipTurn(room, viewerId),

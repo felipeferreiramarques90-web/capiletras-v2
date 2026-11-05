@@ -517,21 +517,21 @@ test('rede: mãos privadas, autoridade do servidor, compra concorrente e PERDI e
   assert.equal(saved.players[0].hand.length, RULES.defaultHand);
 });
 
-test('rede: reconexão retoma cartas e identidade; a partida pausa e continua', async (t) => {
+test('rede: reconexão retoma cartas e identidade; a vaga permanece reservada sem pausar a vez alheia', async (t) => {
   const { a, b, code, connect } = await setup(t);
   await emit(a, 'game:start');
   await waitFor(() => b.view.phase === 'playing');
   const originalHand = b.view.hand;
   const originalId = b.view.meId;
   b.disconnect();
-  await waitFor(() => a.view.game.paused);
-  assert.equal((await emit(a, 'game:draw')).ok, false);
+  await waitFor(() => !a.view.players.find(p => p.id === b.view.meId).connected);
+  assert.equal((await emit(a, 'game:draw')).ok, true);
   const resumed = await connect(b.sessionId);
   assert.equal((await emit(resumed, 'room:join', { sessionId: resumed.sessionId, name: 'Bia', code })).ok, true);
   assert.equal(resumed.view.meId, originalId);
   assert.deepEqual(resumed.view.hand, originalHand);
   await waitFor(() => !a.view.game.paused);
-  assert.equal((await emit(a, 'game:draw')).ok, true);
+  assert.equal((await emit(a, 'game:draw')).ok, false);
   const duplicate = await connect(b.sessionId);
   assert.equal((await emit(duplicate, 'room:join', { sessionId: duplicate.sessionId, name: 'Bia', code })).ok, true);
   await waitFor(() => !resumed.connected);
@@ -572,7 +572,7 @@ test('rede: uma partida completa mostra a mesma vitória e permite revanche e lo
   assert.equal(a.view.hand.length, 3);
   assert.equal(a.view.game.word, '');
   b.disconnect();
-  await waitFor(() => a.view.game.paused);
+  await waitFor(() => !a.view.players.find(p => p.id === b.view.meId).connected);
   assert.equal((await emit(a, 'room:lobby')).ok, true);
   assert.equal(a.view.phase, 'lobby');
   assert.equal(a.view.players.length, 1);

@@ -774,3 +774,5 @@ body:has(.game-layout) .site-header { display: flex; }
 .draw-remaining.own-draws { opacity: 1; }
 .draw-flight { position: fixed; pointer-events: none; z-index: 100; border-radius: 6px; box-shadow: 0 3px 8px var(--sombra-forte); }
 @media (prefers-reduced-motion: reduce) { .draw-flight { display: none; } }
+
+.offline-countdown:not(:empty) { display: block; font-weight: var(--peso-destaque); }

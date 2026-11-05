@@ -29,6 +29,7 @@ for(const card of ['wild-0','multi-0']) test(`espada com débito cancela modal d
   assert.equal((await current()).game.drawsThisTurn,1);
   assert.match(await a.locator('.debt-state').innerText(),/Ana deve 2 letras/);
   await a.screenshot({path:`/tmp/sword-debt-${card}-mobile.png`});
+  await a.locator('#toast').waitFor({state:'hidden',timeout:8000});
   await pay(card,'SS');
   if(card==='wild-0') await a.locator('[data-letter=A]').click();
   else {await a.locator('#multi-input').fill('AA');await a.locator('#confirm-multi').click();}

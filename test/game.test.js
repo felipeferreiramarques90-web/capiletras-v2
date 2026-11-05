@@ -155,8 +155,8 @@ test('visão pública contém somente a própria mão, sem pilha, descarte ou cr
 test('reconexão retoma a mesma vaga e mão sem criar participante adicional', () => {
   const original = playing();
   let room = disconnectPlayer(original, 'p2', 2000);
-  assert.equal(roomView(room, 'p1').game.paused, true);
-  assert.throws(() => drawCard(room, 'p1', random), /pausada/);
+  assert.equal(roomView(room, 'p1').game.paused, false);
+  assert.doesNotThrow(() => drawCard(room, 'p1', random));
   room = joinRoom(room, { playerId: 'id-novo', sessionId: 's2', name: 'Outro nome' });
   assert.equal(room.players.length, 2);
   assert.deepEqual(room.players[1].hand, original.players[1].hand);
@@ -166,14 +166,12 @@ test('reconexão retoma a mesma vaga e mão sem criar participante adicional', (
   assert.throws(() => joinRoom(room, { playerId: 'p3', sessionId: 's3', name: 'Intruso' }), /já começou/);
 });
 
-test('pula desconectados, transfere anfitrião e reinicia contador ao passar o turno', () => {
+test('desconectado preserva vez e compras; anfitrião é transferido', () => {
   let room = drawCard(playing(3), 'p1', random);
   room = disconnectPlayer(room, 'p1', 2000);
   assert.equal(room.hostId, 'p2');
-  assert.equal(room.game.turnPlayerId, 'p2');
-  assert.equal(room.game.drawsThisTurn, 0);
-  room = firstPlay(firstPlay(room));
-  assert.equal(room.game.turnPlayerId, 'p2');
+  assert.equal(room.game.turnPlayerId, 'p1');
+  assert.equal(room.game.drawsThisTurn, 1);
 });
 
 test('anfitrião pode encerrar uma partida pausada e liberar vagas desconectadas no lobby', () => {

@@ -17,6 +17,7 @@ export const RULES = Object.freeze({
   inactiveRoomTtlMs: 6 * 60 * 60 * 1000,
 });
 
+export const OFFLINE_RULES = Object.freeze({ reconnectMs: 21_000, stepMs: 5_000 });
 export const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 export const CHALLENGE_RULES = Object.freeze({
   validationFallbackNotice: 'Validação automática indisponível, a mesa vota',

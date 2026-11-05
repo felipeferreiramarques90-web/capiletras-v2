@@ -1,0 +1,23 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { setup, waitFor } from './helpers.js';
+import { createDictionary } from '../bots/dictionary.js';
+test('duas abas: fechar a aba da vez mostra 21s, compra automática, reconexão preserva compra e cancela contagem',async t=>{
+  let now=100000;
+  const {a,b,seed,current,url}=await setup(t,{nowSource:()=>now,challengeIntervalMs:20,dictionaryProvider:()=>createDictionary(['CASA'])});
+  const before=await seed([['wild-0','letra-A'],['letra-B','letra-C']],{word:'CA',debt:0,blockedLetter:null});
+  const context=a.context();await a.close();
+  await b.locator('#offline-countdown').filter({hasText:'Ana está desconectado. Volta em 21s'}).waitFor();
+  assert.equal((await current()).game.turnPlayerId,before.players[0].id);
+  now+=21000;
+  await b.locator('.action-notice').filter({hasText:'Ana desconectado: comprou uma carta automaticamente'}).waitFor();
+  await b.locator('.draw-remaining').filter({hasText:'x 0'}).waitFor();
+  const resumed=await context.newPage();await resumed.goto(url);await resumed.locator('.hand-cards').waitFor();
+  await waitFor(async()=>!(await current()).game.offlineTurn);
+  assert.equal((await current()).players[0].hand.length,3);
+  assert.equal(await resumed.locator('#offline-countdown').innerText(),'');
+  await resumed.close();await b.locator('#offline-countdown').filter({hasText:'Ana está desconectado. Volta em 21s'}).waitFor();
+  now+=21000;await b.locator('.action-notice').filter({hasText:'Ana desconectado: jogada automática'}).waitFor();
+  assert.equal((await current()).game.turnPlayerId,before.players[1].id);
+  await b.screenshot({path:'/tmp/offline-turn-mobile.png'});
+});

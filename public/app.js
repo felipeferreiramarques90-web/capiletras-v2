@@ -101,7 +101,7 @@ import { createSound } from './audio/sound.js';
   function advanceNotice() {
     activeNotice = noticeQueue.shift() || null;
     const element = $('.table-notice');
-    if (element) element.textContent = activeNotice || room?.notice || '';
+    if (element) element.querySelector('.action-notice').textContent = activeNotice || room?.notice || '';
     noticeTimer = activeNotice ? setTimeout(advanceNotice, room.config.actionNoticeMs) : null;
   }
   function captureNotice(previous, state) {
@@ -238,6 +238,7 @@ import { createSound } from './audio/sound.js';
     if (opponents) opponents.style.setProperty('--opponent-count', opponents.dataset.count);
     renderChallenge();
     updateVictoryClock();
+    updateOfflineClock();
   }
 
   function home() {
@@ -339,7 +340,7 @@ import { createSound } from './audio/sound.js';
       <div class="opponents" data-count="${ordered.length}">${ordered.map((p) => `<div data-player-id="${escape(p.id)}" class="opponent ${p.id === game.turnPlayerId ? 'active' : ''} ${!p.connected ? 'offline-player' : ''}"><button type="button" class="avatar-target" data-avatar-name="${escape(p.name)}" aria-label="${escape(p.name)}, ${p.cardCount} cartas${!p.connected ? ', desconectado' : ''}">${avatar(p)}${!p.connected ? '<span class="avatar-offline" aria-label="Desconectado">·</span>' : ''}</button><small class="avatar-count"><svg class="count-cards-icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="2" width="11" height="14" rx="2"/><rect x="7" y="5" width="11" height="14" rx="2"/></svg><span>${p.cardCount}</span></small></div>`).join('')}</div>
       ${game.paused && !game.challenge && !game.pendingVictory && isHost() ? `<div class="paused-actions"><button class="text-button" data-action="end" ${disabled(!canAct())}>Encerrar partida e voltar à sala →</button></div>` : ''}
       <section class="table-felt" aria-label="Centro da mesa">${game.pendingVictory && !game.challenge ? `<section class="pending-victory" aria-label="Vitória pendente"><p id="victory-countdown" role="status"></p>${game.pendingVictory.playerId !== room.meId ? `<button class="button primary" data-action="accept-victory" ${disabled(!canAct() || !game.pendingVictory.canAccept)}>Aceito a palavra</button>` : '<small>Aguardando os outros jogadores.</small>'}</section>` : ''}
-        <div class="table-center"><div class="word-area">${wordHeading(current)}<div class="word-display ${game.word ? '' : 'word-empty'}" aria-label="Palavra atual: ${escape(game.word || 'vazia')}">${game.word ? escape(game.word) : 'A primeira letra é com você.'}</div><div class="table-feedback"><p class="table-notice" role="status">${escape(activeNotice || room.notice)}</p><p class="table-state" id="table-state" role="status">${game.letterDebt.count ? `<span class="debt-state">${escape(room.players.find((p) => p.id === game.letterDebt.playerId)?.name)} deve ${game.letterDebt.count} letra${game.letterDebt.count === 1 ? '' : 's'}</span>` : ''}${game.letterDebt.count && game.blockedLetter ? ' · ' : ''}${game.blockedLetter ? `<span class="block-state">Letra bloqueada: ${escape(game.blockedLetter)}</span>` : ''}</p></div>${game.extraTurns.length ? `<p class="extra-turn-notice">2x ativo · retorno para ${escape(room.players.find((p) => p.id === game.extraTurns.at(-1))?.name)}</p>` : ''}</div></div>
+        <div class="table-center"><div class="word-area">${wordHeading(current)}<div class="word-display ${game.word ? '' : 'word-empty'}" aria-label="Palavra atual: ${escape(game.word || 'vazia')}">${game.word ? escape(game.word) : 'A primeira letra é com você.'}</div><div class="table-feedback"><p class="table-notice" role="status"><span class="action-notice">${escape(activeNotice || room.notice)}</span><span id="offline-countdown" class="offline-countdown"></span></p><p class="table-state" id="table-state" role="status">${game.letterDebt.count ? `<span class="debt-state">${escape(room.players.find((p) => p.id === game.letterDebt.playerId)?.name)} deve ${game.letterDebt.count} letra${game.letterDebt.count === 1 ? '' : 's'}</span>` : ''}${game.letterDebt.count && game.blockedLetter ? ' · ' : ''}${game.blockedLetter ? `<span class="block-state">Letra bloqueada: ${escape(game.blockedLetter)}</span>` : ''}</p></div>${game.extraTurns.length ? `<p class="extra-turn-notice">2x ativo · retorno para ${escape(room.players.find((p) => p.id === game.extraTurns.at(-1))?.name)}</p>` : ''}</div></div>
         <div class="table-controls"><button class="draw-pile ${game.canDraw ? 'available' : ''}" data-action="draw" ${disabled(!game.canDraw || !canAct())} aria-label="Comprar uma carta. ${game.deckCount} cartas na pilha, ${game.discardCount} para reembaralhar."><span class="deck-back card-back" aria-hidden="true">${capybaraSvg()}<span class="deck-count">${game.deckCount}</span></span><span class="draw-remaining ${game.turnPlayerId === room.meId ? 'own-draws' : ''}" aria-label="${game.drawsRemaining} compras restantes"><span aria-hidden="true">🂠</span> x ${game.drawsRemaining}</span></button><div class="challenge-table-actions"><button class="button challenge-button" data-action="challenge" aria-describedby="table-state" ${disabled(!canAct() || Boolean(game.challenge) || !game.canChallengeWithDebt)}>DUVIDAR</button>${game.challenge ? '<button class="text-button" data-action="challenge-view">Acompanhar desafio →</button>' : ''}</div></div>
       </section>
       <section class="hand-section" aria-label="Sua mão"><div class="hand-heading"><h2>Sua mão <span>${room.hand.length} carta${room.hand.length === 1 ? '' : 's'}</span></h2>${game.canSkipTurn && canAct() ? '<button class="button lose-button skip-button hand-skip-button" data-action="skip">Não consigo jogar <span aria-hidden="true">↺</span></button>' : ''}</div>
@@ -652,6 +653,14 @@ import { createSound } from './audio/sound.js';
 
 
   const challengeNow = () => Date.now() + serverClockOffset;
+  function updateOfflineClock() {
+    const target = $('#offline-countdown'), timer = room?.game?.offlineTurn;
+    if (!target) return;
+    const player = room.players.find(p => p.id === timer?.playerId);
+    target.textContent = timer?.deadline != null && !room.game.challenge && !room.game.pendingVictory
+      ? `${player?.name || 'Jogador'} está desconectado. Volta em ${Math.max(0, Math.ceil((timer.deadline - Date.now() - serverClockOffset) / 1000))}s` : '';
+  }
+
   function updateVictoryClock() {
     const pending = room?.game?.pendingVictory;
     const counter = $('#victory-countdown');
@@ -776,6 +785,7 @@ import { createSound } from './audio/sound.js';
   setTimeout(function tickChallengeClock() {
     updateChallengeClock();
     updateVictoryClock();
+    updateOfflineClock();
     setTimeout(tickChallengeClock, deckInfo?.challenge.tickMs || 1000);
   }, 1000);
 

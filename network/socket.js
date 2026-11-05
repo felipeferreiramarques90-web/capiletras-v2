@@ -3,9 +3,10 @@ import {
   GameError, createRoom, joinRoom, updateSettings, startGame, drawCard, playCard,
   skipTurn, disconnectPlayer, returnToLobby, removeFromLobby, shouldDeleteRoom, updateDeckComposition, restoreDefaultComposition,
 } from '../game/game.js';
+import { settleRoom } from '../game/settle.js';
 import { CHALLENGE_RULES } from '../game/config.js';
-import { startChallenge, previewChallenge, confirmChallenge, voteChallenge, loseChallenge, resolveChallenge } from '../game/challenge.js';
-import { acceptVictory, resolvePendingVictory } from '../game/victory.js';
+import { startChallenge, previewChallenge, confirmChallenge, voteChallenge, loseChallenge } from '../game/challenge.js';
+import { acceptVictory } from '../game/victory.js';
 import { addBot, removeBot } from '../bots/players.js';
 import { defaultDictionary, defaultCommonDictionary } from '../bots/load-dictionary.js';
 import { createDictionary } from '../bots/dictionary.js';
@@ -21,7 +22,7 @@ export function registerSockets(io, storage, { cleanupIntervalMs = 60_000, rando
   const owners = new Map();
   const queues = new Map();
   const ownerKey = (code, id) => `${code}:${id}`;
-  const settle = (room) => resolvePendingVictory(resolveChallenge(room, nowSource(), randomSource), nowSource());
+  const settle = (room) => settleRoom(room, nowSource(), randomSource);
   let dictionary, commonDictionary;
   try { dictionary = botOptions.dictionary || dictionaryProvider(); } catch { dictionary = null; }
   const brainDictionary = dictionary || createDictionary([]);
@@ -203,7 +204,7 @@ export function registerSockets(io, storage, { cleanupIntervalMs = 60_000, rando
     sweeping = true;
     try {
       for (const candidate of await storage.listRooms()) {
-        if (!candidate.game?.challenge && !candidate.game?.pendingVictory && !candidate.players.some((p) => p.isBot)) continue;
+        if (candidate.phase !== 'playing') continue;
         await locked(candidate.code, async () => {
           const room = await storage.getRoom(candidate.code);
           if (!room) return;

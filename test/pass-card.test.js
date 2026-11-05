@@ -188,7 +188,7 @@ test('Passar letra não pode ser a última; pagamento da última carta de letra 
 test('débito JSON acompanha desconexão e só expõe informações públicas', () => {
   let room = play(fixture(), 'pass-0');
   room = disconnectPlayer(room, 'p2', 2000);
-  assert.deepEqual(room.game.letterDebt, { count: 1, playerId: 'p3' });
+  assert.deepEqual(room.game.letterDebt, { count: 1, playerId: 'p2' });
   const view = roomView(room, 'p1');
   assert.deepEqual(view.game.letterDebt, room.game.letterDebt);
   assert.ok(view.players.every((p) => !p.hand && !p.sessionId));

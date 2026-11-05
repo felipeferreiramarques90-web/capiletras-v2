@@ -190,16 +190,16 @@ test('2x como carta única exige compra sem alterar os retornos', () => {
   assert.deepEqual(room, before);
 });
 
-test('desconexão durante 2x pula o forçado ou o retorno sem perder a ordem normal', () => {
+test('desconexão durante 2x preserva o forçado e o retorno na ordem normal', () => {
   const room = play(scenario({ hands: [['A', 'B'], ['double', 'C'], ['D', 'E']], last: 'p1', turn: 1 }), 'double');
-  assert.equal(disconnectPlayer(room, 'p1', 2000).game.turnPlayerId, 'p2');
+  assert.equal(disconnectPlayer(room, 'p1', 2000).game.turnPlayerId, 'p1');
   const withoutAuthor = disconnectPlayer(room, 'p2', 2000);
-  assert.equal(play(withoutAuthor, 'A').game.turnPlayerId, 'p3');
+  assert.equal(play(withoutAuthor, 'A').game.turnPlayerId, 'p2');
   const beforeDouble = disconnectPlayer(scenario({ hands: [['A'], ['double', 'B'], ['C', 'D']], last: 'p1', turn: 1 }), 'p1', 2000);
   const skipped = play(beforeDouble, 'double');
-  assert.equal(skipped.game.turnPlayerId, 'p2');
-  assert.deepEqual(skipped.game.extraTurns, []);
-  assert.match(skipped.notice, /desconectado/);
+  assert.equal(skipped.game.turnPlayerId, 'p1');
+  assert.deepEqual(skipped.game.extraTurns, ['p2']);
+  assert.match(skipped.notice, /joga de novo/);
 });
 
 test('vencer no turno forçado do 2x encerra e limpa os retornos pendentes', () => {
